@@ -1,0 +1,72 @@
+#!/bin/sh
+# Rebuilds tests/testthat/fixtures/ (design section 15). Run from the
+# package root. Nothing in fixtures/ is edited by hand; README.md there
+# names every source and licence.
+#
+#   afl-input/        the crash-derived PDFs pdfio fuzzes with, from the git
+#                     tag pinned in src/vendor/PROVENANCE (they are in the
+#                     repository, not the release tarball)
+#   testpdfio.pdf     pdfio's own test document, from the release tarball
+#   encrypted-*.pdf   one page each, written by pdfio itself through
+#                     tools/fixtures/make-encrypted.c
+#   grdevices.pdf,    one page each from R's own devices
+#   cairo.pdf
+#
+# Requires curl, a C compiler and zlib, and Rscript.
+set -eu
+
+ROOT=$(pwd)
+OUT="$ROOT/tests/testthat/fixtures"
+PROV="$ROOT/src/vendor/PROVENANCE"
+VERSION=$(awk '/^  Version:/ {print $2}' "$PROV")
+COMMIT=$(awk '/^  Commit:/ {print $2}' "$PROV")
+URL=$(awk '/^  Archive:/ {print $2}' "$PROV")
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+mkdir -p "$OUT/afl-input"
+
+echo "==> afl-input at pdfio $COMMIT"
+curl -fsSL --retry 3 \
+  "https://api.github.com/repos/michaelrsweet/pdfio/contents/afl-input?ref=$COMMIT" |
+  sed -n 's/^ *"name": "\([^"]*\.pdf\)",$/\1/p' > "$WORK/afl"
+[ -s "$WORK/afl" ] || { echo "could not list afl-input" >&2; exit 1; }
+rm -f "$OUT"/afl-input/*.pdf
+while read -r f; do
+  curl -fsSL --retry 3 -o "$OUT/afl-input/$f" \
+    "https://raw.githubusercontent.com/michaelrsweet/pdfio/$COMMIT/afl-input/$f"
+done < "$WORK/afl"
+echo "    $(wc -l < "$WORK/afl" | tr -d ' ') files"
+
+echo "==> testpdfio.pdf from pdfio $VERSION"
+curl -fsSL --retry 3 -o "$WORK/pdfio.tar.gz" "$URL"
+tar xzf "$WORK/pdfio.tar.gz" -C "$WORK"
+cp "$WORK/pdfio-$VERSION/testfiles/testpdfio.pdf" "$OUT/testpdfio.pdf"
+
+echo "==> encrypted fixtures"
+${CC:-cc} -O1 -w -I src/vendor/pdfio -o "$WORK/make-encrypted" \
+  tools/fixtures/make-encrypted.c src/vendor/pdfio/*.c -lz -lm
+"$WORK/make-encrypted" "$OUT"
+
+echo "==> R devices"
+Rscript -e '
+out <- commandArgs(TRUE)[[1]]
+pdf(file.path(out, "grdevices.pdf"), width = 6, height = 4,
+    title = "grDevices fixture")
+plot(1:10, main = "grDevices::pdf()")
+invisible(dev.off())
+# cairo_pdf() can fail to load even where capabilities() says yes (macOS
+# without XQuartz); plot only if the device really opened.
+opened <- capabilities("cairo") && !inherits(try(
+  cairo_pdf(file.path(out, "cairo.pdf"), width = 6, height = 4),
+  silent = TRUE
+), "try-error") && names(dev.cur()) == "cairo_pdf"
+if (opened) {
+  plot(1:10, main = "grDevices::cairo_pdf()")
+  invisible(dev.off())
+} else {
+  message("    cairo_pdf() is not available here; cairo.pdf not written")
+}
+' "$OUT"
+
+ls -la "$OUT" | awk 'NR > 1 {print "    " $5 "\t" $9}'
+echo "==> done; update fixtures/README.md if the set changed"
