@@ -1,6 +1,7 @@
 # zupdf 0.0.0.9000
 
-* Development version, built stage by stage; see the roadmap.
+* First release: reads, assembles and writes PDF files through a bundled
+  copy of pdfio, with no system library beyond zlib.
 * `pdf_text_width()` measures text for layout. Four vignettes: inspecting a
   PDF, assembling PDFs, writing a report from R, and switching from
   pdftools and qpdf.

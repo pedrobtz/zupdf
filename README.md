@@ -14,7 +14,13 @@ to pixels: for that, use pdftools.
 
 ## Installation
 
-zupdf is not on CRAN yet. Install the development version with:
+Install zupdf from CRAN:
+
+``` r
+install.packages("zupdf")
+```
+
+Or the development version from GitHub:
 
 ``` r
 # install.packages("pak")
