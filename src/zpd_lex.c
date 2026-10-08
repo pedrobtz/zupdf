@@ -175,9 +175,15 @@ static int zpd_parse_number(const unsigned char *s, size_t n, double *out)
 
 zpd_tok_type zpd_lex_next(zpd_lex *lx)
 {
+    /* The token's buffer is never NULL, even for an empty name ("/"), so
+       callers can treat it as a string. */
+    if (!lx->buf) {
+        if (!(lx->buf = malloc(256)))
+            return zpd_lex_fail(lx);
+        lx->cap = 256;
+    }
     lx->len = 0;
-    if (lx->buf)
-        lx->buf[0] = '\0';
+    lx->buf[0] = '\0';
     for (;;) {
         while (lx->p < lx->end && zpd_is_space(*lx->p))
             lx->p++;
