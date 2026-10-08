@@ -3,6 +3,18 @@
 ## zupdf 0.0.0.9000
 
 - Development version, built stage by stage; see the roadmap.
+- [`pdf_page_text()`](https://pedrobtz.github.io/zupdf/reference/pdf_page_text.md)
+  extracts each page’s text in reading order or stream order, through
+  ToUnicode maps, font encodings and Form XObjects, with U+FFFD and a
+  count for characters no font maps.
+  [`pdf_page_tokens()`](https://pedrobtz.github.io/zupdf/reference/pdf_page_tokens.md)
+  lists a content stream’s tokens.
+- [`pdf_font_table()`](https://pedrobtz.github.io/zupdf/reference/pdf_font_table.md)
+  lists the fonts;
+  [`pdf_page_images()`](https://pedrobtz.github.io/zupdf/reference/pdf_page_images.md)
+  a page’s images;
+  [`pdf_image()`](https://pedrobtz.github.io/zupdf/reference/pdf_image.md)
+  reads an image’s samples, or a `nativeRaster` for 8-bit RGB and grey.
 - [`pdf_objects()`](https://pedrobtz.github.io/zupdf/reference/pdf_objects.md)
   lists every object;
   [`pdf_object()`](https://pedrobtz.github.io/zupdf/reference/pdf_object.md)

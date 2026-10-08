@@ -29,6 +29,10 @@ library(zupdf)
 
 - [`pdf_close()`](https://pedrobtz.github.io/zupdf/reference/pdf_close.md)
   : Close a PDF file
+- [`pdf_font_table()`](https://pedrobtz.github.io/zupdf/reference/pdf_font_table.md)
+  : Fonts in a file
+- [`pdf_image()`](https://pedrobtz.github.io/zupdf/reference/pdf_image.md)
+  : One image's samples
 - [`pdf_meta()`](https://pedrobtz.github.io/zupdf/reference/pdf_meta.md)
   : Document metadata
 - [`pdf_object()`](https://pedrobtz.github.io/zupdf/reference/pdf_object.md)
@@ -37,6 +41,12 @@ library(zupdf)
   : The object table
 - [`pdf_open()`](https://pedrobtz.github.io/zupdf/reference/pdf_open.md)
   : Open a PDF file
+- [`pdf_page_images()`](https://pedrobtz.github.io/zupdf/reference/pdf_page_images.md)
+  : Images on a page
+- [`pdf_page_text()`](https://pedrobtz.github.io/zupdf/reference/pdf_page_text.md)
+  : Text on pages
+- [`pdf_page_tokens()`](https://pedrobtz.github.io/zupdf/reference/pdf_page_tokens.md)
+  : Content stream tokens
 - [`pdf_pages()`](https://pedrobtz.github.io/zupdf/reference/pdf_pages.md)
   : Page sizes and rotation
 - [`pdf_stream()`](https://pedrobtz.github.io/zupdf/reference/pdf_stream.md)
