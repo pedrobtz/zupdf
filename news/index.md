@@ -3,6 +3,28 @@
 ## zupdf 0.0.0.9000
 
 - Development version, built stage by stage; see the roadmap.
+- A writer:
+  [`pdf_new()`](https://pedrobtz.github.io/zupdf/reference/pdf_new.md)
+  starts a file,
+  [`pdf_page_new()`](https://pedrobtz.github.io/zupdf/reference/pdf_page_new.md)
+  and
+  [`pdf_page_end()`](https://pedrobtz.github.io/zupdf/reference/pdf_page_new.md)
+  add pages,
+  [`pdf_draw_text()`](https://pedrobtz.github.io/zupdf/reference/pdf_draw_text.md),
+  [`pdf_draw()`](https://pedrobtz.github.io/zupdf/reference/pdf_draw.md)
+  and
+  [`pdf_draw_image()`](https://pedrobtz.github.io/zupdf/reference/pdf_draw_image.md)
+  draw text, paths and images,
+  [`pdf_font()`](https://pedrobtz.github.io/zupdf/reference/pdf_font.md)
+  and
+  [`pdf_image_new()`](https://pedrobtz.github.io/zupdf/reference/pdf_image_new.md)
+  make fonts (base-14 or embedded TrueType/OpenType) and images (PNG,
+  JPEG or R images), and
+  [`pdf_save()`](https://pedrobtz.github.io/zupdf/reference/pdf_save.md)
+  returns or writes the bytes. `deterministic = TRUE` makes the output
+  reproducible.
+  [`pdf_paper()`](https://pedrobtz.github.io/zupdf/reference/pdf_paper.md)
+  gives paper sizes.
 - [`pdf_page_text()`](https://pedrobtz.github.io/zupdf/reference/pdf_page_text.md)
   extracts each page’s text in reading order or stream order, through
   ToUnicode maps, font encodings and Form XObjects, with U+FFFD and a

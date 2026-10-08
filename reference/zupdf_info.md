@@ -37,7 +37,7 @@ A list of class `zupdf_info` with elements:
 zupdf_info()
 #> <zupdf_info>
 #> pdfio:       1.6.5
-#> patches:     0001-visibility-override, 0002-no-stdio, 0003-date-buffer, 0004-undefined-behaviour
+#> patches:     0001-visibility-override, 0002-no-stdio, 0003-date-buffer, 0004-undefined-behaviour, 0005-unsigned-shifts, 0010-ttf-callbacks
 #> zlib:        1.3
 #> absent:      lzw, gif, object_streams, page_accessors, windows_unicode_paths
 #> max_size:    1073741824 bytes
