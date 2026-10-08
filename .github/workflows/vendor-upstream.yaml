@@ -1,0 +1,28 @@
+# Watch pdfio for releases, from the shared reusable workflow in
+# pedrobtz/r-actions.
+#
+# vendor.yaml guards against drift; this guards against staleness. It is how
+# the 1.7.0 tag is noticed (design D12): the pin moves in its own pull
+# request through tools/update-pdfio, and the 1.7.0-only features switch on.
+# It never fails a check; it opens an issue.
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+name: vendor-upstream.yaml
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  pdfio:
+    uses: pedrobtz/r-actions/.github/workflows/vendor-upstream.yml@v1
+    permissions:
+      contents: read
+      issues: write
+    with:
+      upstream-repo: michaelrsweet/pdfio
+      current-version: awk '/^  Version:/ { print $2 }' src/vendor/PROVENANCE
+      tag-pattern: '^v[0-9]+\.[0-9]+\.[0-9]+$'

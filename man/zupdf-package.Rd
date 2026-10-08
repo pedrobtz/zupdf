@@ -25,5 +25,10 @@ Authors:
   \item Pedro Baltazar \email{pedrobtz@gmail.com} [copyright holder]
 }
 
+Other contributors:
+\itemize{
+  \item Michael R Sweet (pdfio and ttf, bundled in src/vendor/pdfio) [copyright holder]
+}
+
 }
 \keyword{internal}

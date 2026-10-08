@@ -1,0 +1,28 @@
+The zupdf package bundles a copy of the pdfio library and its ttf library.
+zupdf is distributed under the MIT license and pdfio under the Apache
+License, Version 2.0, with exceptions. The two licences apply to their
+respective files; the package as a whole is not MIT-licensed.
+
+
+zupdf
+=====
+
+Copyright (c) 2026 Pedro Baltazar
+
+Covers everything in the package except src/vendor/. Full text in
+LICENSE.md in the source repository; CRAN's YEAR/COPYRIGHT HOLDER form is
+in LICENSE.
+
+
+pdfio and ttf
+=============
+
+Bundled in src/vendor/pdfio/.
+
+Copyright 2021-2026 Michael R Sweet (pdfio); 2018-2025 Michael R Sweet (ttf).
+
+Apache License, Version 2.0, with the exceptions in src/vendor/pdfio/NOTICE.
+Full text in src/vendor/pdfio/LICENSE; the notice is reproduced in
+inst/COPYRIGHTS. Upstream is https://github.com/michaelrsweet/pdfio, and
+the pinned release, its commit, its checksum, the import date and the local
+patches are recorded in src/vendor/PROVENANCE.

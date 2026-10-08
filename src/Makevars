@@ -2,11 +2,37 @@
 # src/*.c on its own and $(wildcard) would cost SystemRequirements: GNU make.
 # No -W overrides either; CRAN rejects them. There is no Makevars.win: R on
 # Windows uses this file when that one is absent, which keeps the two from
-# drifting. See .agents/design.md section 14.
+# drifting, and Rtools provides zlib. See .agents/design.md section 14.
 #
 # $(C_VISIBILITY) hides every symbol but R_init_zupdf, which init.c marks
-# attribute_visible.
+# attribute_visible. pdfio marks its own API visibility("default"); patch
+# 0001 lets _PDFIO_PUBLIC and _PDFIO_PRIVATE be defined empty here so that
+# it stays hidden too, and patch 0002's PDFIO_NO_STDIO leaves out its stdio
+# writes (tools/check-symbols checks both).
+PKG_CPPFLAGS = -I vendor/pdfio -DPDFIO_NO_STDIO -D_PDFIO_PUBLIC= -D_PDFIO_PRIVATE=
 PKG_CFLAGS = $(C_VISIBILITY)
+PKG_LIBS = -lz
+
+PDFIO = \
+	vendor/pdfio/pdfio-aes.o \
+	vendor/pdfio/pdfio-array.o \
+	vendor/pdfio/pdfio-common.o \
+	vendor/pdfio/pdfio-content.o \
+	vendor/pdfio/pdfio-crypto.o \
+	vendor/pdfio/pdfio-dict.o \
+	vendor/pdfio/pdfio-file.o \
+	vendor/pdfio/pdfio-md5.o \
+	vendor/pdfio/pdfio-object.o \
+	vendor/pdfio/pdfio-page.o \
+	vendor/pdfio/pdfio-rc4.o \
+	vendor/pdfio/pdfio-sha256.o \
+	vendor/pdfio/pdfio-stream.o \
+	vendor/pdfio/pdfio-string.o \
+	vendor/pdfio/pdfio-token.o \
+	vendor/pdfio/pdfio-value.o \
+	vendor/pdfio/ttf.o
 
 OBJECTS = \
-	init.o
+	init.o \
+	zpd_info.o \
+	$(PDFIO)

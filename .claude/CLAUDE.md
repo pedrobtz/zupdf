@@ -13,7 +13,7 @@ It is a member of the `zu*` family (sibling checkouts in `../`). `zucbor` and `z
 
 ## Current state
 
-**2026-10-08: nothing is implemented.** The repository is the `usethis` skeleton from `create-pkg.sh -c` (template `DESCRIPTION`, an empty `src/zupdf.c`, a placeholder test) plus `.agents/` and this file. Stage 0 vendors pdfio **1.6.5** (upstream's latest release on 2026-10-08; the RFC was written against unreleased 1.7.0) and `ttf`, proves the build on three platforms with zlib, and decides the patch set and the licence field. No tracking issues exist yet; Stage 0 opens them.
+**2026-10-08: Stage 0 done.** pdfio 1.6.5 is vendored in `src/vendor/pdfio/` (its ttf library ships in the same tree) with three patches (`0001-visibility-override`, `0002-no-stdio`, `0003-date-buffer`), `tools/update-pdfio`, `tools/verify-vendor` and `tools/check-symbols` exist and have been seen to fail, and `zupdf_info()` is the only export. The test helpers, the condition hierarchy and the tracking issues (#1 parent, #2–#10 stages) exist. Next: Stage 1, `pdf_open()`.
 
 Update this paragraph at the end of every stage.
 
@@ -53,7 +53,7 @@ zufast is not on CRAN: install it from `../zufast` or `pak::pak("pedrobtz/zufast
 Gate scripts, each arriving at the roadmap stage named:
 
 ```sh
-tools/update-pdfio <tag>                   # Stage 0: re-vendor pdfio + ttf, apply tools/patches/, write PROVENANCE
+tools/update-pdfio <version>               # Stage 0: re-vendor pdfio (ttf included), apply tools/patches/, write PROVENANCE
 tools/verify-vendor                        # Stage 0: trees == tags + patches; PROVENANCE agrees   (CI: vendor)
 R CMD INSTALL -l <lib> . && tools/check-symbols <lib>/zupdf/libs/zupdf.so
                                            # Stage 0: only R_init_zupdf exported; no stdio/abort/exit/assert/rand
@@ -81,8 +81,8 @@ src/          init.c                          registration only
               zpd_text.c                      the pdf2text port (§8): matrices, encodings, CMaps, font cache
               zpd_writer.c                    pdf_writer and pdf_page handles; output callback; determinism
               zpd_r.c                         .Call glue; statuses by name
-              Makevars                        hand-listed objects; -I vendor/pdfio -I vendor/ttf -DPDFIO_STATIC; -lz
-              vendor/pdfio/, vendor/ttf/      byte-identical at pinned tags, plus tools/patches/
+              Makevars                        hand-listed objects; -I vendor/pdfio -DPDFIO_NO_STDIO -D_PDFIO_PUBLIC= -D_PDFIO_PRIVATE=; -lz
+              vendor/pdfio/                   pdfio 1.6.5 and its ttf, byte-identical to the tarball plus tools/patches/
               vendor/PROVENANCE
 tools/        update-pdfio, verify-vendor, check-symbols, patches/, file lists, gate scripts
 fuzz/         fuzz_pdf.c, fuzz_canary.c (not in the tarball)
@@ -166,13 +166,13 @@ This file lives in `.claude/`, not the package root, because pkgdown renders eve
 
 ## Vendored native code
 
-pdfio (Apache-2.0 with an exception permitting linking against GPL2-only software) pinned at **v1.6.5**, upstream's latest release on 2026-10-08, and its `ttf` library (same licence) at the commit pdfio's submodule names for that tag, in `src/vendor/pdfio/` and `src/vendor/ttf/` with provenance in `src/vendor/PROVENANCE`. Re-vendor with `tools/update-pdfio <tag>`, never by hand. The `License:` field of the package is design §18 Q7, decided at Stage 0 (the family precedent, zuhtml and data.sketches, is `MIT + file LICENSE` with `Copyright: file inst/COPYRIGHTS`).
+pdfio (Apache-2.0 with an exception permitting linking against GPL2-only software) pinned at **v1.6.5**, upstream's latest release on 2026-10-08, with its `ttf` library (same licence), which ships inside pdfio's own release tarball from 1.6.0, in `src/vendor/pdfio/` with provenance in `src/vendor/PROVENANCE`. Re-vendor with `tools/update-pdfio <version>`, never by hand. The `License:` field is `MIT + file LICENSE` with `Copyright: file inst/COPYRIGHTS` (design D15).
 
 - Pin a stable upstream release, never `master` or a release candidate; the RFC's reading of `master` (1.7.0) is recorded in design §9 as what arrives when that tag exists. 1.6.5 carries the AES fix GHSA-527h-2p2v-g388, the floor on the pin.
 - Record the tags, the commits, the tarball checksums, the file lists, every patch with its reason, and the compiler warnings seen, in `PROVENANCE`; keep `tools/update-pdfio` mechanical.
 - Keep each library's `LICENSE` and `NOTICE` in the vendor tree; reproduce both `NOTICE` texts with the exception in `inst/COPYRIGHTS`; declare Michael R Sweet as `cph` in `Authors@R` with a comment naming pdfio and ttf; keep `LICENSE.note` current.
 - Only the library sources, headers and licence files are vendored: no examples (the `pdf2text.c` algorithm is ported into `src/zpd_text.c` as project code, D10), no tests, `Makefile.in`, IDE projects or documentation. `HAVE_LIBPNG` and `HAVE_LIBWEBP` are never defined.
-- The patch set (design D4): the default error callback's `stderr` write, `copy_png()`'s `fputs(stderr)`, the `DEBUG` value printers, `ttf-cache.c`'s `fprintf(stderr)` where the pin has it, and whatever Stage 0's strict build demands. Every patch identifier is listed in `zupdf_info()` and asserted in `test-info.R`.
+- The patch set (design D4): `0001-visibility-override` (pdfio marks its API `visibility("default")`; `Makevars` defines `_PDFIO_PUBLIC` and `_PDFIO_PRIVATE` empty so only `R_init_zupdf` is exported) and `0002-no-stdio` (`PDFIO_NO_STDIO` leaves out the default error callback's `stderr` write, ttf's `errorf()` fallback and the three debug printers, which are compiled in every build). `copy_png()`'s `fputs` is under `HAVE_LIBPNG` and never compiled. When the pin moves to 1.7.0, `ttf-cache.c` needs the same treatment. `0003-date-buffer` enlarges two date buffers that gcc's `-Wformat-truncation` flagged. Each patch adds a modification notice to the files it changes (Apache-2.0 §4(b)); `verify-vendor` checks it. Every patch identifier is listed in `zupdf_info()` and asserted in `test-info.R`.
 - `vendor.yaml` runs `tools/verify-vendor` and `tools/check-symbols` on every push, so an upstream bump cannot bring a forbidden symbol back.
 - zlib is linked from the system (`PKG_LIBS = -lz`), never vendored: R requires it on every CRAN platform.
 

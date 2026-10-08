@@ -74,13 +74,13 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 0 — Vendor trees, patch set, update and verify tools, first build · L
 
-**Status:** not started.
+**Status:** done, 2026-10-08. One deviation: the parent issue is not yet on the board, because `stage-cards.sh` lives in `pedrobtz/packages` and needs `zupdf:1` added there.
 
 **Goal:** pdfio 1.6.5 and its `ttf` library compile into `zupdf.so` on Linux, macOS and Windows against each platform's zlib, byte-identical to their tags plus a recorded patch set, with no forbidden symbol, and the package checks 0/0/0 before any `pdf_*` function exists.
 
 **Do**
 
-- **Re-check upstream first**: the latest pdfio release on 2026-10-08 is v1.6.5 and there is no 1.7.0 tag; if that has changed, pin 1.7.0 and strike the 1.6.5 caveats from design §9. Record the ttf commit pdfio's submodule points at for the chosen tag.
+- **Re-check upstream first**: the latest pdfio release on 2026-10-08 is v1.6.5 and there is no 1.7.0 tag; if that has changed, pin 1.7.0 and strike the 1.6.5 caveats from design §9.
 - **Decide §18 Q7** (the `License:` field) and write `LICENSE`, `LICENSE.md`, `inst/COPYRIGHTS` (both `NOTICE` files with their exception text) and `LICENSE.note` accordingly; `Authors@R` Pedro Baltazar (`aut`, `cre`, `cph`) plus Michael R Sweet as `cph` with a comment naming pdfio and ttf (re-check the vendored file headers).
 - `DESCRIPTION`: `Title: Read, Assemble and Write 'PDF' Files`; a `Description` naming pdfio, what is read, assembled and written, and that nothing is rendered; `Depends: R (>= 4.1)`; `LinkingTo: zufast (>= 0.1.0)`; `Remotes: pedrobtz/zufast@main` (development only); `Suggests: pdftools, qpdf, jpeg, png, testthat (>= 3.0.0), withr, knitr, rmarkdown`; `VignetteBuilder: knitr`; `Language: en-GB`; `Config/roxygen2/version: 8.1.0`; `URL`, `BugReports`; `Config/testthat/edition: 3`, no `parallel`; empty `SystemRequirements`.
 - `tools/update-pdfio <pdfio-tag>`: fetch the pdfio release tarball and the ttf tree at the submodule commit, record SHA-256s, copy the listed files (`tools/pdfio-files.txt`, `tools/ttf-files.txt`: the library sources and headers, `LICENSE`, `NOTICE`; no examples, tests, `Makefile.in`, IDE projects or documentation) into `src/vendor/pdfio/` and `src/vendor/ttf/`, apply `tools/patches/*.patch` in order, write `src/vendor/PROVENANCE`. `tools/verify-vendor` re-derives both trees and fails on any difference; seen to fail on a one-byte edit, a stray file and a dropped patch.
@@ -106,6 +106,18 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 **Trap:** if a platform fights the build, fix configuration in `Makevars` or a project-owned header first; a vendor patch is the last resort, through `tools/patches/` and `PROVENANCE`.
 
 **Not this stage:** any `pdf_*` function beyond `zupdf_info()`.
+
+**What actually happened**
+
+- **One tree, not two.** From 1.6.0, ttf ships inside pdfio's own release tarball (`ttf.c`, `ttf.h`), so there is one vendor tree, `src/vendor/pdfio/`, one pin and one checksum. Design D1 and §9 amended.
+- **The patch set is three patches**, each adding a modification notice. `0003-date-buffer` came from the first gcc run in CI (`-Wformat-truncation` on two date buffers); the other two: `0001-visibility-override` (pdfio marks its API `visibility("default")`, which would export it past `$(C_VISIBILITY)`; not foreseen by the design) and `0002-no-stdio` (`PDFIO_NO_STDIO`: the default error callback, ttf's `errorf()` fallback, and the three debug printers, which are compiled in every build, not only under `DEBUG`). `copy_png()`'s `fputs` is under `HAVE_LIBPNG` and never compiled.
+- **`check-symbols` checks exports too**: only `R_init_zupdf` may be an exported text symbol. Its canary plants both a `fprintf(stderr)` and an extra export.
+- **Warnings**: none under clang `-Wall -pedantic -Wstrict-prototypes`; `-Wextra` adds function-type casts and one null-pointer subtraction, recorded in `PROVENANCE`.
+- **§18 Q7** decided as D15 (`MIT + file LICENSE`, `Copyright: file inst/COPYRIGHTS`). **§18 Q8**: no LZW at 1.6.5.
+- **`afl-input`** is in the git tag but not in the release tarball, so Stage 1's `tools/update-fixtures` fetches it from the tag's commit. The tarball's `testfiles/` has only one PDF.
+- **The audience survey** is in design §3: of 79 CRAN packages calling pdftools or qpdf functions, 50 use only what 0.1.0 provides and 24 render or OCR.
+- `zupdf_info()` gained a self-test (`smoke_ok`) that writes a one-page PDF in memory through pdfio and zlib.
+- Test infrastructure (helpers, conditions, `minimal_pdf()`) landed first, in #11.
 
 ---
 

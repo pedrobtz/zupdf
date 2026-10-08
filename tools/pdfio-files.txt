@@ -1,0 +1,30 @@
+# Files copied from the pdfio release tarball into src/vendor/pdfio/ by
+# tools/update-pdfio, and re-derived by tools/verify-vendor. Only the library
+# sources, headers and licence files: no examples, tests, test files,
+# documentation, build systems or IDE projects (design section 9). From 1.6.0
+# the ttf library ships inside pdfio's own tree, so it is listed here too.
+LICENSE
+NOTICE
+pdfio.h
+pdfio-content.h
+pdfio-private.h
+pdfio-base-font-widths.h
+pdfio-cgats001-compat.h
+pdfio-aes.c
+pdfio-array.c
+pdfio-common.c
+pdfio-content.c
+pdfio-crypto.c
+pdfio-dict.c
+pdfio-file.c
+pdfio-md5.c
+pdfio-object.c
+pdfio-page.c
+pdfio-rc4.c
+pdfio-sha256.c
+pdfio-stream.c
+pdfio-string.c
+pdfio-token.c
+pdfio-value.c
+ttf.h
+ttf.c
