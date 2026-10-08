@@ -1,6 +1,13 @@
 # zupdf 0.0.0.9000
 
 * Development version, built stage by stage; see the roadmap.
+* `pdf_page_text()` extracts each page's text in reading order or stream
+  order, through ToUnicode maps, font encodings and Form XObjects, with
+  U+FFFD and a count for characters no font maps. `pdf_page_tokens()`
+  lists a content stream's tokens.
+* `pdf_font_table()` lists the fonts; `pdf_page_images()` a page's images;
+  `pdf_image()` reads an image's samples, or a `nativeRaster` for 8-bit RGB
+  and grey.
 * `pdf_objects()` lists every object; `pdf_object()` reads one object's
   value as R values, with marker classes for names (`pdf_name`),
   references (`pdf_ref`) and byte strings (`pdf_binary`); `pdf_stream()`

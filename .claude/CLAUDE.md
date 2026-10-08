@@ -13,7 +13,7 @@ It is a member of the `zu*` family (sibling checkouts in `../`). `zucbor` and `z
 
 ## Current state
 
-**2026-10-08: Stage 2 done.** pdfio 1.6.5 is vendored in `src/vendor/pdfio/` (its ttf library ships in the same tree) with four patches (`0001-visibility-override`, `0002-no-stdio`, `0003-date-buffer`, `0004-undefined-behaviour`); `tools/update-pdfio`, `tools/verify-vendor`, `tools/check-symbols` and `tools/update-fixtures` exist. Exported: `zupdf_info()`, `pdf_open()`, `pdf_close()`, `pdf_meta()`, `pdf_pages()`, `pdf_objects()`, `pdf_object()`, `pdf_stream()`. The design §6 value mapping works both ways (`src/zpd_value.c`, tested through the internal `zpd_value_roundtrip()`); every limit but the text walk's is in place. pdfio 1.6.5 decodes only FlateDecode. Next: Stage 3, text and images.
+**2026-10-08: Stage 3 done.** pdfio 1.6.5 is vendored in `src/vendor/pdfio/` (its ttf library ships in the same tree) with four patches (`0001-visibility-override`, `0002-no-stdio`, `0003-date-buffer`, `0004-undefined-behaviour`); `tools/update-pdfio`, `tools/verify-vendor`, `tools/check-symbols` and `tools/update-fixtures` exist. Exported readers: `zupdf_info()`, `pdf_open()`, `pdf_close()`, `pdf_meta()`, `pdf_pages()`, `pdf_objects()`, `pdf_object()`, `pdf_stream()`, `pdf_page_text()`, `pdf_page_tokens()`, `pdf_font_table()`, `pdf_page_images()`, `pdf_image()`. The text extractor (`zpd_lex.c`, `zpd_font.c`, `zpd_text.c`, design §8) is project code with its own lexer. Next: Stage 4, the writer.
 
 Update this paragraph at the end of every stage.
 
@@ -39,7 +39,8 @@ Until the first release the R API may change freely. zupdf depends on a sibling 
 Run from the package root.
 
 ```sh
-Rscript -e 'devtools::load_all()'                # compile src/ (both vendor trees) and load
+Rscript -e 'devtools::load_all()'                # compile src/ and load; after changing a header,
+                                                 # rm src/*.o first: pkgbuild does not track headers
 Rscript -e 'devtools::document()'                # roxygen -> NAMESPACE, man/
 Rscript -e 'devtools::test()'                    # full testthat suite
 Rscript -e 'devtools::test(filter = "<name>")'   # one test file
@@ -78,7 +79,9 @@ R/            open.R, meta.R, pages.R, objects.R, text.R, images.R, fonts.R,
 src/          init.c                          registration only
               zpd_file.c                      pdf_file external pointer; error and password callbacks; temp-file spill
               zpd_value.c                     pdfio values <-> R lists (§6), depth-bounded
-              zpd_text.c                      the pdf2text port (§8): matrices, encodings, CMaps, font cache
+              zpd_lex.c                       the content-stream lexer (§8), shared with pdf_page_tokens()
+              zpd_font.c, zpd_glyphs.h        fonts: ToUnicode CMaps, encodings, widths, the per-file cache
+              zpd_text.c                      the text walk (§8): graphics and text state, forms, layouts
               zpd_writer.c                    pdf_writer and pdf_page handles; output callback; determinism
               zpd_r.c                         .Call glue; statuses by name
               Makevars                        hand-listed objects; -I vendor/pdfio -DPDFIO_NO_STDIO -D_PDFIO_PUBLIC= -D_PDFIO_PRIVATE=; -lz

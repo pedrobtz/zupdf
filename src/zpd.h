@@ -36,8 +36,14 @@ typedef struct zpd_file {
     int password_asked; /* times pdfio asked; answered only the first */
     char *tmpfile;      /* a spilled temporary copy to remove, or NULL */
     unsigned char *scratch; /* a stream read's buffer until R has copied it */
+    struct zpd_font_cache *fonts; /* fonts loaded for text, by object */
+    struct zpd_text_ctx *text;    /* the text walk's memory, during a call */
     zpd_record rec;     /* what pdfio reported during the current call */
 } zpd_file;
+
+/* zpd_text.c: free the text walk's memory and the font cache. */
+void zpd_text_release(zpd_file *h);
+void zpd_fonts_release(zpd_file *h);
 
 /* The error callback (D5): records and returns, never raises. Errors stop
    pdfio, warnings let it continue, as its default callback does. */

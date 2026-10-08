@@ -175,6 +175,11 @@ zpd_unwrap <- function(
       sprintf("%s: a pdf_ref names no object in the file.", what),
       call = call
     ),
+    memory = zpd_abort(
+      "zupdf_parse_error",
+      sprintf("%s: out of memory.", what),
+      call = call
+    ),
     unsupported = zpd_invalid_argument(
       "x",
       sprintf("%s: a value has no PDF form.", what),

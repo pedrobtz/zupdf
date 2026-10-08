@@ -181,7 +181,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 3 — Text: `pdf_page_text()`, `pdf_page_tokens()`, `pdf_font_table()`, images · L
 
-**Status:** not started.
+**Status:** done, 2026-10-08.
 
 **Do**
 
@@ -193,6 +193,16 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 **Exit**
 
 - Every text fixture pinned; a 2 000-page synthetic file's `pdf_page_text(pages = 1)` runs in milliseconds; the cycle is refused with `zupdf_limit_error`.
+
+
+**What actually happened**
+
+- **`pdf2text.c` was too simple to port**: no text matrix, no ToUnicode, hex strings as UTF-16. The extractor is new project code (design §8) that keeps the example's glyph table and encodings: its own lexer (pdfio's tokenizer cannot skip inline images or keep NUL bytes), the full text state, ToUnicode CMaps, simple-font encodings with `/Differences`, Type0 two-byte codes, widths from `/Widths`, `/W` or pdfio's base-14 metrics, Type 3 font matrices.
+- **Content streams are read whole and closed before the walk**, so no pdfio stream is open while it runs; interrupts are polled between pages. Design §8 and §13.
+- **The reading layout** joins glyphs along their own direction, so rotated axis labels stay whole, and groups spans into lines by baseline.
+- **Annotation appearances are not read**; poppler reads them, which is the one systematic difference from `pdftools::pdf_text()` found on the fixtures.
+- **`pdf_font_table()`** (D13) and **`pdf_image()`, `pdf_page_images()`** are R over `pdf_object()` and `pdf_stream()`, with a C helper for the page's XObject resources and one for packing a `nativeRaster`.
+- **UBSan** (local, `-fsanitize=undefined,function`) is clean over the whole suite.
 
 ---
 

@@ -110,6 +110,8 @@ static void zpd_file_release(zpd_file *h)
     h->password = NULL;
     free(h->scratch);
     h->scratch = NULL;
+    zpd_text_release(h);
+    zpd_fonts_release(h);
 }
 
 static void zpd_file_finalize(SEXP ptr)
@@ -283,7 +285,7 @@ SEXP zupdf_meta(SEXP ptr)
 
 /* pdfio's dictionary getters do not follow indirect references; these do,
    one level, which is what the page attributes need. */
-static pdfio_dict_t *zpd_dict_dict(pdfio_dict_t *dict, const char *key)
+pdfio_dict_t *zpd_dict_dict(pdfio_dict_t *dict, const char *key)
 {
     pdfio_valtype_t t = pdfioDictGetType(dict, key);
     if (t == PDFIO_VALTYPE_DICT)
@@ -295,7 +297,7 @@ static pdfio_dict_t *zpd_dict_dict(pdfio_dict_t *dict, const char *key)
     return NULL;
 }
 
-static pdfio_array_t *zpd_dict_array(pdfio_dict_t *dict, const char *key)
+pdfio_array_t *zpd_dict_array(pdfio_dict_t *dict, const char *key)
 {
     pdfio_valtype_t t = pdfioDictGetType(dict, key);
     if (t == PDFIO_VALTYPE_ARRAY)
@@ -311,7 +313,7 @@ static pdfio_array_t *zpd_dict_array(pdfio_dict_t *dict, const char *key)
    CropBox, Rotate; PDF 2.0, 7.7.3.4): the page's own or the nearest
    ancestor's through /Parent. The walk is bounded by max_depth, which
    also stops a /Parent cycle. Sets *deep when the bound is reached. */
-static pdfio_dict_t *zpd_inherited(pdfio_dict_t *dict, const char *key,
+pdfio_dict_t *zpd_inherited(pdfio_dict_t *dict, const char *key,
                                    int max_depth, int *deep)
 {
     for (int d = 0; dict; d++) {
@@ -418,5 +420,80 @@ SEXP zupdf_pages(SEXP ptr, SEXP max_depth_)
 
     SEXP out = zpd_result(status, v, &h->rec);
     UNPROTECT(1);
+    return out;
+}
+
+/* zupdf_page_xobjects(ptr, page, max_depth): list(name, number), the
+   page's /XObject resources that are objects, for pdf_page_images(). */
+SEXP zupdf_page_xobjects(SEXP ptr, SEXP page_, SEXP max_depth)
+{
+    zpd_file *h = zpd_file_get(ptr);
+    if (!h)
+        return zpd_status("closed");
+    zpd_record_reset(&h->rec);
+    pdfio_obj_t *page = pdfioFileGetPage(h->pdf, (size_t) Rf_asInteger(page_) - 1);
+    pdfio_dict_t *dict = page ? pdfioObjGetDict(page) : NULL;
+    int deep = 0;
+    pdfio_dict_t *src = dict ? zpd_inherited(dict, "Resources", Rf_asInteger(max_depth), &deep) : NULL;
+    pdfio_dict_t *res = src ? zpd_dict_dict(src, "Resources") : NULL;
+    pdfio_dict_t *xo = res ? zpd_dict_dict(res, "XObject") : NULL;
+    size_t n = xo ? pdfioDictGetNumPairs(xo) : 0, k = 0;
+
+    const char *names[] = {"name", "number", ""};
+    SEXP v = PROTECT(Rf_mkNamed(VECSXP, names));
+    SEXP nm = Rf_allocVector(STRSXP, (R_xlen_t) n);
+    SET_VECTOR_ELT(v, 0, nm);
+    SEXP num = Rf_allocVector(REALSXP, (R_xlen_t) n);
+    SET_VECTOR_ELT(v, 1, num);
+    for (size_t i = 0; i < n; i++) {
+        const char *key = pdfioDictGetKey(xo, i);
+        if (!key || pdfioDictGetType(xo, key) != PDFIO_VALTYPE_INDIRECT)
+            continue;
+        pdfio_obj_t *obj = pdfioDictGetObj(xo, key);
+        if (!obj)
+            continue;
+        SET_STRING_ELT(nm, (R_xlen_t) k, zpd_mkchar_pdf(key, strlen(key)));
+        REAL(num)[k] = (double) pdfioObjGetNumber(obj);
+        k++;
+    }
+    SET_VECTOR_ELT(v, 0, Rf_xlengthgets(nm, (R_xlen_t) k));
+    SET_VECTOR_ELT(v, 1, Rf_xlengthgets(num, (R_xlen_t) k));
+    SEXP out = zpd_result(deep ? "max_depth" : "ok", v, &h->rec);
+    UNPROTECT(1);
+    return out;
+}
+
+/* zupdf_native_raster(bytes, width, height, channels): 8-bit gray (1) or
+   RGB (3) samples as a nativeRaster, which packs each pixel as
+   0xAABBGGRR in an int (grDevices). */
+SEXP zupdf_native_raster(SEXP bytes, SEXP width_, SEXP height_, SEXP channels_)
+{
+    int w = Rf_asInteger(width_), hgt = Rf_asInteger(height_), ch = Rf_asInteger(channels_);
+    R_xlen_t n = (R_xlen_t) w * hgt;
+    if (w <= 0 || hgt <= 0 || (ch != 1 && ch != 3) || XLENGTH(bytes) < n * ch)
+        return R_NilValue;
+    SEXP out = PROTECT(Rf_allocVector(INTSXP, n));
+    const unsigned char *p = RAW(bytes);
+    int *o = INTEGER(out);
+    for (R_xlen_t i = 0; i < n; i++) {
+        unsigned r, g, b;
+        if (ch == 1) {
+            r = g = b = p[i];
+        } else {
+            r = p[3 * i];
+            g = p[3 * i + 1];
+            b = p[3 * i + 2];
+        }
+        o[i] = (int) (0xFF000000u | (b << 16) | (g << 8) | r);
+    }
+    SEXP dim = PROTECT(Rf_allocVector(INTSXP, 2));
+    INTEGER(dim)[0] = hgt;
+    INTEGER(dim)[1] = w;
+    Rf_setAttrib(out, R_DimSymbol, dim);
+    SEXP cls = PROTECT(Rf_mkString("nativeRaster"));
+    Rf_setAttrib(out, R_ClassSymbol, cls);
+    SEXP nch = PROTECT(Rf_ScalarInteger(4));
+    Rf_setAttrib(out, Rf_install("channels"), nch);
+    UNPROTECT(4);
     return out;
 }

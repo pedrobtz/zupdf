@@ -26,6 +26,16 @@ exceptions reproduced below. The full licence text is preserved at
 src/vendor/pdfio/LICENSE and the notice at src/vendor/pdfio/NOTICE. Files
 changed by the local patches carry a notice saying so.
 
+src/zpd_glyphs.h
+----------------
+
+The glyph-name to Unicode table and the MacRoman encoding table in this
+file are taken from pdfio's examples/pdf2text.c (pdfio 1.6.5), Copyright
+(c) 2022-2025 by Michael R Sweet, under the same Apache License, Version
+2.0, with pdfio's exceptions. The table follows the Adobe Glyph List. The
+file was reorganised for zupdf (sorted for binary search, duplicates
+dropped) and carries a notice saying so.
+
 The NOTICE file of pdfio reads:
 
 PDFio - PDF Read/Write Library
