@@ -147,6 +147,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 - **Encrypted fixtures** come from `tools/fixtures/make-encrypted.c`, compiled by `tools/update-fixtures` against the vendored pdfio (pdfio's own `testpdfio` writes 5 MB files, embedding a CJK font). They exist now, not at Stage 5.
 - **All 23 `afl-input` cases open and read** at 1.6.5, and nothing reaches stderr (a child-process test, `skip_heavy()`).
 - **Strings**: pdfio converts UTF-16BE to UTF-8 as it reads; zupdf keeps valid UTF-8 and reads anything else as PDFDocEncoding (`src/zpd_string.c`), which design §6 already called for at Stage 2.
+- **UBSan in CI found undefined behaviour in pdfio**: calls through function pointers of another type (the token, crypt and comparator callbacks) and a `memcpy()` from NULL. Patch `0004-undefined-behaviour` fixes them, with the MD5 code's pointer arithmetic on NULL.
 - **`pdf_pages()`** follows inherited `MediaBox`, `CropBox` and `Rotate` through `/Parent` under `max_depth` (a `/Parent` cycle is a `zupdf_limit_error`), normalises boxes and rotation, and clips the crop box to the media box. pdfio's dictionary getters do not follow indirect references, so the walk resolves them itself.
 
 ---

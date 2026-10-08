@@ -6,6 +6,8 @@
 // Licensed under Apache License v2.0.  See the file "LICENSE" for more
 // information.
 //
+// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -406,7 +408,7 @@ pdfioStreamGetToken(
     return (false);
 
   // Read using the token engine...
-  _pdfioTokenInit(&tb, st->pdf, (_pdfio_tconsume_cb_t)pdfioStreamConsume, (_pdfio_tpeek_cb_t)pdfioStreamPeek, st);
+  _pdfioTokenInit(&tb, st->pdf, _pdfioStreamConsumeCB, _pdfioStreamPeekCB, st);
 
   ret = _pdfioTokenRead(&tb, buffer, bufsize);
   _pdfioTokenFlush(&tb);
@@ -795,7 +797,8 @@ pdfioStreamRead(
   // Loop until we have the requested bytes or hit the end of the stream...
   while ((remaining = (size_t)(st->bufend - st->bufptr)) < bytes)
   {
-    memcpy(bufptr, st->bufptr, remaining);
+    if (remaining > 0)
+      memcpy(bufptr, st->bufptr, remaining);
     bufptr += remaining;
     bytes -= remaining;
 
@@ -1414,4 +1417,25 @@ zstrerror(int error)			// I - Error number
     default :
         return ("Unknown error.");
   }
+}
+
+
+//
+// '_pdfioStreamConsumeCB()', '_pdfioStreamPeekCB()' - Token callbacks with
+//                                                   the callback types.
+//
+
+ssize_t					// O - Bytes consumed or -1 on error
+_pdfioStreamConsumeCB(void   *data,	// I - Stream
+                      size_t bytes)	// I - Number of bytes to consume
+{
+  return (pdfioStreamConsume((pdfio_stream_t *)data, bytes) ? (ssize_t)bytes : -1);
+}
+
+ssize_t					// O - Bytes returned
+_pdfioStreamPeekCB(void   *data,	// I - Stream
+                   void   *buffer,	// I - Buffer
+                   size_t bytes)	// I - Size of buffer
+{
+  return (pdfioStreamPeek((pdfio_stream_t *)data, buffer, bytes));
 }

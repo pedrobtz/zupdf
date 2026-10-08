@@ -1,0 +1,413 @@
+diff -ruN a/pdfio-common.c b/pdfio-common.c
+--- a/pdfio-common.c
++++ b/pdfio-common.c
+@@ -8,6 +8,8 @@
+ //
+ // Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -584,4 +586,25 @@
+   }
+ 
+   return (true);
++}
++
++
++//
++// '_pdfioFileConsumeCB()', '_pdfioFilePeekCB()' - Token callbacks with the
++//                                               callback types.
++//
++
++ssize_t					// O - Bytes consumed or -1 on EOF
++_pdfioFileConsumeCB(void   *data,	// I - PDF file
++                    size_t bytes)	// I - Bytes to consume
++{
++  return (_pdfioFileConsume((pdfio_file_t *)data, bytes) ? (ssize_t)bytes : -1);
++}
++
++ssize_t					// O - Number of bytes returned
++_pdfioFilePeekCB(void   *data,		// I - PDF file
++                 void   *buffer,	// I - Buffer
++                 size_t bytes)		// I - Size of buffer
++{
++  return (_pdfioFilePeek((pdfio_file_t *)data, buffer, bytes));
+ }
+diff -ruN a/pdfio-crypto.c b/pdfio-crypto.c
+--- a/pdfio-crypto.c
++++ b/pdfio-crypto.c
+@@ -6,6 +6,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ #if _WIN32
+@@ -398,6 +400,30 @@
+ 
+ 
+ //
++// 'rc4_crypt_cb()', 'aes_decrypt_cb()', 'aes_encrypt_cb()' - The crypto
++//                    functions with the callback type.
++//
++
++static size_t
++rc4_crypt_cb(_pdfio_crypto_ctx_t *ctx, uint8_t *outbuffer, const uint8_t *inbuffer, size_t len, bool last)
++{
++  return (_pdfioCryptoRC4Crypt(&ctx->rc4, outbuffer, inbuffer, len, last));
++}
++
++static size_t
++aes_decrypt_cb(_pdfio_crypto_ctx_t *ctx, uint8_t *outbuffer, const uint8_t *inbuffer, size_t len, bool last)
++{
++  return (_pdfioCryptoAESDecrypt(&ctx->aes, outbuffer, inbuffer, len, last));
++}
++
++static size_t
++aes_encrypt_cb(_pdfio_crypto_ctx_t *ctx, uint8_t *outbuffer, const uint8_t *inbuffer, size_t len, bool last)
++{
++  return (_pdfioCryptoAESEncrypt(&ctx->aes, outbuffer, inbuffer, len, last));
++}
++
++
++//
+ // '_pdfioCryptoMakeReader()' - Setup a cryptographic context and callback for reading.
+ //
+ 
+@@ -447,7 +473,7 @@
+         // Initialize the RC4 context using 80 bits of the digest...
+ 	_pdfioCryptoRC4Init(&ctx->rc4, digest, 10);
+ 	*ivlen = 0;
+-	return ((_pdfio_crypto_cb_t)_pdfioCryptoRC4Crypt);
++	return (rc4_crypt_cb);
+ 
+     case PDFIO_ENCRYPTION_AES_128 :
+         if (*ivlen < 16)
+@@ -482,13 +508,13 @@
+         {
+ 	  *ivlen = 0;
+           _pdfioCryptoRC4Init(&ctx->rc4, digest, sizeof(digest));
+-          return ((_pdfio_crypto_cb_t)_pdfioCryptoRC4Crypt);
++          return (rc4_crypt_cb);
+ 	}
+ 	else
+ 	{
+ 	  *ivlen = 16;
+           _pdfioCryptoAESInit(&ctx->aes, digest, sizeof(digest), iv);
+-          return ((_pdfio_crypto_cb_t)_pdfioCryptoAESDecrypt);
++          return (aes_decrypt_cb);
+ 	}
+   }
+ }
+@@ -548,14 +574,14 @@
+         {
+ 	  *ivlen = 0;
+           _pdfioCryptoRC4Init(&ctx->rc4, digest, sizeof(digest));
+-          return ((_pdfio_crypto_cb_t)_pdfioCryptoRC4Crypt);
++          return (rc4_crypt_cb);
+ 	}
+ 	else
+ 	{
+ 	  *ivlen = 16;
+ 	  _pdfioCryptoMakeRandom(iv, *ivlen);
+           _pdfioCryptoAESInit(&ctx->aes, digest, sizeof(digest), iv);
+-          return ((_pdfio_crypto_cb_t)_pdfioCryptoAESEncrypt);
++          return (aes_encrypt_cb);
+ 	}
+   }
+ }
+diff -ruN a/pdfio-dict.c b/pdfio-dict.c
+--- a/pdfio-dict.c
++++ b/pdfio-dict.c
+@@ -8,6 +8,8 @@
+ //
+ // Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -16,7 +18,7 @@
+ // Local functions...
+ //
+ 
+-static int	compare_pairs(_pdfio_pair_t *a, _pdfio_pair_t *b);
++static int	compare_pairs(const void *a, const void *b);
+ 
+ 
+ //
+@@ -44,7 +46,7 @@
+   {
+     pkey.key = key;
+ 
+-    if ((pair = (_pdfio_pair_t *)bsearch(&pkey, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), (int (*)(const void *, const void *))compare_pairs)) != NULL)
++    if ((pair = (_pdfio_pair_t *)bsearch(&pkey, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), compare_pairs)) != NULL)
+     {
+       // Yes, remove it...
+       if (pair->value.type == PDFIO_VALTYPE_BINARY)
+@@ -567,7 +569,7 @@
+ 
+   temp.key = key;
+ 
+-  if ((match = bsearch(&temp, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), (int (*)(const void *, const void *))compare_pairs)) != NULL)
++  if ((match = bsearch(&temp, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), compare_pairs)) != NULL)
+   {
+     PDFIO_DEBUG("_pdfioDictGetValue: Match, returning ");
+     PDFIO_DEBUG_VALUE(&(match->value));
+@@ -1024,7 +1026,7 @@
+ 
+     pkey.key = key;
+ 
+-    if ((pair = (_pdfio_pair_t *)bsearch(&pkey, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), (int (*)(const void *, const void *))compare_pairs)) != NULL)
++    if ((pair = (_pdfio_pair_t *)bsearch(&pkey, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), compare_pairs)) != NULL)
+     {
+       // Yes, replace the value...
+       PDFIO_DEBUG("_pdfioDictSetValue: Replacing existing value.\n");
+@@ -1059,7 +1061,7 @@
+ 
+   // Re-sort the dictionary and return...
+   if (dict->num_pairs > 1 && compare_pairs(pair - 1, pair) > 0)
+-    qsort(dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), (int (*)(const void *, const void *))compare_pairs);
++    qsort(dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), compare_pairs);
+ 
+ #ifdef DEBUG
+   PDFIO_DEBUG("_pdfioDictSetValue(%p): %lu pairs\n", (void *)dict, (unsigned long)dict->num_pairs);
+@@ -1120,8 +1122,8 @@
+ //
+ 
+ static int				// O - Result of comparison
+-compare_pairs(_pdfio_pair_t *a,		// I - First pair
+-              _pdfio_pair_t *b)		// I - Second pair
++compare_pairs(const void *a,		// I - First pair
++              const void *b)		// I - Second pair
+ {
+-  return (strcmp(a->key, b->key));
++  return (strcmp(((const _pdfio_pair_t *)a)->key, ((const _pdfio_pair_t *)b)->key));
+ }
+diff -ruN a/pdfio-file.c b/pdfio-file.c
+--- a/pdfio-file.c
++++ b/pdfio-file.c
+@@ -6,6 +6,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ #include "pdfio-content.h"
+@@ -19,7 +21,7 @@
+ //
+ 
+ static pdfio_obj_t	*add_obj(pdfio_file_t *pdf, size_t number, unsigned short generation, off_t offset);
+-static int		compare_objmaps(_pdfio_objmap_t *a, _pdfio_objmap_t *b);
++static int		compare_objmaps(const void *a, const void *b);
+ static pdfio_file_t	*create_common(const char *filename, int fd, pdfio_output_cb_t output_cb, void *output_cbdata, const char *version, pdfio_rect_t *media_box, pdfio_rect_t *crop_box, pdfio_error_cb_t error_cb, void *error_cbdata);
+ static const char	*get_info_string(pdfio_file_t *pdf, const char *key);
+ static char		*get_iso_date(time_t t, char *buffer, size_t bufsize);
+@@ -70,7 +72,7 @@
+ 
+   // Sort as needed...
+   if (pdf->num_objmaps > 1 && compare_objmaps(map, pdf->objmaps + pdf->num_objmaps - 2) < 0)
+-    qsort(pdf->objmaps, pdf->num_objmaps, sizeof(_pdfio_objmap_t), (int (*)(const void *, const void *))compare_objmaps);
++    qsort(pdf->objmaps, pdf->num_objmaps, sizeof(_pdfio_objmap_t), compare_objmaps);
+ 
+   return (true);
+ }
+@@ -752,7 +754,7 @@
+   memcpy(key.src_id, src_pdf->file_id, sizeof(key.src_id));
+   key.src_number = src_number;
+ 
+-  if ((match = (_pdfio_objmap_t *)bsearch(&key, pdf->objmaps, pdf->num_objmaps, sizeof(_pdfio_objmap_t), (int (*)(const void *, const void *))compare_objmaps)) != NULL)
++  if ((match = (_pdfio_objmap_t *)bsearch(&key, pdf->objmaps, pdf->num_objmaps, sizeof(_pdfio_objmap_t), compare_objmaps)) != NULL)
+     return (match->obj);
+   else
+     return (NULL);
+@@ -1517,9 +1519,12 @@
+ //
+ 
+ static int				// O - Result of comparison
+-compare_objmaps(_pdfio_objmap_t *a,	// I - First object map
+-                _pdfio_objmap_t *b)	// I - Second object map
++compare_objmaps(const void *pa,	// I - First object map
++                const void *pb)	// I - Second object map
+ {
++  const _pdfio_objmap_t *a = (const _pdfio_objmap_t *)pa,
++			*b = (const _pdfio_objmap_t *)pb;
++					// Object maps
+   int	ret = memcmp(a->src_id, b->src_id, sizeof(a->src_id));
+ 					// Result of comparison
+ 
+@@ -1850,7 +1855,7 @@
+ 
+   PDFIO_DEBUG("load_obj_stream: N=%d\n", count);
+ 
+-  _pdfioTokenInit(&tb, obj->pdf, (_pdfio_tconsume_cb_t)pdfioStreamConsume, (_pdfio_tpeek_cb_t)pdfioStreamPeek, st);
++  _pdfioTokenInit(&tb, obj->pdf, _pdfioStreamConsumeCB, _pdfioStreamPeekCB, st);
+ 
+   // Read the object numbers from the beginning of the stream...
+   while (count > 0 && _pdfioTokenGet(&tb, buffer, sizeof(buffer)))
+@@ -2086,7 +2091,7 @@
+         return (false);
+       }
+ 
+-      _pdfioTokenInit(&tb, pdf, (_pdfio_tconsume_cb_t)_pdfioFileConsume, (_pdfio_tpeek_cb_t)_pdfioFilePeek, pdf);
++      _pdfioTokenInit(&tb, pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, pdf);
+ 
+       if (!_pdfioValueRead(pdf, obj, &tb, &trailer, 0))
+       {
+@@ -2426,7 +2431,7 @@
+ 	goto repair;
+       }
+ 
+-      _pdfioTokenInit(&tb, pdf, (_pdfio_tconsume_cb_t)_pdfioFileConsume, (_pdfio_tpeek_cb_t)_pdfioFilePeek, pdf);
++      _pdfioTokenInit(&tb, pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, pdf);
+ 
+       if (!_pdfioValueRead(pdf, NULL, &tb, &trailer, 0))
+       {
+@@ -2608,7 +2613,7 @@
+ 	    _pdfioFileSeek(pdf, line_offset + (ptr - line + 3), SEEK_SET);
+ 	  }
+ 
+-	  _pdfioTokenInit(&tb, pdf, (_pdfio_tconsume_cb_t)_pdfioFileConsume, (_pdfio_tpeek_cb_t)_pdfioFilePeek, pdf);
++	  _pdfioTokenInit(&tb, pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, pdf);
+ 
+ 	  if (!_pdfioValueRead(pdf, obj, &tb, &obj->value, 0))
+ 	  {
+@@ -2686,7 +2691,7 @@
+ 
+       PDFIO_DEBUG("repair_xref: TRAILER at offset %ld\n", (long)line_offset);
+ 
+-      _pdfioTokenInit(&tb, pdf, (_pdfio_tconsume_cb_t)_pdfioFileConsume, (_pdfio_tpeek_cb_t)_pdfioFilePeek, pdf);
++      _pdfioTokenInit(&tb, pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, pdf);
+       if (!_pdfioValueRead(pdf, NULL, &tb, &trailer, 0))
+       {
+ 	_pdfioFileError(pdf, "Unable to read cross-reference stream dictionary.");
+diff -ruN a/pdfio-md5.c b/pdfio-md5.c
+--- a/pdfio-md5.c
++++ b/pdfio-md5.c
+@@ -23,6 +23,8 @@
+ // L. Peter Deutsch
+ // ghost@aladdin.com
+ //
++// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -155,7 +157,7 @@
+   uint32_t	xbuf[16];		// Aligned buffer
+   const uint32_t *X;			// Pointer to little-endian representation
+ 
+-  if (!((data - (const uint8_t *)0) & 3))
++  if (!((uintptr_t)data & 3))
+   {
+     // data is properly aligned, use it directly...
+     X = (const uint32_t *)data;
+diff -ruN a/pdfio-object.c b/pdfio-object.c
+--- a/pdfio-object.c
++++ b/pdfio-object.c
+@@ -6,6 +6,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -490,7 +492,7 @@
+   _pdfioFileConsume(obj->pdf, (size_t)(ptr - line));
+ 
+   // Then grab the object value...
+-  _pdfioTokenInit(&tb, obj->pdf, (_pdfio_tconsume_cb_t)_pdfioFileConsume, (_pdfio_tpeek_cb_t)_pdfioFilePeek, obj->pdf);
++  _pdfioTokenInit(&tb, obj->pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, obj->pdf);
+ 
+   if (!_pdfioValueRead(obj->pdf, obj, &tb, &obj->value, 0))
+   {
+diff -ruN a/pdfio-private.h b/pdfio-private.h
+--- a/pdfio-private.h
++++ b/pdfio-private.h
+@@ -8,6 +8,8 @@
+ //
+ // Modified for the zupdf R package: the visibility macros can be overridden from the compiler command line. See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
++//
+ 
+ #ifndef PDFIO_PRIVATE_H
+ #  define PDFIO_PRIVATE_H
+@@ -413,6 +415,10 @@
+ extern int		_pdfioFileGetChar(pdfio_file_t *pdf) _PDFIO_INTERNAL;
+ extern bool		_pdfioFileGets(pdfio_file_t *pdf, char *buffer, size_t bufsize, bool discard) _PDFIO_INTERNAL;
+ extern ssize_t		_pdfioFilePeek(pdfio_file_t *pdf, void *buffer, size_t bytes) _PDFIO_INTERNAL;
++extern ssize_t		_pdfioFileConsumeCB(void *data, size_t bytes) _PDFIO_INTERNAL;
++extern ssize_t		_pdfioFilePeekCB(void *data, void *buffer, size_t bytes) _PDFIO_INTERNAL;
++extern ssize_t		_pdfioStreamConsumeCB(void *data, size_t bytes) _PDFIO_INTERNAL;
++extern ssize_t		_pdfioStreamPeekCB(void *data, void *buffer, size_t bytes) _PDFIO_INTERNAL;
+ extern bool		_pdfioFilePrintf(pdfio_file_t *pdf, const char *format, ...) _PDFIO_INTERNAL;
+ extern bool		_pdfioFilePuts(pdfio_file_t *pdf, const char *s) _PDFIO_INTERNAL;
+ extern ssize_t		_pdfioFileRead(pdfio_file_t *pdf, void *buffer, size_t bytes) _PDFIO_INTERNAL;
+diff -ruN a/pdfio-stream.c b/pdfio-stream.c
+--- a/pdfio-stream.c
++++ b/pdfio-stream.c
+@@ -6,6 +6,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -406,7 +408,7 @@
+     return (false);
+ 
+   // Read using the token engine...
+-  _pdfioTokenInit(&tb, st->pdf, (_pdfio_tconsume_cb_t)pdfioStreamConsume, (_pdfio_tpeek_cb_t)pdfioStreamPeek, st);
++  _pdfioTokenInit(&tb, st->pdf, _pdfioStreamConsumeCB, _pdfioStreamPeekCB, st);
+ 
+   ret = _pdfioTokenRead(&tb, buffer, bufsize);
+   _pdfioTokenFlush(&tb);
+@@ -795,7 +797,8 @@
+   // Loop until we have the requested bytes or hit the end of the stream...
+   while ((remaining = (size_t)(st->bufend - st->bufptr)) < bytes)
+   {
+-    memcpy(bufptr, st->bufptr, remaining);
++    if (remaining > 0)
++      memcpy(bufptr, st->bufptr, remaining);
+     bufptr += remaining;
+     bytes -= remaining;
+ 
+@@ -1414,4 +1417,25 @@
+     default :
+         return ("Unknown error.");
+   }
++}
++
++
++//
++// '_pdfioStreamConsumeCB()', '_pdfioStreamPeekCB()' - Token callbacks with
++//                                                   the callback types.
++//
++
++ssize_t					// O - Bytes consumed or -1 on error
++_pdfioStreamConsumeCB(void   *data,	// I - Stream
++                      size_t bytes)	// I - Number of bytes to consume
++{
++  return (pdfioStreamConsume((pdfio_stream_t *)data, bytes) ? (ssize_t)bytes : -1);
++}
++
++ssize_t					// O - Bytes returned
++_pdfioStreamPeekCB(void   *data,	// I - Stream
++                   void   *buffer,	// I - Buffer
++                   size_t bytes)	// I - Size of buffer
++{
++  return (pdfioStreamPeek((pdfio_stream_t *)data, buffer, bytes));
+ }
