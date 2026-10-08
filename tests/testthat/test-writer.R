@@ -3,7 +3,7 @@ test_that("a written file reopens with its pages and text", {
     function(page) pdf_draw_text(page, 72, 700, "Hello, writer."),
     pages = 3L
   )
-  expect_identical(rawToChar(bytes[1:8]), "%PDF-2.0")
+  expect_identical(rawToChar(bytes[1:8]), "%PDF-1.7")
   text <- reread(bytes)
   expect_identical(as.vector(text), rep("Hello, writer.", 3))
   pages <- reread(bytes, pdf_pages)

@@ -11,7 +11,10 @@
 #' reproducible builds can pin. Encrypted files are never byte-stable, since
 #' their keys are random.
 #'
-#' @param version The PDF version to write, such as `"1.7"` or `"2.0"`.
+#' @param version The PDF version to write, such as `"1.7"` or `"2.0"`. In
+#'   PDF 2.0 the document information (title, author, ...) lives only in
+#'   XMP metadata, which [pdf_meta()] and many other readers do not show,
+#'   so 1.7 is the default.
 #' @param media_box The default page size, `c(x1, y1, x2, y2)` in points;
 #'   see [pdf_paper()].
 #' @param created The creation date, a `POSIXct`.
@@ -31,7 +34,7 @@
 #' pdf_page_text(pdf)
 #' pdf_close(pdf)
 pdf_new <- function(
-  version = "2.0",
+  version = "1.7",
   media_box = pdf_paper("a4"),
   created = Sys.time(),
   deterministic = FALSE,

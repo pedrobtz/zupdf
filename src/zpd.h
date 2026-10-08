@@ -60,6 +60,9 @@ void *zpd_obj_value(pdfio_obj_t *obj);
 bool zpd_obj_has_stream(pdfio_obj_t *obj);
 const char *zpd_value_from_r(pdfio_file_t *pdf, SEXP x, int max_depth,
                              pdfio_dict_t **dict, pdfio_array_t **array);
+bool zpd_dict_set_text(pdfio_file_t *pdf, pdfio_dict_t *dict, const char *key, const char *utf8);
+pdfio_obj_t *zpd_info_obj(pdfio_file_t *pdf);
+SEXP zpd_catalog_to_r(pdfio_file_t *pdf, int max_depth, int *deep);
 
 /* A character scalar from a PDF text string (zpd_string.c). */
 SEXP zpd_mkchar_pdf(const char *s, size_t n);

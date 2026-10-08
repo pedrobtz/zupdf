@@ -10,6 +10,8 @@
 //
 // Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: pdfioDictGetString() no longer turns a binary value into a string in place. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -516,13 +518,11 @@ pdfioDictGetString(pdfio_dict_t *dict,	// I - Dictionary
       temp[value->value.binary.datalen] = '\0';
     }
 
-    free(value->value.binary.data);
-    value->type         = PDFIO_VALTYPE_STRING;
-    value->value.string = pdfioStringCreate(dict->pdf, temp);
+    // The value stays binary: reading it must not change what is written
+    // (a UTF-16 text string would otherwise be written back as UTF-8).
+    PDFIO_DEBUG("pdfioDictGetString: Returning \"%s\".\n", temp);
 
-    PDFIO_DEBUG("pdfioDictGetString: Returning \"%s\".\n", value->value.string);
-
-    return (value->value.string);
+    return (pdfioStringCreate(dict->pdf, temp));
   }
   else
   {

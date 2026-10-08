@@ -15,6 +15,7 @@ test_that("the patch series is the one in tools/patches", {
       "0003-date-buffer",
       "0004-undefined-behaviour",
       "0005-unsigned-shifts",
+      "0006-dict-getstring",
       "0010-ttf-callbacks"
     )
   )

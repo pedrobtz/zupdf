@@ -2,4 +2,4 @@
 # Flate output differs between zlib builds. Add a row with tools/update-fixtures
 # or by hand from bytes_md5() when a CI leg reports no pinned hash.
 case	zlib	md5
-hello	1.2.12	5f1c6383cdf33bee23f73cb2796a0fce
+hello	1.2.12	34d499c6a1797c1531716895961ee1b4

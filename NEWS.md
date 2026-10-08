@@ -1,6 +1,15 @@
 # zupdf 0.0.0.9000
 
 * Development version, built stage by stage; see the roadmap.
+* pdftools's and qpdf's non-rendering functions under their own names and
+  arguments: `pdf_info()`, `pdf_text()`, `pdf_fonts()`, `pdf_pagesize()`,
+  `pdf_toc()`, `pdf_attachments()`, `pdf_length()`, `pdf_split()`,
+  `pdf_subset()`, `pdf_combine()` and `pdf_rotate_pages()`, so
+  `library(zupdf)` can stand in for either package where no rendering is
+  needed.
+* `pdf_copy_pages()` copies pages between files, with rotation;
+  `pdf_set_meta()` sets the document information; `pdf_set_encryption()`
+  encrypts with AES-128 or RC4-128 and sets permissions.
 * A writer: `pdf_new()` starts a file, `pdf_page_new()` and `pdf_page_end()`
   add pages, `pdf_draw_text()`, `pdf_draw()` and `pdf_draw_image()` draw
   text, paths and images, `pdf_font()` and `pdf_image_new()` make fonts

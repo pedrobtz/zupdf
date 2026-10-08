@@ -25,6 +25,7 @@ LinkingTo:
     zufast (>= 0.1.0)
 Suggests:
     pdftools,
+    qpdf,
     testthat (>= 3.0.0),
     withr
 Remotes:

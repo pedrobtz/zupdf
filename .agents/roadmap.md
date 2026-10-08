@@ -235,7 +235,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 5 — `pdf_copy_pages()`, metadata, encryption, compatibility layer · L
 
-**Status:** not started.
+**Status:** done, 2026-10-08.
 
 **Do**
 
@@ -254,6 +254,17 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 - Every §5 writer function exists and is tested; the encrypted fixtures are committed.
 - Every §5.1 wrapper not waiting on Q1, Q3 or Q10 is exported, and its formals and shape tests pass against the installed pdftools and qpdf; §18 Q10 has its answer.
+
+
+**What actually happened**
+
+- **`pdf_copy_pages()` uses zupdf's own copy of `pdfioPageCopy()`**, which writes the page as it copies it; the port sets `/Rotate` first (adding, or setting for `pdf_rotate_pages(relative = FALSE)`).
+- **PDF 2.0 drops the Info dictionary's entries**: pdfio writes title, author and the rest only into XMP for 2.0, so `pdf_new()` defaults to 1.7 and 2.0 output sets them as UTF-8 for the XMP.
+- **pdfio rewrote UTF-16 text as UTF-8 when it read it**: `pdfioDictGetString()` retyped a binary value in place, and pdfio reads the title at close for the XMP. Patch `0006-dict-getstring` leaves the value alone.
+- **Encryption and determinism**: the key comes from the file ID, so an encrypted file keeps pdfio's random ID under `deterministic = TRUE`; replacing it made the file unreadable.
+- **§18 Q10 decided**: no `pdf_compress()`; pdfio copies streams as stored.
+- **The compatibility layer** (`R/compat.R`) matches pdftools's and qpdf's formals exactly (tested), and their values on the fixtures where design §5.1 says they agree; `pdf_toc()` gained `is_open` from that comparison.
+- CI on Stage 2 found PROTECT issues (rchk) in the value conversion and an R-internal libdeflate allocation (valgrind), fixed and suppressed (`tools/valgrind.supp`).
 
 ---
 

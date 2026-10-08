@@ -412,7 +412,9 @@ SEXP zupdf_writer_save(SEXP ptr, SEXP created, SEXP deterministic)
         return zpd_status("closed");
     zpd_record_reset(&w->rec);
     pdfioFileSetCreationDate(w->pdf, (time_t) floor(Rf_asReal(created)));
-    if (Rf_asLogical(deterministic) == TRUE) {
+    /* An encrypted file's key is derived from its identifier, so the
+       identifier stays pdfio's (random) once encryption is on. */
+    if (Rf_asLogical(deterministic) == TRUE && w->pdf->encryption == PDFIO_ENCRYPTION_NONE) {
         /* The identifier: the first 16 bytes of the SHA-256 of everything
            written so far, which every page, font and image is. */
         _pdfio_sha256_t ctx;
@@ -441,4 +443,136 @@ SEXP zupdf_writer_save(SEXP ptr, SEXP created, SEXP deterministic)
     SEXP out = zpd_result("ok", bytes, &w->rec);
     UNPROTECT(1);
     return out;
+}
+
+/* ---- assembly, metadata, encryption (Stage 5) ------------------------------- */
+
+/* pdfioPageCopy() with a rotation: the page dictionary and every inherited
+   attribute are copied (with every object they reference, through pdfio's
+   object map, so the copy is self-contained), /Rotate is advanced by
+   `rotate` degrees, and the page is added. pdfioPageCopy() writes the page
+   as it copies it, leaving no way to change /Rotate afterwards. */
+static bool zpd_page_copy(pdfio_file_t *pdf, pdfio_obj_t *srcpage, int rotate, int absolute)
+{
+    pdfio_dict_t *src = pdfioObjGetDict(srcpage);
+    pdfio_dict_t *dst = pdfioDictCreate(pdf);
+    if (!src || !dst)
+        return false;
+    pdfio_obj_t *parent = srcpage;
+    int depth = 0;
+    do {
+        depth++;
+        if (parent->value.type != PDFIO_VALTYPE_DICT)
+            break;
+        pdfio_dict_t *d = parent->value.value.dict;
+        parent = NULL;
+        for (size_t i = 0; i < d->num_pairs; i++) {
+            _pdfio_pair_t *p = &d->pairs[i];
+            if (!strcmp(p->key, "Count") || !strcmp(p->key, "Kids"))
+                continue;
+            if (!strcmp(p->key, "Parent")) {
+                if (p->value.type == PDFIO_VALTYPE_INDIRECT) {
+                    parent = pdfioFileFindObj(srcpage->pdf, p->value.value.indirect.number);
+                    if (parent && !pdfioObjGetDict(parent))
+                        parent = NULL;
+                }
+                continue;
+            }
+            if (d == src || !_pdfioDictGetValue(dst, p->key)) {
+                _pdfio_value_t v;
+                if (!_pdfioValueCopy(pdf, &v, srcpage->pdf, &p->value))
+                    return false;
+                _pdfioDictSetValue(dst, pdfioStringCreate(pdf, p->key), &v);
+            }
+        }
+    } while (parent && depth < PDFIO_MAX_DEPTH);
+
+    if (!_pdfioDictGetValue(dst, "MediaBox"))
+        pdfioDictSetRect(dst, "MediaBox", &srcpage->pdf->media_box);
+    if (rotate || absolute) {
+        long r = (absolute ? 0 : (long) pdfioDictGetNumber(dst, "Rotate")) + rotate;
+        pdfioDictSetNumber(dst, "Rotate", (double) (((r % 360) + 360) % 360));
+    }
+    pdfioDictSetObj(dst, "Parent", pdf->pages_obj);
+    if (!_pdfioDictGetValue(dst, "Type"))
+        pdfioDictSetName(dst, "Type", "Page");
+    pdfio_obj_t *page = pdfioFileCreateObj(pdf, dst);
+    return page && pdfioObjClose(page) && _pdfioFileAddPage(pdf, page);
+}
+
+/* zupdf_writer_copy_pages(ptr, file, pages, rotate, absolute): copies pages
+   (1-based, checked in R) of an open pdf_file, adding `rotate` degrees to
+   each page's rotation, or setting it when `absolute`. */
+SEXP zupdf_writer_copy_pages(SEXP ptr, SEXP file, SEXP pages, SEXP rotate, SEXP absolute)
+{
+    zpd_writer *w = zpd_writer_get(ptr);
+    if (!w)
+        return zpd_status("closed_writer");
+    zpd_file *h = zpd_file_get(file);
+    if (!h)
+        return zpd_status("closed");
+    zpd_record_reset(&w->rec);
+    zpd_record_reset(&h->rec);
+    int r = Rf_asInteger(rotate), abs_ = Rf_asLogical(absolute) == TRUE;
+    for (R_xlen_t i = 0; i < XLENGTH(pages); i++) {
+        pdfio_obj_t *page = pdfioFileGetPage(h->pdf, (size_t) INTEGER(pages)[i] - 1);
+        if (!page || !zpd_page_copy(w->pdf, page, r, abs_)) {
+            if (h->rec.nerror && !w->rec.nerror)
+                w->rec = h->rec;
+            zpd_fallback(&w->rec, "Unable to copy a page.");
+            return zpd_result("pdfio", R_NilValue, &w->rec);
+        }
+    }
+    return zpd_result("ok", R_NilValue, &w->rec);
+}
+
+/* zupdf_writer_set_meta(ptr, keys, values, modified): the information
+   dictionary's text entries (Title, Author, ...) and the modification
+   date (NA for none). */
+SEXP zupdf_writer_set_meta(SEXP ptr, SEXP keys, SEXP values, SEXP modified)
+{
+    zpd_writer *w = zpd_writer_get(ptr);
+    if (!w)
+        return zpd_status("closed");
+    zpd_record_reset(&w->rec);
+    pdfio_dict_t *info = pdfioObjGetDict(w->pdf->info_obj);
+    if (!info)
+        return zpd_status("memory");
+    for (R_xlen_t i = 0; i < XLENGTH(keys); i++) {
+        const char *k = CHAR(STRING_ELT(keys, i));
+        const char *v = Rf_translateCharUTF8(STRING_ELT(values, i));
+        if (!strcmp(k, "Lang")) {
+            pdfioFileSetLanguage(w->pdf, pdfioStringCreate(w->pdf, v));
+        } else if (!strcmp(w->pdf->version, "2.0")) {
+            /* PDF 2.0 deprecates these entries: pdfio drops them from the
+               Info dictionary at close and writes them only into the XMP
+               metadata, which is UTF-8, so they are set as UTF-8 here. */
+            pdfioDictSetString(info, pdfioStringCreate(w->pdf, k), pdfioStringCreate(w->pdf, v));
+        } else if (!zpd_dict_set_text(w->pdf, info, k, v)) {
+            return zpd_result("pdfio", R_NilValue, &w->rec);
+        }
+    }
+    double m = Rf_asReal(modified);
+    if (!ISNAN(m))
+        pdfioFileSetModificationDate(w->pdf, (time_t) floor(m));
+    return zpd_result("ok", R_NilValue, &w->rec);
+}
+
+/* zupdf_writer_set_encryption(ptr, method, permissions, owner, user):
+   method is a pdfio_encryption_t, permissions its bits, passwords NULL for
+   none. pdfio allows this only before any object is added. */
+SEXP zupdf_writer_set_encryption(SEXP ptr, SEXP method, SEXP permissions, SEXP owner, SEXP user)
+{
+    zpd_writer *w = zpd_writer_get(ptr);
+    if (!w)
+        return zpd_status("closed");
+    zpd_record_reset(&w->rec);
+    const char *o = owner == R_NilValue ? NULL : Rf_translateCharUTF8(STRING_ELT(owner, 0));
+    const char *u = user == R_NilValue ? NULL : Rf_translateCharUTF8(STRING_ELT(user, 0));
+    if (!pdfioFileSetPermissions(w->pdf, (pdfio_permission_t) Rf_asInteger(permissions),
+                                 (pdfio_encryption_t) Rf_asInteger(method), o, u)) {
+        zpd_fallback(&w->rec, "Unable to set the encryption.");
+        return zpd_result("pdfio", R_NilValue, &w->rec);
+    }
+    return zpd_result("ok", R_NilValue, &w->rec);
 }

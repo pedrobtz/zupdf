@@ -213,3 +213,27 @@ SEXP zupdf_stream(SEXP ptr, SEXP number, SEXP decode_, SEXP max_stream_)
     UNPROTECT(1);
     return out;
 }
+
+/* zupdf_doc_dict(ptr, which, max_depth): the catalog ("catalog") or the
+   information dictionary ("info") as R values, NULL when absent. */
+SEXP zupdf_doc_dict(SEXP ptr, SEXP which, SEXP max_depth_)
+{
+    zpd_file *h = zpd_file_get(ptr);
+    if (!h)
+        return zpd_status("closed");
+    zpd_record_reset(&h->rec);
+    int max_depth = Rf_asInteger(max_depth_), deep = 0;
+    SEXP v = R_NilValue;
+    if (strcmp(CHAR(STRING_ELT(which, 0)), "info") == 0) {
+        pdfio_obj_t *obj = zpd_info_obj(h->pdf);
+        void *value = obj ? zpd_obj_value(obj) : NULL;
+        if (value)
+            v = zpd_value_to_r(value, max_depth, &deep);
+    } else {
+        v = zpd_catalog_to_r(h->pdf, max_depth, &deep);
+    }
+    PROTECT(v);
+    SEXP out = zpd_result(deep ? "max_depth" : "ok", v, &h->rec);
+    UNPROTECT(1);
+    return out;
+}
