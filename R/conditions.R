@@ -87,3 +87,69 @@ zpd_warn <- function(message, ..., detail = NULL, call = NULL) {
     list(message = message, call = call, detail = detail, ...)
   ))
 }
+
+# ---- pdfio's messages -------------------------------------------------------
+
+# pdfio reports errors as English strings, so the class comes from the
+# message's prefix; anything else falls to the bare default class on
+# purpose (design section 11). test-conditions.R enumerates this table.
+zpd_pdfio_prefixes <- c(
+  "Unable to unlock PDF file." = "zupdf_password_error",
+  "Unable to unlock AES-256" = "zupdf_unsupported_input",
+  "Unable to open file" = "zupdf_io_error"
+)
+
+zpd_pdfio_class <- function(detail, default = "zupdf_parse_error") {
+  if (length(detail) != 1L || is.na(detail)) {
+    return(default)
+  }
+  hit <- startsWith(detail, names(zpd_pdfio_prefixes))
+  if (any(hit)) zpd_pdfio_prefixes[[which(hit)[[1L]]]] else default
+}
+
+# Unwraps a zpd_result() from C: warns once for pdfio's warnings, raises
+# for a status other than "ok", and returns the value. `what` begins the
+# message; pdfio's own message follows it and is kept as `detail`.
+zpd_unwrap <- function(
+  res,
+  what,
+  call = NULL,
+  default = "zupdf_parse_error",
+  limits = NULL
+) {
+  if (res$nwarning > 0L) {
+    zpd_warn(
+      sprintf(
+        "pdfio reported %d warning%s; the first: %s",
+        res$nwarning,
+        if (res$nwarning == 1L) "" else "s",
+        sub("^WARNING: *", "", res$warning)
+      ),
+      detail = res$warning,
+      count = res$nwarning,
+      call = call
+    )
+  }
+  switch(
+    res$status,
+    ok = res$value,
+    closed = zpd_invalid_argument("pdf", "The PDF file is closed.", call),
+    pdfio = zpd_abort(
+      zpd_pdfio_class(res$detail, default),
+      paste0(what, ": ", res$detail),
+      detail = res$detail,
+      call = call
+    ),
+    max_depth = zpd_limit_error(
+      "max_depth",
+      limits$max_depth,
+      sprintf(
+        "%s: the file nests deeper than `max_depth` (%s).",
+        what,
+        format(limits$max_depth, scientific = FALSE)
+      ),
+      call = call
+    ),
+    stop("unknown status from C: ", res$status)
+  )
+}

@@ -45,3 +45,58 @@ test_that("zpd_warn() raises a zupdf_warning", {
   expect_s3_class(w, "zupdf_warning")
   expect_identical(w$count, 2L)
 })
+
+test_that("every known pdfio message prefix maps to its class", {
+  expected <- c(
+    "Unable to unlock PDF file." = "zupdf_password_error",
+    "Unable to unlock AES-256 encrypted file at this time." = "zupdf_unsupported_input",
+    "Unable to open file - No such file or directory" = "zupdf_io_error"
+  )
+  for (msg in names(expected)) {
+    expect_identical(zpd_pdfio_class(msg), expected[[msg]], label = msg)
+  }
+  # The table and this test change together.
+  expect_length(zpd_pdfio_prefixes, length(expected))
+})
+
+test_that("an unknown pdfio message falls to the bare default class", {
+  expect_identical(zpd_pdfio_class("Missing Root object."), "zupdf_parse_error")
+  expect_identical(zpd_pdfio_class(NA_character_), "zupdf_parse_error")
+  expect_identical(
+    zpd_pdfio_class("Unable to write trailer.", "zupdf_write_error"),
+    "zupdf_write_error"
+  )
+})
+
+test_that("zpd_unwrap() raises by status and warns once for warnings", {
+  res <- function(status, detail = NA_character_, nwarning = 0L) {
+    list(
+      status = status,
+      value = 1,
+      detail = detail,
+      nwarning = nwarning,
+      warning = if (nwarning) "WARNING: w" else NA_character_
+    )
+  }
+  expect_identical(zpd_unwrap(res("ok"), "x"), 1)
+  expect_zupdf_error(
+    zpd_unwrap(res("pdfio", "Unable to unlock PDF file."), "x"),
+    "zupdf_password_error",
+    detail = "Unable to unlock PDF file."
+  )
+  expect_zupdf_error(
+    zpd_unwrap(res("closed"), "x"),
+    "zupdf_invalid_argument",
+    arg = "pdf"
+  )
+  expect_zupdf_error(
+    zpd_unwrap(res("max_depth"), "x", limits = list(max_depth = 3)),
+    "zupdf_limit_error",
+    limit = "max_depth",
+    limit_value = 3
+  )
+  w <- tryCatch(zpd_unwrap(res("ok", nwarning = 3L), "x"), warning = identity)
+  expect_s3_class(w, "zupdf_warning")
+  expect_identical(w$count, 3L)
+  expect_error(zpd_unwrap(res("bogus"), "x"), "unknown status")
+})
