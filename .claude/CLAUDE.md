@@ -13,7 +13,7 @@ It is a member of the `zu*` family (sibling checkouts in `../`). `zucbor` and `z
 
 ## Current state
 
-**2026-10-08: Stage 0 done.** pdfio 1.6.5 is vendored in `src/vendor/pdfio/` (its ttf library ships in the same tree) with three patches (`0001-visibility-override`, `0002-no-stdio`, `0003-date-buffer`), `tools/update-pdfio`, `tools/verify-vendor` and `tools/check-symbols` exist and have been seen to fail, and `zupdf_info()` is the only export. The test helpers, the condition hierarchy and the tracking issues (#1 parent, #2–#10 stages) exist. Next: Stage 1, `pdf_open()`.
+**2026-10-08: Stage 1 done.** pdfio 1.6.5 is vendored in `src/vendor/pdfio/` (its ttf library ships in the same tree) with three patches (`0001-visibility-override`, `0002-no-stdio`, `0003-date-buffer`); `tools/update-pdfio`, `tools/verify-vendor`, `tools/check-symbols` and `tools/update-fixtures` exist. Exported: `zupdf_info()`, `pdf_open()`, `pdf_close()`, `pdf_meta()`, `pdf_pages()`. The `pdf_file` handle, the error and password callbacks, the temporary-file spill, the limits `max_size`, `max_objects`, `max_pages` and (in the page walk) `max_depth`, and the pdfio message-to-class map are in place. Fixtures: `afl-input`, `testpdfio.pdf`, four encrypted files, `grdevices.pdf`. Next: Stage 2, objects and values.
 
 Update this paragraph at the end of every stage.
 
@@ -130,7 +130,7 @@ Names follow design D8. The compatibility layer (§5.1, `R/compat.R`) reuses `pd
 - **Self-contained.** Files under `withr::local_tempdir()`; handles closed with `withr::defer()` except in the finalizer tests, which leave them deliberately and call `gc()`.
 - **Assert on condition classes and fields (`detail`, `object`, `limit`, `limit_value`), never message text.**
 - **Order independence.** `devtools::test(shuffle = TRUE)` is part of the definition of done; serial, no `Config/testthat/parallel`.
-- **The conformance oracles** are pdfio's own `afl-input` corpus (every case must be refused cleanly), `pdftools::pdf_text()` after whitespace normalisation and `qpdf` on written files, both in the `conformance` job only (`Suggests`). Pinned bytes under `deterministic = TRUE` in `fixtures/hashes.tsv` are the package's own gate. None covers rendering, which the package does not do.
+- **The conformance oracles** are pdfio's own `afl-input` corpus (every case must open and read or be refused with a classed condition, nothing on stderr; at 1.6.5 all 23 open), `pdftools::pdf_text()` after whitespace normalisation and `qpdf` on written files, both in the `conformance` job only (`Suggests`). Pinned bytes under `deterministic = TRUE` in `fixtures/hashes.tsv` are the package's own gate. None covers rendering, which the package does not do.
 - **Helpers in `tests/testthat/helper-*.R`**: `helper-pdf.R` (`fixture()`, `minimal_pdf()`, `encrypted_fixture()`), `helper-expect.R` (`expect_zupdf_error()`, `expect_pdf_bytes()`, `expect_text_equal()`), `helper-skip.R` (`skip_heavy()` on `ZUPDF_SKIP_HEAVY`, `skip_if_no_slow_tests()` on `ZUPDF_SLOW_TESTS`, `skip_if_not_installed()` for `pdftools`, `qpdf`, `jpeg`, `png`).
 - **Fixtures are data**, fetched only by `tools/update-fixtures`, with `fixtures/README.md` naming every source and licence; the font licences ride along; only `OpenSans-Regular.ttf` ships.
 - **Keep the suite inside the CRAN time budget:** under 15 s; the thousand-handle, Flate-bomb and million-object tests call `skip_heavy()`.
