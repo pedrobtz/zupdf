@@ -1,0 +1,68 @@
+#!/bin/sh
+# Fail if the built shared object references symbols R CMD check objects to,
+# or exports anything but R_init_zupdf (design sections 4 and 14).
+#
+#   referenced: output to the console (stdout, stderr, printf, puts,
+#   putchar, fputs, fprintf), ending the process (abort, exit, _exit, and
+#   assert(), which reaches them), and the C library's RNG (rand, srand,
+#   random), which R CMD check reports too.
+#   exported:   only R_init_zupdf; $(C_VISIBILITY) and patch 0001 hide pdfio.
+#
+# Usage: tools/check-symbols [path/to/zupdf.so]   (default: src/zupdf.so)
+# Run it on an R CMD INSTALL build: devtools::load_all() compiles with
+# -UNDEBUG, which leaves assert()s in.
+#
+#   tools/check-symbols --canary    builds two one-file shared objects, one
+#                                   calling fprintf(stderr, ...) and one
+#                                   exporting a second function, and
+#                                   requires this check to FAIL on each.
+set -eu
+
+if [ "${1:-}" = "--canary" ]; then
+  WORK=$(mktemp -d)
+  trap 'rm -rf "$WORK"' EXIT
+  printf '#include <stdio.h>\nvoid R_init_zupdf(void *d) { fprintf(stderr, "x"); }\n' > "$WORK/a.c"
+  printf 'void R_init_zupdf(void *d) { }\nint zpd_leaked(int x) { return x + 1; }\n' > "$WORK/b.c"
+  for c in a b; do
+    mkdir "$WORK/$c"
+    ${CC:-cc} -shared -fPIC -o "$WORK/$c/zupdf.so" "$WORK/$c.c"
+    if "$0" "$WORK/$c/zupdf.so" > /dev/null 2>&1; then
+      echo "CANARY FAILED: a planted ${c} passed the check (a: fprintf(stderr), b: an export)" >&2
+      exit 1
+    fi
+  done
+  echo "==> canary OK: a planted fprintf(stderr) and a planted export were both found"
+  exit 0
+fi
+
+SO="${1:-src/zupdf.so}"
+[ -f "$SO" ] || { echo "no shared object at $SO; build the package first" >&2; exit 2; }
+
+# Leading underscores differ by platform (_printf on macOS), and __stdoutp /
+# __stderrp are macOS's names for stdout / stderr.
+BAD='^_*(stdout|stderr|stdoutp|stderrp|printf|vprintf|puts|putchar|fputs|fprintf|vfprintf|abort|exit|_exit|_Exit|assert|assert_fail|assert_rtn|rand|srand|random|srandom)$'
+
+status=0
+found=$(nm -u "$SO" | awk '{print $NF}' | sed 's/@.*//' | grep -E "$BAD" || true)
+if [ -n "$found" ]; then
+  echo "FAIL: $SO references symbols R CMD check reports:" >&2
+  echo "$found" | sed 's/^/  /' >&2
+  status=1
+fi
+
+# Defined, external, text symbols. nm -g lists externals; -U (macOS) and
+# --defined-only (GNU) drop the undefined ones.
+if nm -gU "$SO" > /dev/null 2>&1; then
+  exported=$(nm -gU "$SO" | awk '$2 == "T" {print $3}')
+else
+  exported=$(nm -g --defined-only "$SO" | awk '$2 == "T" {print $3}')
+fi
+extra=$(echo "$exported" | sed 's/^_//' | grep -v '^R_init_zupdf$' | grep -v '^$' || true)
+if [ -n "$extra" ]; then
+  echo "FAIL: $SO exports more than R_init_zupdf:" >&2
+  echo "$extra" | head -n 20 | sed 's/^/  /' >&2
+  status=1
+fi
+
+[ "$status" -eq 0 ] && echo "==> $SO: only R_init_zupdf exported; no console, exit or RNG symbols"
+exit "$status"

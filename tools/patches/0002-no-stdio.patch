@@ -1,0 +1,131 @@
+diff -ruN a/pdfio-array.c b/pdfio-array.c
+--- a/pdfio-array.c
++++ b/pdfio-array.c
+@@ -6,6 +6,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -355,6 +357,7 @@
+ }
+ 
+ 
++#ifndef PDFIO_NO_STDIO
+ //
+ // '_pdfioArrayDebug()' - Print the contents of an array.
+ //
+@@ -375,6 +378,7 @@
+     _pdfioValueDebug(v, fp);
+   putc(']', fp);
+ }
++#endif // !PDFIO_NO_STDIO
+ 
+ 
+ //
+diff -ruN a/pdfio-common.c b/pdfio-common.c
+--- a/pdfio-common.c
++++ b/pdfio-common.c
+@@ -6,6 +6,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -55,7 +57,11 @@
+ {
+   (void)data;
+ 
++#ifndef PDFIO_NO_STDIO
+   fprintf(stderr, "%s: %s\n", pdf->filename, message);
++#else
++  (void)pdf;
++#endif // !PDFIO_NO_STDIO
+ 
+   return (!strncmp(message, "WARNING:", 8));
+ }
+diff -ruN a/pdfio-dict.c b/pdfio-dict.c
+--- a/pdfio-dict.c
++++ b/pdfio-dict.c
+@@ -6,6 +6,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -210,6 +212,7 @@
+ }
+ 
+ 
++#ifndef PDFIO_NO_STDIO
+ //
+ // '_pdfioDictDebug()' - Dump a dictionary to stderr.
+ //
+@@ -231,6 +234,7 @@
+     _pdfioValueDebug(&pair->value, fp);
+   }
+ }
++#endif // !PDFIO_NO_STDIO
+ 
+ 
+ //
+diff -ruN a/pdfio-value.c b/pdfio-value.c
+--- a/pdfio-value.c
++++ b/pdfio-value.c
+@@ -6,6 +6,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -245,6 +247,7 @@
+ }
+ 
+ 
++#ifndef PDFIO_NO_STDIO
+ //
+ // '_pdfioValueDebug()' - Print the contents of a value.
+ //
+@@ -313,6 +316,7 @@
+         break;
+   }
+ }
++#endif // !PDFIO_NO_STDIO
+ 
+ 
+ //
+diff -ruN a/ttf.c b/ttf.c
+--- a/ttf.c
++++ b/ttf.c
+@@ -8,6 +8,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
++//
+ 
+ #ifdef _WIN32
+ #  define _CRT_SECURE_NO_WARNINGS 1
+@@ -1163,8 +1165,10 @@
+   // to stderr...
+   if (font && font->err_cb)
+     (font->err_cb)(font->err_data, buffer);
++#ifndef PDFIO_NO_STDIO
+   else
+     fprintf(stderr, "%s\n", message);
++#endif // !PDFIO_NO_STDIO
+ }
+ 
+ 

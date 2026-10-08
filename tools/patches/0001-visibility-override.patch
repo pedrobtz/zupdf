@@ -1,0 +1,62 @@
+diff -ruN a/pdfio-private.h b/pdfio-private.h
+--- a/pdfio-private.h
++++ b/pdfio-private.h
+@@ -6,6 +6,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: the visibility macros can be overridden from the compiler command line. See tools/patches/ in zupdf.
++//
+ 
+ #ifndef PDFIO_PRIVATE_H
+ #  define PDFIO_PRIVATE_H
+@@ -61,12 +63,16 @@
+ 
+ #  if defined(__has_extension) || defined(__GNUC__)
+ #    define _PDFIO_INTERNAL	__attribute__ ((visibility("hidden")))
+-#    define _PDFIO_PRIVATE	__attribute__ ((visibility("default")))
++#    ifndef _PDFIO_PRIVATE
++#      define _PDFIO_PRIVATE	__attribute__ ((visibility("default")))
++#    endif // !_PDFIO_PRIVATE
+ #    define _PDFIO_NONNULL(...)	__attribute__ ((nonnull(__VA_ARGS__)))
+ #    define _PDFIO_NORETURN	__attribute__ ((noreturn))
+ #  else
+ #    define _PDFIO_INTERNAL
+-#    define _PDFIO_PRIVATE
++#    ifndef _PDFIO_PRIVATE
++#      define _PDFIO_PRIVATE
++#    endif // !_PDFIO_PRIVATE
+ #    define _PDFIO_NONNULL(...)
+ #    define _PDFIO_NORETURN
+ #  endif // __has_extension || __GNUC__
+diff -ruN a/pdfio.h b/pdfio.h
+--- a/pdfio.h
++++ b/pdfio.h
+@@ -6,6 +6,8 @@
+ // Licensed under Apache License v2.0.  See the file "LICENSE" for more
+ // information.
+ //
++// Modified for the zupdf R package: the visibility macros can be overridden from the compiler command line. See tools/patches/ in zupdf.
++//
+ 
+ #ifndef PDFIO_H
+ #  define PDFIO_H
+@@ -32,11 +34,16 @@
+ // Visibility and other annotations...
+ //
+ 
++#  ifndef _PDFIO_PUBLIC
++#    if defined(__has_extension) || defined(__GNUC__)
++#      define _PDFIO_PUBLIC	__attribute__ ((visibility("default")))
++#    else
++#      define _PDFIO_PUBLIC
++#    endif // __has_extension || __GNUC__
++#  endif // !_PDFIO_PUBLIC
+ #  if defined(__has_extension) || defined(__GNUC__)
+-#    define _PDFIO_PUBLIC	__attribute__ ((visibility("default")))
+ #    define _PDFIO_DEPRECATED	__attribute__ ((deprecated)) _PDFIO_PUBLIC
+ #  else
+-#    define _PDFIO_PUBLIC
+ #    define _PDFIO_DEPRECATED
+ #  endif // __has_extension || __GNUC__
+ 
