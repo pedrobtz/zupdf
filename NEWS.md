@@ -3,7 +3,7 @@
 * Development version, built stage by stage; see the roadmap.
 * pdftools's and qpdf's non-rendering functions under their own names and
   arguments: `pdf_info()`, `pdf_text()`, `pdf_fonts()`, `pdf_pagesize()`,
-  `pdf_toc()`, `pdf_attachments()`, `pdf_length()`, `pdf_split()`,
+  `pdf_toc()`, `pdf_attachments()`, `pdf_data()`, `pdf_length()`, `pdf_split()`,
   `pdf_subset()`, `pdf_combine()` and `pdf_rotate_pages()`, so
   `library(zupdf)` can stand in for either package where no rendering is
   needed.

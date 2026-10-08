@@ -26,6 +26,7 @@ static const char *zpd_patches[] = {
     "0009-index-cast",
     "0010-ttf-callbacks",
     "0011-object-value-leak",
+    "0012-trailer-value-leak",
 };
 
 /* Features pdfio 1.7.0 adds that the 1.6.5 pin lacks (design section 9).

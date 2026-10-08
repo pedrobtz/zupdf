@@ -327,7 +327,8 @@ compat_pdftools <- c(
   "pdf_fonts",
   "pdf_pagesize",
   "pdf_toc",
-  "pdf_attachments"
+  "pdf_attachments",
+  "pdf_data"
 )
 compat_qpdf <- c(
   "pdf_length",

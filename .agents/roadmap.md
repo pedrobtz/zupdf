@@ -290,7 +290,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 - **The next ten minutes found the same bug in zupdf's own font loader** (a huge `/FirstChar` cast to `long`); an audit moved every conversion of a file-derived number in project C (rotation, `/W`, `/Differences`, `/FirstChar`) to `zpd_clamp_int()`.
 - **Fifteen more minutes found a hang**: pdfio's cross-reference repair skipped its offset update when it could not read an object and could loop for ever (a 716-byte file). Patch `0008-repair-loop`; the input is a regression fixture.
 - **Thirty more minutes found two more**: an `/Index` entry cast to `intmax_t` that 0007 missed (patch `0009-index-cast`), and an empty name in a ToUnicode CMap crashing the parser's `strstr()` on a NULL lexer buffer (fixed in the lexer, Stage 4's code). Both inputs are regression fixtures.
-- **CI's first fuzz run found a leak** that macOS cannot see (no LeakSanitizer there): an object whose own value is a hex string was never freed, at close or when the repair scan read it again. Patch `0011-object-value-leak`; the input is a regression fixture.
+- **CI's first fuzz run found a leak** that macOS cannot see (no LeakSanitizer there): an object whose own value is a hex string was never freed, at close or when the repair scan read it again. Patch `0011-object-value-leak`, reported upstream as [michaelrsweet/pdfio#182](https://github.com/michaelrsweet/pdfio/issues/182); the input is a regression fixture.
 - **The mutation check runs through R**, not a C probe: the limits live on both sides of `.Call`, so each guard is disabled in a scratch copy, the copy is reinstalled, and an R probe must change outcome. All ten guards are load-bearing (about 80 seconds); a disabled `max_depth_inherit` hangs on a `/Parent` cycle, caught by a timeout. A form cycle now reports its own message, so its guard is distinguishable from the depth limit's.
 - **`tools/run-lint`** passes at `-Werror` for the R and standalone builds; `tools/check-no-network` copied from zucbor.
 
@@ -298,7 +298,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 7 — Conformance against pdftools and qpdf, benchmarks, `pdf_data()`? · M
 
-**Status:** not started.
+**Status:** done, 2026-10-08. Deviation: cross-runner byte identity is printed (MD5 and zlib version per runner), not asserted, since deflate output depends on the zlib build (design §7).
 
 **Do**
 
@@ -310,6 +310,14 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 **Exit**
 
 - Conformance green; benchmarks recorded; §18 Q1 decided.
+
+
+**What actually happened**
+
+- **`pdf_data()` ships (§18 Q1).** The text walk's glyphs are exposed per page; R groups them into words along each glyph's direction and boxes them with the font's real ascent and descent. Every pdftools word is found with `x` within 2 points; `y` matches except for poppler's Type 3 heights.
+- **Conformance** passes on the fixtures: word recall 0.9 to 1.0 wherever pdftools reads text (two afl cases keep their text in form-field appearances, which zupdf does not read); every written file is read by pdftools with the same words and passes `qpdf --check`.
+- **Benchmarks** (design §16): open + metadata 1 ms, text 5× faster than pdftools, merging at 1.1× qpdf, a 100-page report in 168 ms.
+- **The PR's fuzz run found another leak**: a trailer that is not a dictionary was refused without being freed (three places in pdfio). Patch `0012-trailer-value-leak`, reported upstream with #182's class; the input is a regression fixture.
 
 ---
 

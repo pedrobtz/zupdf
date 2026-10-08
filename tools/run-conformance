@@ -1,0 +1,5 @@
+#!/bin/sh
+# Conformance against pdftools and qpdf (roadmap Stage 7): see
+# tools/conformance.R. Run from the package root with zupdf installed.
+set -eu
+Rscript tools/conformance.R

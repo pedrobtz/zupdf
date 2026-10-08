@@ -28,8 +28,7 @@ test_that("no stub is defined for what zupdf cannot do", {
     "pdf_ocr_data",
     "poppler_config",
     "pdf_compress",
-    "pdf_overlay_stamp",
-    "pdf_data"
+    "pdf_overlay_stamp"
   )) {
     expect_false(f %in% exports, label = f)
   }
@@ -291,4 +290,41 @@ test_that("the copies open in qpdf too", {
   path <- minimal_pdf(text = c("a", "b"), path = file.path(dir, "doc.pdf"))
   out <- pdf_combine(c(path, path), output = file.path(dir, "both.pdf"))
   expect_identical(qpdf::pdf_length(out), 4L)
+})
+
+test_that("pdf_data() gives words with pdftools's columns and boxes", {
+  path <- minimal_pdf(
+    text = c("Hello from zupdf.", "Two"),
+    path = withr::local_tempfile(fileext = ".pdf")
+  )
+  d <- pdf_data(path)
+  expect_length(d, 2L)
+  expect_s3_class(d[[1]], "tbl_df")
+  expect_named(d[[1]], c("width", "height", "x", "y", "space", "text"))
+  expect_identical(d[[1]]$text, c("Hello", "from", "zupdf."))
+  expect_identical(d[[1]]$space, c(TRUE, TRUE, FALSE))
+  expect_identical(d[[1]]$x[[1]], 72L)
+  # Helvetica 12 at baseline 720 on a 792-point page: top 792 - 720 - 8.6.
+  expect_identical(d[[1]]$y[[1]], 63L)
+  f <- pdf_data(path, font_info = TRUE)[[2]]
+  expect_identical(f$font_name, "Helvetica")
+  expect_identical(f$font_size, 12)
+  skip_if_not_installed("pdftools")
+  p <- pdftools::pdf_data(path)
+  expect_identical(d[[1]]$text, p[[1]]$text)
+  expect_identical(d[[1]]$x, p[[1]]$x, tolerance = 2)
+  expect_lte(max(abs(d[[1]]$y - p[[1]]$y)), 1L)
+})
+
+test_that("pdf_data() keeps a rotated word whole, and an empty page is empty", {
+  rotated <- page_pdf(
+    "BT /F1 12 Tf 0 1 -1 0 100 300 Tm (Upward) Tj ET",
+    sprintf("<< /Font << /F1 %s >> >>", helv)
+  )
+  d <- pdf_data(rotated)[[1]]
+  expect_identical(d$text, "Upward")
+  expect_gt(d$height, d$width)
+  empty <- pdf_data(minimal_pdf())[[1]]
+  expect_identical(nrow(empty), 0L)
+  expect_named(empty, c("width", "height", "x", "y", "space", "text"))
 })

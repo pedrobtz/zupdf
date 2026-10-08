@@ -146,6 +146,7 @@ static zpd_mat zpd_mul(zpd_mat m, zpd_mat n)
 typedef struct {
     double x0, y0, x1, y1, size;
     size_t off, len; /* the glyph's text in the context's pool */
+    const zpd_font *font;
 } zpd_glyph;
 
 typedef struct {
@@ -297,7 +298,7 @@ static void zpd_raw_break(zpd_text_ctx *c, int newline)
     }
 }
 
-static void zpd_emit(zpd_text_ctx *c, const uint32_t *cps, size_t n,
+static void zpd_emit(zpd_text_ctx *c, const zpd_font *f, const uint32_t *cps, size_t n,
                      double x0, double y0, double x1, double y1, double size)
 {
     if (c->ng == c->capg) {
@@ -319,7 +320,7 @@ static void zpd_emit(zpd_text_ctx *c, const uint32_t *cps, size_t n,
         zpd_buf_utf8(&c->raw, cp);
     }
     c->raw_text = 1;
-    c->g[c->ng++] = (zpd_glyph){x0, y0, x1, y1, size, off, c->pool.n - off};
+    c->g[c->ng++] = (zpd_glyph){x0, y0, x1, y1, size, off, c->pool.n - off, f};
 }
 
 /* ---- the walk -------------------------------------------------------------------------- */
@@ -391,7 +392,7 @@ static void zpd_show(zpd_text_ctx *c, zpd_run *r, const unsigned char *s, size_t
         double x0 = trm.c * gs->ts + trm.e, y0 = trm.d * gs->ts + trm.f;
         double x1 = trm.a * tx + trm.c * gs->ts + trm.e, y1 = trm.b * tx + trm.d * gs->ts + trm.f;
         double size = fabs(gs->tfs) * hypot(trm.c, trm.d);
-        zpd_emit(c, cps, ncp, x0, y0, x1, y1, size);
+        zpd_emit(c, f, cps, ncp, x0, y0, x1, y1, size);
         r->tm.e += tx * r->tm.a;
         r->tm.f += tx * r->tm.b;
     }
@@ -906,6 +907,57 @@ SEXP zupdf_page_text(SEXP ptr, SEXP pages, SEXP raw_, SEXP max_depth, SEXP max_s
     zpd_text_release(h);
     zpd_errors_to_warnings(&h->rec);
     SEXP out = zpd_result(status ? status : "ok", v, &h->rec);
+    UNPROTECT(1);
+    return out;
+}
+
+/* zupdf_page_glyphs(ptr, page, max_depth, max_stream): list(x0, y0, x1,
+   y1, size, text, font), the page's glyphs in stream order, for
+   pdf_data(). */
+SEXP zupdf_page_glyphs(SEXP ptr, SEXP page_, SEXP max_depth, SEXP max_stream)
+{
+    zpd_file *h = zpd_file_get(ptr);
+    if (!h)
+        return zpd_status("closed");
+    zpd_record_reset(&h->rec);
+    zpd_text_ctx *c = zpd_text_ctx_new(h, Rf_asInteger(max_depth), Rf_asReal(max_stream));
+    if (!c)
+        return zpd_status("memory");
+    pdfio_obj_t *page = pdfioFileGetPage(h->pdf, (size_t) Rf_asInteger(page_) - 1);
+    const unsigned char *t;
+    size_t len;
+    int um;
+    const char *status = zpd_text_extract(c, page, 1, &t, &len, &um);
+    if (status) {
+        zpd_text_release(h);
+        return zpd_status(status);
+    }
+    R_xlen_t n = (R_xlen_t) c->ng;
+    const char *names[] = {"x0", "y0", "x1", "y1", "size", "text", "font", "ascent", "descent", ""};
+    SEXP v = PROTECT(Rf_mkNamed(VECSXP, names));
+    for (int k = 0; k < 5; k++)
+        SET_VECTOR_ELT(v, k, Rf_allocVector(REALSXP, n));
+    SET_VECTOR_ELT(v, 5, Rf_allocVector(STRSXP, n));
+    SET_VECTOR_ELT(v, 6, Rf_allocVector(STRSXP, n));
+    SET_VECTOR_ELT(v, 7, Rf_allocVector(REALSXP, n));
+    SET_VECTOR_ELT(v, 8, Rf_allocVector(REALSXP, n));
+    for (R_xlen_t i = 0; i < n; i++) {
+        const zpd_glyph *g = &c->g[i];
+        REAL(VECTOR_ELT(v, 0))[i] = g->x0;
+        REAL(VECTOR_ELT(v, 1))[i] = g->y0;
+        REAL(VECTOR_ELT(v, 2))[i] = g->x1;
+        REAL(VECTOR_ELT(v, 3))[i] = g->y1;
+        REAL(VECTOR_ELT(v, 4))[i] = g->size;
+        SET_STRING_ELT(VECTOR_ELT(v, 5), i,
+                       Rf_mkCharLenCE((const char *) c->pool.p + g->off, (int) g->len, CE_UTF8));
+        SET_STRING_ELT(VECTOR_ELT(v, 6), i,
+                       g->font && g->font->name[0] ? Rf_mkChar(g->font->name) : NA_STRING);
+        REAL(VECTOR_ELT(v, 7))[i] = g->font ? g->font->ascent : 0.8;
+        REAL(VECTOR_ELT(v, 8))[i] = g->font ? g->font->descent : -0.2;
+    }
+    zpd_text_release(h);
+    zpd_errors_to_warnings(&h->rec);
+    SEXP out = zpd_result("ok", v, &h->rec);
     UNPROTECT(1);
     return out;
 }
