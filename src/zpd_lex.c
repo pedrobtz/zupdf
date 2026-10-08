@@ -29,6 +29,11 @@ static int zpd_hexval(int c)
 
 void zpd_lex_init(zpd_lex *lx, const unsigned char *data, size_t n)
 {
+    /* An empty stream may come as NULL, and NULL + 0 is undefined. */
+    if (!data) {
+        data = (const unsigned char *) "";
+        n = 0;
+    }
     lx->p = data;
     lx->end = data + n;
     lx->type = ZPD_TOK_EOF;
