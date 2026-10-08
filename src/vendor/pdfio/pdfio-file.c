@@ -16,6 +16,8 @@
 //
 // Modified for the zupdf R package: an object's own binary value is freed when the object is, and before the object is read again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: a trailer that is not a dictionary is freed before it is refused (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #include "pdfio-content.h"
@@ -2109,6 +2111,7 @@ load_xref(
       else if (trailer.type != PDFIO_VALTYPE_DICT)
       {
         PDFIO_DEBUG("load_xref: Expected dictionary for cross-reference object (type=%d).", trailer.type);
+        _pdfioValueDelete(&trailer);
         goto repair;
       }
 
@@ -2449,6 +2452,7 @@ load_xref(
       else if (trailer.type != PDFIO_VALTYPE_DICT)
       {
         PDFIO_DEBUG("load_xref: Trailer not a dictionary (type=%d).\n", trailer.type);
+        _pdfioValueDelete(&trailer);
 	goto repair;
       }
 
@@ -2714,6 +2718,7 @@ repair_xref(
       else if (trailer.type != PDFIO_VALTYPE_DICT)
       {
 	_pdfioFileError(pdf, "Trailer is not a dictionary.");
+	_pdfioValueDelete(&trailer);
 	return (false);
       }
 

@@ -145,8 +145,12 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             fuzzing. The value is freed with the object and
                             before it is read again. Reported upstream as
                             michaelrsweet/pdfio#182.
+  0012-trailer-value-leak   A trailer that was not a dictionary (a hex
+                            string, say) was refused without being freed,
+                            in load_xref() twice and repair_xref() once;
+                            LeakSanitizer reported it fuzzing at Stage 7.
 
-0001 and 0002 are proposed upstream as build options and 0003 to 0011 as
+0001 and 0002 are proposed upstream as build options and 0003 to 0012 as
 fixes; none but 0006 changes behaviour on well-formed input, and 0006 only
 what is written.
 
