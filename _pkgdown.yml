@@ -5,6 +5,10 @@ development:
   mode: auto
 
 articles:
+  - title: Overview
+    navbar: ~
+    contents:
+      - articles/usage
   - title: Guides
     navbar: ~
     contents:
