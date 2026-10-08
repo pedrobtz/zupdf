@@ -29,6 +29,8 @@ static const unsigned short zpd_pdfdoc_high[46] = {
 
 static unsigned zpd_pdfdoc_code(unsigned char b)
 {
+    if (b == 0x00)
+        return 0xFFFD;
     if (b >= 0x18 && b <= 0x1F)
         return zpd_pdfdoc_low[b - 0x18];
     if (b == 0x7F)
@@ -57,7 +59,9 @@ static size_t zpd_utf8_put(char *out, unsigned cp)
 
 SEXP zpd_mkchar_pdf(const char *s, size_t n)
 {
-    if (zuf_utf8_valid(s, n))
+    /* R strings cannot hold NUL, so a string with one takes the second
+       path, where NUL becomes U+FFFD. */
+    if (zuf_utf8_valid(s, n) && !memchr(s, 0, n))
         return Rf_mkCharLenCE(s, (int) n, CE_UTF8);
     /* Every PDFDocEncoding byte becomes at most three UTF-8 bytes. The
        buffer is R's, so an allocation failure cannot leak it. */

@@ -205,3 +205,89 @@ roundtrip <- function(x, ...) {
 nested_array <- function(depth) {
   paste0(strrep("[", depth), "1", strrep("]", depth))
 }
+
+# A PDF from a list of objects, numbered from 1, with object 1 the catalog.
+# Each object is PDF text, or list(dict = "<< ... >>" without /Length, data
+# = raw or character) for a stream. Page content, fonts, forms and maps are
+# written out in full, so a test shows exactly what it reads.
+build_pdf <- function(objects) {
+  body <- function(o) {
+    if (!is.list(o)) {
+      return(charToRaw(o))
+    }
+    data <- if (is.raw(o$data)) o$data else charToRaw(o$data)
+    dict <- sub(">>\\s*$", sprintf(" /Length %d >>", length(data)), o$dict)
+    c(charToRaw(dict), charToRaw("\nstream\n"), data, charToRaw("\nendstream"))
+  }
+  out <- charToRaw("%PDF-1.7\n")
+  offsets <- integer(length(objects))
+  for (k in seq_along(objects)) {
+    offsets[k] <- length(out)
+    out <- c(
+      out,
+      charToRaw(sprintf("%d 0 obj\n", k)),
+      body(objects[[k]]),
+      charToRaw("\nendobj\n")
+    )
+  }
+  xref <- length(out)
+  c(
+    out,
+    charToRaw(paste0(
+      sprintf("xref\n0 %d\n0000000000 65535 f \n", length(objects) + 1L),
+      paste(sprintf("%010d 00000 n \n", offsets), collapse = ""),
+      sprintf(
+        "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n",
+        length(objects) + 1L,
+        xref
+      )
+    ))
+  )
+}
+
+# A one-page PDF whose page has content `content` and resources
+# `resources` (PDF text), with `extra` objects numbered from 5. Objects 1-4
+# are the catalog, page tree, page and content stream.
+page_pdf <- function(content, resources = "<< >>", extra = list()) {
+  build_pdf(c(
+    list(
+      "<< /Type /Catalog /Pages 2 0 R >>",
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      sprintf(
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources %s /Contents 4 0 R >>",
+        resources
+      ),
+      list(dict = "<< >>", data = content)
+    ),
+    extra
+  ))
+}
+
+# Helvetica as a resource dictionary entry, WinAnsiEncoding.
+helv <- "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+
+# The text of a page_pdf(), opened from bytes.
+text_of <- function(bytes, ..., layout = "reading") {
+  pdf <- pdf_open(bytes, ...)
+  on.exit(pdf_close(pdf))
+  pdf_page_text(pdf, layout = layout)
+}
+
+# A page drawing image object 5: `w` x `h`, `cs`, 8 bits, with `data`
+# stored under `filter` ("" for none).
+image_pdf <- function(data, w, h, cs = "/DeviceRGB", filter = "") {
+  page_pdf(
+    sprintf("q %d 0 0 %d 0 0 cm /Im1 Do Q", w, h),
+    "<< /XObject << /Im1 5 0 R >> >>",
+    extra = list(list(
+      dict = sprintf(
+        "<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace %s /BitsPerComponent 8 %s >>",
+        w,
+        h,
+        cs,
+        filter
+      ),
+      data = data
+    ))
+  )
+}
