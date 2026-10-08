@@ -13,7 +13,7 @@ It is a member of the `zu*` family (sibling checkouts in `../`). `zucbor` and `z
 
 ## Current state
 
-**2026-10-08: Stage 1 done.** pdfio 1.6.5 is vendored in `src/vendor/pdfio/` (its ttf library ships in the same tree) with four patches (`0001-visibility-override`, `0002-no-stdio`, `0003-date-buffer`, `0004-undefined-behaviour`); `tools/update-pdfio`, `tools/verify-vendor`, `tools/check-symbols` and `tools/update-fixtures` exist. Exported: `zupdf_info()`, `pdf_open()`, `pdf_close()`, `pdf_meta()`, `pdf_pages()`. The `pdf_file` handle, the error and password callbacks, the temporary-file spill, the limits `max_size`, `max_objects`, `max_pages` and (in the page walk) `max_depth`, and the pdfio message-to-class map are in place. Fixtures: `afl-input`, `testpdfio.pdf`, four encrypted files, `grdevices.pdf`. Next: Stage 2, objects and values.
+**2026-10-08: Stage 2 done.** pdfio 1.6.5 is vendored in `src/vendor/pdfio/` (its ttf library ships in the same tree) with four patches (`0001-visibility-override`, `0002-no-stdio`, `0003-date-buffer`, `0004-undefined-behaviour`); `tools/update-pdfio`, `tools/verify-vendor`, `tools/check-symbols` and `tools/update-fixtures` exist. Exported: `zupdf_info()`, `pdf_open()`, `pdf_close()`, `pdf_meta()`, `pdf_pages()`, `pdf_objects()`, `pdf_object()`, `pdf_stream()`. The design §6 value mapping works both ways (`src/zpd_value.c`, tested through the internal `zpd_value_roundtrip()`); every limit but the text walk's is in place. pdfio 1.6.5 decodes only FlateDecode. Next: Stage 3, text and images.
 
 Update this paragraph at the end of every stage.
 

@@ -145,3 +145,63 @@ read_all <- function(path) {
   p <- pdf_pages(pdf)
   list(pages = m$pages, rows = nrow(p))
 }
+
+# A one-page PDF whose object 4 is a stream holding `data` (raw) with the
+# dictionary entries in `dict` (raw PDF text, such as "/Filter
+# /FlateDecode"), and whose object 5 is `value` (raw PDF text) when given.
+# For streams minimal_pdf() cannot hold: compressed, binary, or bombs.
+stream_pdf <- function(data, dict = "", value = NULL) {
+  objs <- list(
+    charToRaw("<< /Type /Catalog /Pages 2 0 R >>"),
+    charToRaw("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+    charToRaw("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"),
+    c(
+      charToRaw(sprintf("<< /Length %d %s >>\nstream\n", length(data), dict)),
+      data,
+      charToRaw("\nendstream")
+    )
+  )
+  if (!is.null(value)) {
+    objs[[5L]] <- charToRaw(value)
+  }
+  out <- charToRaw("%PDF-1.7\n")
+  offsets <- integer(length(objs))
+  for (k in seq_along(objs)) {
+    offsets[k] <- length(out)
+    out <- c(
+      out,
+      charToRaw(sprintf("%d 0 obj\n", k)),
+      objs[[k]],
+      charToRaw("\nendobj\n")
+    )
+  }
+  xref <- length(out)
+  c(
+    out,
+    charToRaw(paste0(
+      sprintf("xref\n0 %d\n0000000000 65535 f \n", length(objs) + 1L),
+      paste(sprintf("%010d 00000 n \n", offsets), collapse = ""),
+      sprintf(
+        "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n",
+        length(objs) + 1L,
+        xref
+      )
+    ))
+  )
+}
+
+# zlib-compressed bytes, as FlateDecode stores them.
+flate <- function(x) memCompress(x, "gzip")
+
+# A value written by zupdf and read back (design section 6, both ways).
+roundtrip <- function(x, ...) {
+  r <- zpd_value_roundtrip(x, ...)
+  pdf <- pdf_open(r$bytes)
+  on.exit(pdf_close(pdf))
+  pdf_object(pdf, r$number)
+}
+
+# A nested PDF array `depth` levels deep, as PDF text.
+nested_array <- function(depth) {
+  paste0(strrep("[", depth), "1", strrep("]", depth))
+}

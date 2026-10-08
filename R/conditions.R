@@ -144,10 +144,40 @@ zpd_unwrap <- function(
       "max_depth",
       limits$max_depth,
       sprintf(
-        "%s: the file nests deeper than `max_depth` (%s).",
+        "%s: the value nests deeper than `max_depth` (%s).",
         what,
         format(limits$max_depth, scientific = FALSE)
       ),
+      call = call
+    ),
+    max_stream = zpd_limit_error(
+      "max_stream",
+      limits$max_stream,
+      sprintf(
+        "%s: the stream is larger than `max_stream` (%s bytes).",
+        what,
+        format(limits$max_stream, scientific = FALSE, big.mark = "")
+      ),
+      call = call
+    ),
+    unknown_object = zpd_invalid_argument(
+      "n",
+      sprintf("%s: there is no such object in the file.", what),
+      call = call
+    ),
+    no_stream = zpd_invalid_argument(
+      "n",
+      sprintf("%s: the object has no stream.", what),
+      call = call
+    ),
+    unknown_ref = zpd_invalid_argument(
+      "x",
+      sprintf("%s: a pdf_ref names no object in the file.", what),
+      call = call
+    ),
+    unsupported = zpd_invalid_argument(
+      "x",
+      sprintf("%s: a value has no PDF form.", what),
       call = call
     ),
     stop("unknown status from C: ", res$status)

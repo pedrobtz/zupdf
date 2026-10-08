@@ -12,7 +12,11 @@ static const R_CallMethodDef CallEntries[] = {
     {"zupdf_is_open",    (DL_FUNC) &zupdf_is_open,    1},
     {"zupdf_meta",       (DL_FUNC) &zupdf_meta,       1},
     {"zupdf_open",       (DL_FUNC) &zupdf_open,       3},
+    {"zupdf_object",     (DL_FUNC) &zupdf_object,     3},
+    {"zupdf_objects",    (DL_FUNC) &zupdf_objects,    1},
     {"zupdf_pages",      (DL_FUNC) &zupdf_pages,      2},
+    {"zupdf_stream",     (DL_FUNC) &zupdf_stream,     4},
+    {"zupdf_value_roundtrip", (DL_FUNC) &zupdf_value_roundtrip, 2},
     {NULL, NULL, 0}
 };
 

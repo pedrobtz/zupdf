@@ -17,4 +17,12 @@ SEXP zupdf_counts(SEXP ptr);
 SEXP zupdf_meta(SEXP ptr);
 SEXP zupdf_pages(SEXP ptr, SEXP max_depth);
 
+/* zpd_object.c */
+SEXP zupdf_objects(SEXP ptr);
+SEXP zupdf_object(SEXP ptr, SEXP number, SEXP max_depth);
+SEXP zupdf_stream(SEXP ptr, SEXP number, SEXP decode, SEXP max_stream);
+
+/* zpd_roundtrip.c */
+SEXP zupdf_value_roundtrip(SEXP x, SEXP max_depth);
+
 #endif
