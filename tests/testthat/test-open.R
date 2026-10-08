@@ -215,7 +215,6 @@ test_that("a spilled copy is removed by pdf_close() and by the finalizer", {
 
 test_that("a thousand unclosed handles leave no descriptors or files", {
   skip_heavy()
-  skip_on_cran()
   fds <- function() {
     d <- "/proc/self/fd"
     if (dir.exists(d)) length(list.files(d)) else NA_integer_

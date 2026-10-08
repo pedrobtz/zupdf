@@ -51,3 +51,21 @@ zpd_check_string <- function(value, name, call = NULL) {
   }
   value
 }
+
+# An object number: a positive whole number.
+zpd_check_number <- function(value, name, call = NULL) {
+  ok <- is.numeric(value) &&
+    length(value) == 1L &&
+    !is.na(value) &&
+    value >= 1 &&
+    value == floor(value) &&
+    is.finite(value)
+  if (!ok) {
+    zpd_invalid_argument(
+      name,
+      sprintf("`%s` must be a positive whole number.", name),
+      call = call
+    )
+  }
+  as.numeric(value)
+}

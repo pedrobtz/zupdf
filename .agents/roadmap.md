@@ -154,7 +154,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 2 — Objects: `pdf_objects()`, `pdf_object()`, `pdf_stream()`, values · M
 
-**Status:** not started.
+**Status:** done, 2026-10-08.
 
 **Do**
 
@@ -166,6 +166,16 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 **Exit**
 
 - Every §6 row has a test both ways; the bombs trip their classes; rchk and gctorture clean.
+
+
+**What actually happened**
+
+- **pdfio 1.6.5 decodes only FlateDecode.** ASCII85, RunLength and ASCIIHex are refused as unsupported, like DCT. `pdf_stream(decode = TRUE)` falls back to the stored bytes with `decoded = FALSE` and the filter names. Design §9 and §5 corrected.
+- **Hex strings with a UTF-16 byte-order mark are text**, decoded by zupdf, since pdfio keeps hex strings as bytes; non-ASCII strings are written as UTF-16BE hex, because pdfio would write raw UTF-8 that other readers misread. Design §6.
+- **Dictionary keys come out sorted**: pdfio inserts keys in sorted order, so the design's "R's order on the way in" cannot hold. Design §6.
+- **`zpd_value.c` reads `pdfio-private.h`**, for references to missing objects, non-dictionary object values and appending `null` to an array.
+- **The reverse mapping is tested through an internal `zpd_value_roundtrip()`**, which writes a list as an object of a one-page PDF in memory; every §6 row is tested both ways, ahead of the writer.
+- **Streams are read into a handle-owned `malloc()` buffer** with no R call while the stream is open (design §13).
 
 ---
 

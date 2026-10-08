@@ -1,6 +1,11 @@
 # zupdf 0.0.0.9000
 
 * Development version, built stage by stage; see the roadmap.
+* `pdf_objects()` lists every object; `pdf_object()` reads one object's
+  value as R values, with marker classes for names (`pdf_name`),
+  references (`pdf_ref`) and byte strings (`pdf_binary`); `pdf_stream()`
+  reads a stream, decoded (FlateDecode) or as stored, bounded by
+  `max_stream`.
 * `pdf_open()` opens a PDF from a path, a raw vector or a connection, with
   an optional password (a string, or a function called only when the file
   needs one), under limits on input size, object count and page count.

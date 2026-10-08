@@ -75,3 +75,38 @@ SEXP zpd_string_or_na(const char *s)
     UNPROTECT(1);
     return out;
 }
+
+/* A UTF-16BE text string with its byte-order mark (PDF 2.0, 7.9.2.2):
+   pdfio keeps hex strings as bytes, so one that begins FE FF is decoded
+   here. An unpaired surrogate becomes U+FFFD. */
+bool zpd_is_utf16be(const unsigned char *b, size_t n)
+{
+    return n >= 2 && n % 2 == 0 && b[0] == 0xFE && b[1] == 0xFF;
+}
+
+SEXP zpd_mkchar_utf16be(const unsigned char *b, size_t n)
+{
+    /* Each two-byte unit becomes at most three UTF-8 bytes; a surrogate
+       pair (four bytes) becomes four. */
+    char *buf = R_alloc(3 * (n / 2) + 1, 1);
+    size_t k = 0;
+    for (size_t i = 2; i + 1 < n; i += 2) {
+        unsigned u = ((unsigned) b[i] << 8) | b[i + 1];
+        if (u >= 0xD800 && u <= 0xDBFF && i + 3 < n) {
+            unsigned lo = ((unsigned) b[i + 2] << 8) | b[i + 3];
+            if (lo >= 0xDC00 && lo <= 0xDFFF) {
+                unsigned cp = 0x10000 + ((u - 0xD800) << 10) + (lo - 0xDC00);
+                buf[k++] = (char) (0xF0 | (cp >> 18));
+                buf[k++] = (char) (0x80 | ((cp >> 12) & 0x3F));
+                buf[k++] = (char) (0x80 | ((cp >> 6) & 0x3F));
+                buf[k++] = (char) (0x80 | (cp & 0x3F));
+                i += 2;
+                continue;
+            }
+        }
+        if (u >= 0xD800 && u <= 0xDFFF)
+            u = 0xFFFD;
+        k += zpd_utf8_put(buf + k, u);
+    }
+    return Rf_mkCharLenCE(buf, (int) k, CE_UTF8);
+}

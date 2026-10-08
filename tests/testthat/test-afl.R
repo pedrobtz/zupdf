@@ -20,7 +20,6 @@ test_that("every afl-input case opens or is refused with a classed error", {
 
 test_that("reading the afl-input corpus writes nothing to stderr", {
   skip_heavy()
-  skip_on_cran()
   # A child R process, so that anything written to the C stderr is caught.
   script <- withr::local_tempfile(fileext = ".R")
   writeLines(

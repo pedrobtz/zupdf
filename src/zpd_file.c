@@ -64,7 +64,7 @@ SEXP zpd_result(const char *status, SEXP value, const zpd_record *rec)
 }
 
 /* A status with no pdfio record, such as "closed". */
-static SEXP zpd_status(const char *status)
+SEXP zpd_status(const char *status)
 {
     zpd_record rec;
     zpd_record_reset(&rec);
@@ -108,6 +108,8 @@ static void zpd_file_release(zpd_file *h)
     }
     free(h->password);
     h->password = NULL;
+    free(h->scratch);
+    h->scratch = NULL;
 }
 
 static void zpd_file_finalize(SEXP ptr)
