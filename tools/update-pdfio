@@ -82,16 +82,20 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             from zupdf.so past \$(C_VISIBILITY); Makevars
                             defines both empty, so only R_init_zupdf is
                             exported.
+                            Reported upstream: michaelrsweet/pdfio#183.
   0002-no-stdio             PDFIO_NO_STDIO leaves out the default error
                             callback's fprintf(stderr), ttf's errorf()
                             fallback to stderr and the three DEBUG value
                             printers, which R CMD check reports as
                             console output. zupdf always installs its own
                             callbacks, so none of these is reachable.
+                            Reported upstream: michaelrsweet/pdfio#184,
+                            michaelrsweet/ttf#13.
   0003-date-buffer          The two date buffers grow from 32 to 80 bytes,
                             enough for any int the "D:%04d%02d..." format
                             can print. gcc's -Wformat-truncation, which R
                             CMD check reports, warned that 32 might not be.
+                            Reported upstream: michaelrsweet/pdfio#185.
 
   0004-undefined-behaviour  What UBSan reports in pdfio's own code: the
                             token callbacks, the crypt callbacks and the
@@ -102,12 +106,15 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             zero-length memcpy() from NULL in
                             pdfioStreamPeek() and pointer arithmetic on
                             NULL in the MD5 alignment test are guarded.
+                            Reported upstream: michaelrsweet/pdfio#186.
 
   0005-unsigned-shifts      Big-endian reads in ttf.c and pdfio's PNG reader
                             shifted a byte promoted to int left by 24, which
                             overflows when its high bit is set; UBSan
                             reported it reading a TrueType font. The bytes
                             are cast to unsigned first.
+                            Reported upstream: michaelrsweet/pdfio#187,
+                            michaelrsweet/ttf#14.
   0010-ttf-callbacks        pdfio called its ttf error relay and ttfDelete()
                             through function pointers of another type; ASan
                             and UBSan in CI reported both at Stage 4. They
@@ -115,6 +122,7 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             (Numbered 0010 because 0006 to 0009 were already
                             taken by later stages' patches; patches apply in
                             numeric order and touch separate code.)
+                            Reported upstream: michaelrsweet/pdfio#192.
 
   0006-dict-getstring       pdfioDictGetString() turned a binary value into a
                             string in place, so reading a UTF-16 text string
@@ -122,6 +130,7 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             close) made it be written back as raw UTF-8,
                             which other readers misread. It now returns the
                             converted string and leaves the value as it is.
+                            Reported upstream: michaelrsweet/pdfio#188.
 
   0007-number-casts         Numbers read from a file (/W, /Index, /Length,
                             /Prev, /N, filter parameters, the encryption
@@ -131,14 +140,17 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             /W. Clamping conversions in pdfio-private.h
                             replace the 23 casts; in-range values convert as
                             before.
+                            Reported upstream: michaelrsweet/pdfio#189.
 
   0008-repair-loop          repair_xref() skipped its line_offset update
                             when it could not read an object, so the next
                             object was read from a stale offset and the scan
                             could loop for ever on a damaged file; found by
                             fuzzing (a 716-byte file that never finished).
+                            Reported upstream: michaelrsweet/pdfio#190.
   0009-index-cast           An /Index entry was cast to intmax_t unchecked,
                             which 0007 missed; fuzzing found a 1.9e104.
+                            Reported upstream: michaelrsweet/pdfio#191.
   0011-object-value-leak    An object whose own value is a hex string never
                             freed it, at close or when the repair scan read
                             the object again; LeakSanitizer reported it
@@ -149,6 +161,7 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             string, say) was refused without being freed,
                             in load_xref() twice and repair_xref() once;
                             LeakSanitizer reported it fuzzing at Stage 7.
+                            Reported upstream: michaelrsweet/pdfio#193.
 
 0001 and 0002 are proposed upstream as build options and 0003 to 0012 as
 fixes; none but 0006 changes behaviour on well-formed input, and 0006 only
