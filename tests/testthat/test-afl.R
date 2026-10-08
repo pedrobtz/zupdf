@@ -39,3 +39,26 @@ test_that("reading the afl-input corpus writes nothing to stderr", {
   skip_if(status != 0L, "zupdf is not installed for a child process")
   expect_identical(readLines(err), character())
 })
+
+test_that("every fuzz-found input is read or refused cleanly", {
+  # tests/testthat/fixtures/fuzz holds the inputs tools/run-fuzz found, each
+  # now fixed by a pdfio patch or a zupdf change (design section 15).
+  files <- list.files(test_path("fixtures", "fuzz"), full.names = TRUE)
+  expect_gt(length(files), 0L)
+  for (f in files) {
+    res <- tryCatch(
+      suppressWarnings({
+        pdf <- pdf_open(f)
+        on.exit(pdf_close(pdf), add = TRUE)
+        list(
+          pdf_meta(pdf),
+          pdf_pages(pdf),
+          pdf_page_text(pdf),
+          suppressWarnings(pdf_objects(pdf))
+        )
+      }),
+      zupdf_error = function(e) "refused"
+    )
+    expect_true(is.list(res) || identical(res, "refused"), label = basename(f))
+  }
+})

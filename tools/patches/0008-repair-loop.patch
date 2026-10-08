@@ -1,0 +1,27 @@
+diff -ruN a/pdfio-file.c b/pdfio-file.c
+--- a/pdfio-file.c
++++ b/pdfio-file.c
+@@ -10,6 +10,8 @@
+ //
+ // Modified for the zupdf R package: numbers read from a file are converted to integers with clamping, never out of range (UBSan, fuzzing). See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: repair_xref() keeps line_offset current when it skips an object it cannot read, so it cannot loop (fuzzing). See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ #include "pdfio-content.h"
+@@ -2621,8 +2623,12 @@
+ 	  {
+ 	    if (!_pdfioFileError(pdf, "WARNING: Unable to read object dictionary/value."))
+ 	      return (false);
+-	    else
+-	      continue;
++
++	    // Carry on from here: without this, the next object's offset is
++	    // computed from a stale line_offset and the scan can go back over
++	    // the same bytes for ever.
++	    line_offset = _pdfioFileTell(pdf);
++	    continue;
+ 	  }
+ 
+ 	  if (_pdfioTokenGet(&tb, line, sizeof(line)))

@@ -1,0 +1,65 @@
+#!/bin/sh
+# libFuzzer over the R-free core (design section 15, roadmap Stage 6): open,
+# every object and stream, every page's text in both layouts. Usage, from
+# the package root:
+#
+#   tools/run-fuzz [seconds]        default 60
+#
+# The canary (fuzz/fuzz_canary.c) must crash first, through the same code
+# and flags, or the gate is not trusted. The grown corpus is kept in
+# $FUZZ_CORPUS (default fuzz/corpus), which CI caches between runs; the
+# seeds are the test fixtures, pdfio's afl-input among them, and the
+# dictionary is pdfio's afl-pdf.dict. Needs a clang with libFuzzer (set
+# FUZZ_CC; Apple's has none, so this exits 2 there) and the zufast headers
+# (FUZZ_ZUFAST, default from the installed package).
+set -eu
+
+SECS=${1:-60}
+CC=${FUZZ_CC:-clang}
+CORPUS=${FUZZ_CORPUS:-fuzz/corpus}
+ZUFAST=${FUZZ_ZUFAST:-$(Rscript -e 'cat(system.file("include", package = "zufast"))')}
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+printf 'int LLVMFuzzerTestOneInput(const unsigned char *d, unsigned long n) { (void) d; (void) n; return 0; }\n' > "$WORK/probe.c"
+if ! $CC -fsanitize=fuzzer "$WORK/probe.c" -o "$WORK/probe" 2>/dev/null; then
+  echo "run-fuzz: $CC has no libFuzzer runtime; set FUZZ_CC to one that does" >&2
+  exit 2
+fi
+
+PDFIO=$(sed -n 's|^\tvendor/pdfio/\(.*\)\.o.*|src/vendor/pdfio/\1.c|p' src/Makevars | tr '\n' ' ')
+SRCS="src/zpd_core.c src/zpd_lex.c src/zpd_font.c src/zpd_text.c fuzz/fuzz_common.c $PDFIO"
+FLAGS="-std=gnu17 -g -O1 -fno-omit-frame-pointer -fsanitize=fuzzer,address,undefined
+       -fno-sanitize-recover=undefined -UNDEBUG -DZPD_STANDALONE -DPDFIO_NO_STDIO
+       -D_PDFIO_PUBLIC= -D_PDFIO_PRIVATE= -Isrc -Isrc/vendor/pdfio -Ifuzz -I$ZUFAST"
+for t in fuzz_canary fuzz_pdf; do
+  # shellcheck disable=SC2086
+  $CC $FLAGS "fuzz/$t.c" $SRCS -lz -o "$WORK/$t"
+done
+
+mkdir -p "$WORK/seeds" "$CORPUS" "$WORK/artifacts"
+cp tests/testthat/fixtures/*.pdf tests/testthat/fixtures/afl-input/*.pdf "$WORK/seeds/"
+export TMPDIR="$WORK"
+
+# 1. The canary must crash.
+if "$WORK/fuzz_canary" -runs=1000 -artifact_prefix="$WORK/canary-" "$WORK/seeds" > "$WORK/canary.log" 2>&1; then
+  echo "FAIL: the canary did not crash; the fuzz gate cannot be trusted" >&2
+  exit 2
+fi
+ls "$WORK"/canary-* > /dev/null 2>&1 || { echo "FAIL: the canary exited without a crash artifact" >&2; exit 2; }
+echo "==> canary crashed, as it must"
+
+# 2. The target, for SECS seconds, over the cached corpus and the seeds.
+status=0
+"$WORK/fuzz_pdf" -max_total_time="$SECS" -max_len=262144 -timeout=20 -rss_limit_mb=2048 \
+  -dict=fuzz/afl-pdf.dict -artifact_prefix="$WORK/artifacts/" "$CORPUS" "$WORK/seeds" \
+  > "$WORK/fuzz.log" 2>&1 || status=$?
+tail -5 "$WORK/fuzz.log"
+if [ "$status" != 0 ] || [ -n "$(ls -A "$WORK/artifacts")" ]; then
+  echo "FAIL: fuzz_pdf found a crash, leak or hang (exit $status):" >&2
+  grep -E "ERROR|SUMMARY|runtime error" "$WORK/fuzz.log" | head -20 >&2 || true
+  ls "$WORK/artifacts" >&2
+  mkdir -p fuzz/artifacts && cp "$WORK/artifacts"/* fuzz/artifacts/ 2>/dev/null || true
+  exit 1
+fi
+echo "==> fuzz_pdf: ${SECS}s, no finding; corpus now $(ls "$CORPUS" | wc -l | tr -d ' ') inputs"

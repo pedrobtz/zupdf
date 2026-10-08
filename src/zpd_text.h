@@ -68,10 +68,13 @@ double zpd_font_width(const zpd_font *f, uint32_t code);
    when max_stream was the reason. */
 unsigned char *zpd_slurp(pdfio_stream_t *st, double max_stream, size_t *len, int *over);
 
-/* Follow one level of indirection (zpd_file.c). */
-pdfio_dict_t *zpd_dict_dict(pdfio_dict_t *dict, const char *key);
-pdfio_array_t *zpd_dict_array(pdfio_dict_t *dict, const char *key);
-pdfio_dict_t *zpd_inherited(pdfio_dict_t *dict, const char *key, int max_depth, int *deep);
+/* The text walk (zpd_text.c), R-free: a context owned by the handle
+   (h->text), then one page at a time. zpd_text_extract() returns NULL or
+   a status ("max_depth", "form_cycle", "max_stream", "memory"); the text
+   it gives stays valid until the next call or zpd_text_release(). */
+struct zpd_text_ctx *zpd_text_ctx_new(zpd_file *h, int max_depth, double max_stream);
+const char *zpd_text_extract(struct zpd_text_ctx *c, pdfio_obj_t *page, int raw,
+                             const unsigned char **text, size_t *len, int *unmapped);
 
 /* The glyph-name to code-point lookup of zpd_glyphs.h, with uniXXXX and
    uXXXX[XX] names, and suffixes (.sc, _alt) stripped; 0 when unknown. */

@@ -490,7 +490,7 @@ static bool zpd_page_copy(pdfio_file_t *pdf, pdfio_obj_t *srcpage, int rotate, i
     if (!_pdfioDictGetValue(dst, "MediaBox"))
         pdfioDictSetRect(dst, "MediaBox", &srcpage->pdf->media_box);
     if (rotate || absolute) {
-        long r = (absolute ? 0 : (long) pdfioDictGetNumber(dst, "Rotate")) + rotate;
+        long r = (absolute ? 0 : zpd_clamp_int(pdfioDictGetNumber(dst, "Rotate"), -36000, 36000)) + rotate;
         pdfioDictSetNumber(dst, "Rotate", (double) (((r % 360) + 360) % 360));
     }
     pdfioDictSetObj(dst, "Parent", pdf->pages_obj);

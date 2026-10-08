@@ -270,7 +270,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 6 — Fuzz target, mutation check, hardening CI · M
 
-**Status:** not started.
+**Status:** done, 2026-10-08.
 
 **Do**
 
@@ -281,6 +281,17 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 **Exit**
 
 - The canary has crashed; the PR fuzz budget is clean; every guard has a mutation case; `hardening.yaml` green.
+
+
+**What actually happened**
+
+- **An R-free core** for the fuzz target: the error callback and dictionary helpers moved to `zpd_core.c`, the text walk got an R-free `zpd_text_extract()`, and `zpd.h` splits at `ZPD_STANDALONE`. The target opens, loads every object, reads every stream and extracts every page's text in both layouts.
+- **The first five minutes of fuzzing found undefined behaviour in pdfio**: a negative `/W` entry cast to `size_t`. Patch `0007-number-casts` clamps all 23 conversions of file numbers to integers; the input is a regression fixture (`fixtures/fuzz/`).
+- **The next ten minutes found the same bug in zupdf's own font loader** (a huge `/FirstChar` cast to `long`); an audit moved every conversion of a file-derived number in project C (rotation, `/W`, `/Differences`, `/FirstChar`) to `zpd_clamp_int()`.
+- **Fifteen more minutes found a hang**: pdfio's cross-reference repair skipped its offset update when it could not read an object and could loop for ever (a 716-byte file). Patch `0008-repair-loop`; the input is a regression fixture.
+- **Thirty more minutes found two more**: an `/Index` entry cast to `intmax_t` that 0007 missed (patch `0009-index-cast`), and an empty name in a ToUnicode CMap crashing the parser's `strstr()` on a NULL lexer buffer (fixed in the lexer, Stage 4's code). Both inputs are regression fixtures.
+- **The mutation check runs through R**, not a C probe: the limits live on both sides of `.Call`, so each guard is disabled in a scratch copy, the copy is reinstalled, and an R probe must change outcome. All ten guards are load-bearing (about 80 seconds); a disabled `max_depth_inherit` hangs on a `/Parent` cycle, caught by a timeout. A form cycle now reports its own message, so its guard is distinguishable from the depth limit's.
+- **`tools/run-lint`** passes at `-Werror` for the R and standalone builds; `tools/check-no-network` copied from zucbor.
 
 ---
 

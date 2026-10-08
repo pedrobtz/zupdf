@@ -203,26 +203,30 @@ zpd_spill <- function(bytes, source, name) {
 # condition is raised.
 zpd_check_counts <- function(pdf, limits, call = NULL) {
   counts <- zpd_unwrap(.Call(zupdf_counts, pdf), "Cannot read the PDF file")
-  over <- c(
-    max_objects = counts[[1L]] > limits$max_objects, # GUARD: max_objects
-    max_pages = counts[[2L]] > limits$max_pages # GUARD: max_pages
-  )
-  if (any(over)) {
-    pdf_close(pdf)
-    name <- names(over)[over][[1L]]
-    what <- c(max_objects = "objects", max_pages = "pages")[[name]]
-    zpd_limit_error(
-      name,
-      limits[[name]],
-      sprintf(
-        "The PDF file has more %s than `%s` (%s).",
-        what,
-        name,
-        format(limits[[name]], scientific = FALSE, big.mark = "")
-      ),
-      call = call
-    )
+  if (counts[[1L]] > limits$max_objects) {
+    # GUARD: max_objects
+    zpd_count_limit(pdf, "max_objects", "objects", limits, call)
   }
+  if (counts[[2L]] > limits$max_pages) {
+    # GUARD: max_pages
+    zpd_count_limit(pdf, "max_pages", "pages", limits, call)
+  }
+}
+
+# Closes the file, then raises the limit error for `name`.
+zpd_count_limit <- function(pdf, name, what, limits, call) {
+  pdf_close(pdf)
+  zpd_limit_error(
+    name,
+    limits[[name]],
+    sprintf(
+      "The PDF file has more %s than `%s` (%s).",
+      what,
+      name,
+      format(limits[[name]], scientific = FALSE, big.mark = "")
+    ),
+    call = call
+  )
 }
 
 # ---- the handle -------------------------------------------------------------
