@@ -132,7 +132,7 @@ pdf_paper(name, landscape = FALSE)
 zupdf_info()
 ```
 
-- `pdf_open()`: `x` is a path, a raw vector or a connection; `password` is a string or a function of the file name returning one, called in R before the C call so that no R code runs inside pdfio's password callback. A wrong password is `zupdf_password_error`.
+- `pdf_open()`: `x` is a path, a raw vector or a connection; `password` is a string or a function of the file name returning one. A function is called only when the file needs a password: zupdf opens without one first, and if pdfio reports "Unable to unlock PDF file.", calls the function in R and opens again, so no R code runs inside pdfio's password callback and nobody is asked for a password an unencrypted file does not need (*Stage 1*). pdfio tries the empty password itself, then asks the callback, which answers once with the handle's password and then `NULL`. A wrong password is `zupdf_password_error`.
 - `pdf_meta()`: the `pdfioFileGet*` metadata fields, the encryption as `"none"`, `"rc4-40"`, `"rc4-128"`, `"aes-128"`, `"aes-256"` and the permission bits as a character vector of the `PDFIO_PERMISSION_*` names in lower case.
 - `pdf_page_text()`: text per page, one string each, in reading order by the `pdf2text` algorithm (text matrix tracking; `Td`/`TD`/`T*`/`'`/`"` as line breaks; `Tj`/`TJ`/`'`/`"` as shows; ToUnicode and the base-14 encodings for bytes to characters); `"raw"` is the shows concatenated in stream order. Both validate UTF-8 before making a CHARSXP (`zuf_utf8_valid()`), replacing invalid bytes with U+FFFD and warning once.
 - `pdf_page_tokens()`: `pdfioStreamGetToken()` over the page's streams, one row per token with its type (operator, number, name, string, array or dict delimiter) and value; the raw material for anyone who needs more than `pdf_page_text()`.
@@ -242,7 +242,7 @@ Facts read from the source that shape the design (the RFC read `master` at `5841
 - **Encryption.** RC4 40 (reading), RC4 128, AES 128 read and write; AES 256 marked `@exclude all@` with a buffer-overflow fix in 1.7.0's change log, so zupdf exposes it for reading only when pdfio does and never for writing. The 1.6.5 release fixed an invalid-empty-string read in AES (GHSA-527h-2p2v-g388), which puts a floor on the pin.
 - **1.7.0-only features**, absent from the 1.6.5 pin and stated as absent by `zupdf_info()` until the pin moves: LZW (if Stage 0 confirms), GIF images, object streams on write, the `pdfioPageGet*` accessors (zupdf reads the page dictionary directly instead), Unicode file names on Windows, the system font lookup (which zupdf does not use anyway).
 - **Corpus.** `afl-input/` holds the PDFBox-derived crash cases and `afl-pdf.dict` a fuzzing dictionary; both are in the git tag but not in the release tarball (*found at Stage 0*), so `tools/update-fixtures` fetches them from the tag's commit. `testfiles/` in 1.6.5 holds fonts (Noto Sans JP, Open Sans, with their licences), images and ICC profiles, but only one PDF (`testpdfio.pdf`), so the reading fixtures come mostly from other producers (§15). zupdf's fuzz job seeds from `afl-input` and the dictionary; the test fixtures take the small files from `testfiles` and the licences with them.
-- **Standard and warnings.** C99 with `ssize_t`, `open()`, `lseek()` and `unistd.h` on POSIX and the Windows CRT equivalents under `_WIN32`; no threads. Random bytes for encryption come from `arc4random()` on macOS, `CryptGenRandom()` on Windows and `/dev/urandom` elsewhere (`HAVE_GETRANDOM` is not defined), with a time-seeded fallback; none is the C library's `rand()`. The first build (*Stage 0*) is clean under clang's `-Wall -pedantic -Wstrict-prototypes`; `-Wextra` adds function-type-cast and null-pointer-subtraction warnings, recorded in `PROVENANCE` and not patched, since CRAN's flags do not print them. gcc's `-Wformat-truncation` (on by default with `-Wall`) flagged two 32-byte date buffers, which patch 0003 enlarges. Anything CRAN's flags print is patched, not silenced, and never by a diagnostic-suppressing pragma.
+- **Standard and warnings.** C99 with `ssize_t`, `open()`, `lseek()` and `unistd.h` on POSIX and the Windows CRT equivalents under `_WIN32`; no threads. Random bytes for encryption come from `arc4random()` on macOS, `CryptGenRandom()` on Windows and `/dev/urandom` elsewhere (`HAVE_GETRANDOM` is not defined), with a time-seeded fallback; none is the C library's `rand()`. The first build (*Stage 0*) is clean under clang's `-Wall -pedantic -Wstrict-prototypes`; `-Wextra` adds function-type-cast and null-pointer-subtraction warnings; at first they were recorded and not patched, since CRAN's flags do not print them, until UBSan in CI (Stage 1) reported the same sites as undefined behaviour at run time, and patch 0004 fixed them. gcc's `-Wformat-truncation` (on by default with `-Wall`) flagged two 32-byte date buffers, which patch 0003 enlarges. Anything CRAN's flags print is patched, not silenced, and never by a diagnostic-suppressing pragma.
 
 Vendoring follows zucbor §13 and the template: `src/vendor/pdfio/` is byte-identical to the files `tools/pdfio-files.txt` lists from the release tarball, plus the recorded patch set in `tools/patches/`, applied by `tools/update-pdfio` and verified by `tools/verify-vendor` in CI (`vendor.yaml`); `src/vendor/PROVENANCE` records the tag, its commit, the tarball checksum, every patch with its reason, and the warnings seen. Each patch adds a modification notice to the files it changes (Apache-2.0 §4(b)). `inst/COPYRIGHTS` reproduces pdfio's `NOTICE` with its exception text; `LICENSE.note` records provenance; the fixtures' font licences ride along. The `License:` field is D15.
 
@@ -257,7 +257,7 @@ Vendoring follows zucbor §13 and the template: `src/vendor/pdfio/` is byte-iden
 | connection | read in blocks to a temporary file, under `max_size` |
 | `pdf_file` | passed through |
 
-The temporary file is made with `tempfile(fileext = ".pdf")` under R's session directory, which R removes at exit; the handle's finalizer unlinks it earlier. `pdfioFileCreateTemporary()` is not used because its location is pdfio's choice, not R's. A raw vector longer than `max_size` is refused before writing.
+The temporary file is made with `tempfile("zupdf-", fileext = ".pdf")` under R's session directory, which R removes at exit; the handle's finalizer unlinks it earlier. `pdfioFileCreateTemporary()` is not used because its location is pdfio's choice, not R's. A raw vector longer than `max_size` is refused before writing.
 
 ---
 
@@ -275,7 +275,13 @@ The temporary file is made with `tempfile(fileext = ".pdf")` under R's session d
 | `zupdf_io_error` | a file, temporary file or connection failed |
 | `zupdf_encoding_error` | extracted text that is not UTF-8 after mapping |
 
-Every condition inherits `zupdf_error` and carries pdfio's message verbatim as `detail`; a parse error carries `object` when pdfio named one. Warnings (`zupdf_warning`) carry pdfio's `WARNING:` messages, once per call with the count. pdfio's errors are strings, so R maps known message prefixes to classes and anything else is a bare `zupdf_parse_error` or `zupdf_write_error`; a test enumerates the prefixes (§15). Tests assert on class.
+Every condition inherits `zupdf_error` and carries pdfio's message verbatim as `detail`; a parse error carries `object` when pdfio named one. Warnings (`zupdf_warning`) carry pdfio's first `WARNING:` message as `detail` and the number of warnings as `count`, once per call. pdfio's errors are strings, so R maps known message prefixes to classes and anything else is a bare `zupdf_parse_error` or `zupdf_write_error`; a test enumerates the prefixes (§15). Tests assert on class.
+
+| pdfio's message begins | Class |
+|---|---|
+| `Unable to unlock PDF file.` | `zupdf_password_error` |
+| `Unable to unlock AES-256` | `zupdf_unsupported_input` |
+| `Unable to open file` | `zupdf_io_error` |
 
 ---
 
@@ -297,7 +303,7 @@ A limit is a positive whole number or `Inf` where that makes sense; anything els
 
 ## 13. Memory model
 
-A `pdf_file` owns its `pdfio_file_t`, its temporary file and its text caches in one external pointer; `pdfioFileClose()` runs in the finalizer if `pdf_close()` did not, and a closed handle is refused by every function. A `pdf_writer` owns the file or the output buffer; an open `pdf_page` holds a stream pointer that `pdf_page_end()` closes and that the writer's finalizer closes if the page was abandoned, in the right order (streams before the file). Nothing pdfio allocates is ever held outside an external pointer, and no R allocation happens while a pdfio stream is open for reading except the growable result buffer, which is R-owned. User code never runs inside pdfio: the password callback answers from a string the handle holds (a function `password` is called in R before `pdf_open()` reaches C).
+A `pdf_file` owns its `pdfio_file_t`, its temporary file and its text caches in one external pointer; `pdfioFileClose()` runs in the finalizer if `pdf_close()` did not, and a closed handle is refused by every function. A `pdf_writer` owns the file or the output buffer; an open `pdf_page` holds a stream pointer that `pdf_page_end()` closes and that the writer's finalizer closes if the page was abandoned, in the right order (streams before the file). Nothing pdfio allocates is ever held outside an external pointer, and no R allocation happens while a pdfio stream is open for reading except the growable result buffer, which is R-owned. User code never runs inside pdfio: the password callback answers from a string the handle holds (a function `password` is called in R between two attempts to open, §5).
 
 ---
 
@@ -314,7 +320,7 @@ A `pdf_file` owns its `pdfio_file_t`, its temporary file and its text caches in 
 
 ## 15. Testing
 
-- **Fixtures.** The small files of pdfio's `testfiles/`, PDFs written by `grDevices::pdf()`, `cairo_pdf()`, LaTeX and LibreOffice (one each, CC0 content), encrypted variants made by zupdf itself at each method, and the `afl-input` crash cases, which must all be refused cleanly. `tools/update-fixtures` pulls them; nothing is hand-edited; `tests/testthat/fixtures/README.md` lists sources and licences.
+- **Fixtures.** pdfio's `testpdfio.pdf`, PDFs written by `grDevices::pdf()`, `cairo_pdf()`, LaTeX and LibreOffice (one each, CC0 content), encrypted files written by pdfio itself at each method (`tools/fixtures/make-encrypted.c`, compiled against the vendored tree), and the `afl-input` cases. Each `afl-input` case must open and read, or be refused with a classed condition, with nothing on stderr. At 1.6.5 all 23 open, since pdfio has fixed the crashes they came from (*Stage 1*; the RFC said they must all be refused). The LaTeX and LibreOffice fixtures wait for a machine that has those tools. `tools/update-fixtures` pulls them; nothing is hand-edited; `tests/testthat/fixtures/README.md` lists sources and licences.
 - **Reading.** `pdf_meta()`, `pdf_pages()`, `pdf_objects()` pinned per fixture; `pdf_page_text()` compared with `pdftools::pdf_text()` after whitespace normalisation in the conformance job (a `Suggests`), pinned exactly in the package tests.
 - **Writing.** Each writer function's bytes pinned under `deterministic = TRUE`; every written file reopened with `pdf_open()` and, in the conformance job, with `qpdf::pdf_length()` and `pdftools::pdf_text()` to prove other readers accept it; `qpdf --check` where the binary exists.
 - **Round trips.** `pdf_copy_pages()` of every fixture into a new file, then text and page boxes equal.
@@ -344,7 +350,7 @@ Measured by `tools/run-benchmarks` against `pdftools` and `qpdf` where installed
 | D1 | Libraries | pdfio vendored, not linked, with its ttf library, which ships in the same release tarball and tree from 1.6.0 |
 | D2 | Rendering | never, from this package; the API has no `render` slot to fill |
 | D3 | Raw and connection input | spilled to a temporary file, not a patch adding memory input; an upstream input callback is requested and would replace it |
-| D4 | Vendor tree | byte-identical plus a recorded patch set, applied by the update script, verified in CI, offered upstream. At 1.6.5: 0001 makes the visibility macros overridable, 0002 adds `PDFIO_NO_STDIO`, 0003 enlarges two date buffers gcc's `-Wformat-truncation` flagged; none changes behaviour |
+| D4 | Vendor tree | byte-identical plus a recorded patch set, applied by the update script, verified in CI, offered upstream. At 1.6.5: 0001 makes the visibility macros overridable, 0002 adds `PDFIO_NO_STDIO`, 0003 enlarges two date buffers gcc's `-Wformat-truncation` flagged, 0004 removes the undefined behaviour UBSan found (calls through mistyped function pointers, `memcpy()` from NULL, pointer arithmetic on NULL); none changes behaviour |
 | D5 | Error callback | records and returns; never raises inside pdfio |
 | D6 | JPEG | no decoder; DCT streams come back as JPEG bytes for `jpeg::readJPEG()` |
 | D7 | Fonts | base-14 names or a file path; no system font lookup |
@@ -390,7 +396,7 @@ Each stays the maintainer's until recorded above; the recommendation is the RFC'
 ## 19. Acceptance criteria for v0.1.0
 
 1. Installs from source on Linux, macOS (x86-64, arm64) and Windows with no system package beyond R's own zlib, under `R CMD check --as-cran` with no NOTE beyond the new-submission one.
-2. Every `afl-input` case is refused with a classed condition, no output on stderr, no leak under ASan.
+2. Every `afl-input` case opens and reads or is refused with a classed condition, with no output on stderr and no leak under ASan.
 3. Every fixture's text matches `pdftools` after normalisation in the conformance job; every written fixture opens in `qpdf` and `pdftools`.
 4. Written bytes are identical across runners under `deterministic = TRUE`.
 5. Every §11 class has a test; every §12 guard survives the mutation check.

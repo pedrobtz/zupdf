@@ -7,6 +7,12 @@
    makes anything missing from the table unreachable by name. */
 static const R_CallMethodDef CallEntries[] = {
     {"zupdf_build_info", (DL_FUNC) &zupdf_build_info, 0},
+    {"zupdf_close",      (DL_FUNC) &zupdf_close,      1},
+    {"zupdf_counts",     (DL_FUNC) &zupdf_counts,     1},
+    {"zupdf_is_open",    (DL_FUNC) &zupdf_is_open,    1},
+    {"zupdf_meta",       (DL_FUNC) &zupdf_meta,       1},
+    {"zupdf_open",       (DL_FUNC) &zupdf_open,       3},
+    {"zupdf_pages",      (DL_FUNC) &zupdf_pages,      2},
     {NULL, NULL, 0}
 };
 

@@ -9,7 +9,12 @@ test_that("the pinned pdfio is the one linked", {
 test_that("the patch series is the one in tools/patches", {
   expect_identical(
     zupdf_info()$patches,
-    c("0001-visibility-override", "0002-no-stdio", "0003-date-buffer")
+    c(
+      "0001-visibility-override",
+      "0002-no-stdio",
+      "0003-date-buffer",
+      "0004-undefined-behaviour"
+    )
   )
 })
 

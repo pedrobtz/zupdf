@@ -23,6 +23,8 @@
 // L. Peter Deutsch
 // ghost@aladdin.com
 //
+// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -155,7 +157,7 @@ md5_process(_pdfio_md5_t  *pms,		// I - MD5 state
   uint32_t	xbuf[16];		// Aligned buffer
   const uint32_t *X;			// Pointer to little-endian representation
 
-  if (!((data - (const uint8_t *)0) & 3))
+  if (!((uintptr_t)data & 3))
   {
     // data is properly aligned, use it directly...
     X = (const uint32_t *)data;

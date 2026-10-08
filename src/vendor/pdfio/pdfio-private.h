@@ -8,6 +8,8 @@
 //
 // Modified for the zupdf R package: the visibility macros can be overridden from the compiler command line. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
+//
 
 #ifndef PDFIO_PRIVATE_H
 #  define PDFIO_PRIVATE_H
@@ -413,6 +415,10 @@ extern bool		_pdfioFileFlush(pdfio_file_t *pdf) _PDFIO_INTERNAL;
 extern int		_pdfioFileGetChar(pdfio_file_t *pdf) _PDFIO_INTERNAL;
 extern bool		_pdfioFileGets(pdfio_file_t *pdf, char *buffer, size_t bufsize, bool discard) _PDFIO_INTERNAL;
 extern ssize_t		_pdfioFilePeek(pdfio_file_t *pdf, void *buffer, size_t bytes) _PDFIO_INTERNAL;
+extern ssize_t		_pdfioFileConsumeCB(void *data, size_t bytes) _PDFIO_INTERNAL;
+extern ssize_t		_pdfioFilePeekCB(void *data, void *buffer, size_t bytes) _PDFIO_INTERNAL;
+extern ssize_t		_pdfioStreamConsumeCB(void *data, size_t bytes) _PDFIO_INTERNAL;
+extern ssize_t		_pdfioStreamPeekCB(void *data, void *buffer, size_t bytes) _PDFIO_INTERNAL;
 extern bool		_pdfioFilePrintf(pdfio_file_t *pdf, const char *format, ...) _PDFIO_INTERNAL;
 extern bool		_pdfioFilePuts(pdfio_file_t *pdf, const char *s) _PDFIO_INTERNAL;
 extern ssize_t		_pdfioFileRead(pdfio_file_t *pdf, void *buffer, size_t bytes) _PDFIO_INTERNAL;

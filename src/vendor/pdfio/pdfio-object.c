@@ -6,6 +6,8 @@
 // Licensed under Apache License v2.0.  See the file "LICENSE" for more
 // information.
 //
+// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -490,7 +492,7 @@ _pdfioObjLoad(pdfio_obj_t *obj)		// I - Object
   _pdfioFileConsume(obj->pdf, (size_t)(ptr - line));
 
   // Then grab the object value...
-  _pdfioTokenInit(&tb, obj->pdf, (_pdfio_tconsume_cb_t)_pdfioFileConsume, (_pdfio_tpeek_cb_t)_pdfioFilePeek, obj->pdf);
+  _pdfioTokenInit(&tb, obj->pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, obj->pdf);
 
   if (!_pdfioValueRead(obj->pdf, obj, &tb, &obj->value, 0))
   {

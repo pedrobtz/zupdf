@@ -34,5 +34,7 @@ PDFIO = \
 
 OBJECTS = \
 	init.o \
+	zpd_file.o \
 	zpd_info.o \
+	zpd_string.o \
 	$(PDFIO)

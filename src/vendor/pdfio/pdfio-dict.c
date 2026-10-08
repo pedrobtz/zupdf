@@ -8,6 +8,8 @@
 //
 // Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -16,7 +18,7 @@
 // Local functions...
 //
 
-static int	compare_pairs(_pdfio_pair_t *a, _pdfio_pair_t *b);
+static int	compare_pairs(const void *a, const void *b);
 
 
 //
@@ -44,7 +46,7 @@ pdfioDictClear(pdfio_dict_t *dict,	// I - Dictionary
   {
     pkey.key = key;
 
-    if ((pair = (_pdfio_pair_t *)bsearch(&pkey, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), (int (*)(const void *, const void *))compare_pairs)) != NULL)
+    if ((pair = (_pdfio_pair_t *)bsearch(&pkey, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), compare_pairs)) != NULL)
     {
       // Yes, remove it...
       if (pair->value.type == PDFIO_VALTYPE_BINARY)
@@ -567,7 +569,7 @@ _pdfioDictGetValue(pdfio_dict_t *dict,	// I - Dictionary
 
   temp.key = key;
 
-  if ((match = bsearch(&temp, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), (int (*)(const void *, const void *))compare_pairs)) != NULL)
+  if ((match = bsearch(&temp, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), compare_pairs)) != NULL)
   {
     PDFIO_DEBUG("_pdfioDictGetValue: Match, returning ");
     PDFIO_DEBUG_VALUE(&(match->value));
@@ -1024,7 +1026,7 @@ _pdfioDictSetValue(
 
     pkey.key = key;
 
-    if ((pair = (_pdfio_pair_t *)bsearch(&pkey, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), (int (*)(const void *, const void *))compare_pairs)) != NULL)
+    if ((pair = (_pdfio_pair_t *)bsearch(&pkey, dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), compare_pairs)) != NULL)
     {
       // Yes, replace the value...
       PDFIO_DEBUG("_pdfioDictSetValue: Replacing existing value.\n");
@@ -1059,7 +1061,7 @@ _pdfioDictSetValue(
 
   // Re-sort the dictionary and return...
   if (dict->num_pairs > 1 && compare_pairs(pair - 1, pair) > 0)
-    qsort(dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), (int (*)(const void *, const void *))compare_pairs);
+    qsort(dict->pairs, dict->num_pairs, sizeof(_pdfio_pair_t), compare_pairs);
 
 #ifdef DEBUG
   PDFIO_DEBUG("_pdfioDictSetValue(%p): %lu pairs\n", (void *)dict, (unsigned long)dict->num_pairs);
@@ -1120,8 +1122,8 @@ _pdfioDictWrite(pdfio_dict_t *dict,	// I - Dictionary
 //
 
 static int				// O - Result of comparison
-compare_pairs(_pdfio_pair_t *a,		// I - First pair
-              _pdfio_pair_t *b)		// I - Second pair
+compare_pairs(const void *a,		// I - First pair
+              const void *b)		// I - Second pair
 {
-  return (strcmp(a->key, b->key));
+  return (strcmp(((const _pdfio_pair_t *)a)->key, ((const _pdfio_pair_t *)b)->key));
 }

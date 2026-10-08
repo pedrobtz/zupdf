@@ -15,14 +15,26 @@ fixture <- function(name) {
 
 # A small, valid PDF built byte by byte, so a test needs no fixture and no
 # writer. One page per element of `text` (or `pages` empty pages), each
-# showing its string in Helvetica 12 at (72, 720) on a US letter page.
-# `info` is a named character vector for the document information
-# dictionary. Returns the bytes, or writes them to `path` and returns it.
+# showing its string in Helvetica 12 at (72, 720). `info` is a named
+# character vector for the document information dictionary.
+#
+# Page attributes: `media_box` (default US letter), `crop_box` and `rotate`
+# go on every page, or on the page tree's root when `inherit` is TRUE, so
+# the pages inherit them. `page_extra` is raw dictionary text added to every
+# page, and `tree_extra` to the root, for malformed cases.
+#
+# Returns the bytes, or writes them to `path` and returns it.
 minimal_pdf <- function(
   pages = 1L,
   text = NULL,
   info = NULL,
   version = "1.4",
+  media_box = c(0, 0, 612, 792),
+  crop_box = NULL,
+  rotate = NULL,
+  inherit = FALSE,
+  page_extra = "",
+  tree_extra = "",
   path = NULL
 ) {
   if (!is.null(text)) {
@@ -38,10 +50,21 @@ minimal_pdf <- function(
 
   objs <- character()
   objs[1L] <- "<< /Type /Catalog /Pages 2 0 R >>"
+  box <- function(b) sprintf("[%s]", paste(format(b), collapse = " "))
+  attrs <- paste(
+    c(
+      if (!is.null(media_box)) paste0(" /MediaBox ", box(media_box)),
+      if (!is.null(crop_box)) paste0(" /CropBox ", box(crop_box)),
+      if (!is.null(rotate)) sprintf(" /Rotate %d", as.integer(rotate))
+    ),
+    collapse = ""
+  )
   objs[2L] <- sprintf(
-    "<< /Type /Pages /Kids [%s] /Count %d >>",
+    "<< /Type /Pages /Kids [%s] /Count %d%s%s >>",
     paste(sprintf("%d 0 R", page_obj), collapse = " "),
-    n
+    n,
+    if (inherit) attrs else "",
+    tree_extra
   )
   objs[
     3L
@@ -49,10 +72,12 @@ minimal_pdf <- function(
   for (i in seq_len(n)) {
     objs[page_obj[i]] <- sprintf(
       paste0(
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] ",
-        "/Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>"
+        "<< /Type /Page /Parent 2 0 R%s ",
+        "/Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R%s >>"
       ),
-      content_obj[i]
+      if (inherit) "" else attrs,
+      content_obj[i],
+      page_extra
     )
     stream <- if (is.null(text)) {
       ""
@@ -106,3 +131,17 @@ minimal_pdf <- function(
 
 # A literal string's body: backslash, and both parentheses, escaped.
 pdf_escape <- function(x) gsub("([\\\\()])", "\\\\\\1", x)
+
+# pdfio's afl-input corpus (tools/update-fixtures).
+afl_files <- function() {
+  list.files(test_path("fixtures", "afl-input"), full.names = TRUE)
+}
+
+# Opens a file and reads everything Stage 1 can read, closing it again.
+read_all <- function(path) {
+  pdf <- pdf_open(path)
+  on.exit(pdf_close(pdf))
+  m <- pdf_meta(pdf)
+  p <- pdf_pages(pdf)
+  list(pages = m$pages, rows = nrow(p))
+}

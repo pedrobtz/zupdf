@@ -8,6 +8,8 @@
 //
 // Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -584,4 +586,25 @@ write_buffer(pdfio_file_t *pdf,		// I - PDF file
   }
 
   return (true);
+}
+
+
+//
+// '_pdfioFileConsumeCB()', '_pdfioFilePeekCB()' - Token callbacks with the
+//                                               callback types.
+//
+
+ssize_t					// O - Bytes consumed or -1 on EOF
+_pdfioFileConsumeCB(void   *data,	// I - PDF file
+                    size_t bytes)	// I - Bytes to consume
+{
+  return (_pdfioFileConsume((pdfio_file_t *)data, bytes) ? (ssize_t)bytes : -1);
+}
+
+ssize_t					// O - Number of bytes returned
+_pdfioFilePeekCB(void   *data,		// I - PDF file
+                 void   *buffer,	// I - Buffer
+                 size_t bytes)		// I - Size of buffer
+{
+  return (_pdfioFilePeek((pdfio_file_t *)data, buffer, bytes));
 }

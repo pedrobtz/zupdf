@@ -6,6 +6,8 @@
 // Licensed under Apache License v2.0.  See the file "LICENSE" for more
 // information.
 //
+// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #if _WIN32
@@ -398,6 +400,30 @@ _pdfioCryptoMakeRandom(uint8_t *buffer,	// I - Buffer
 
 
 //
+// 'rc4_crypt_cb()', 'aes_decrypt_cb()', 'aes_encrypt_cb()' - The crypto
+//                    functions with the callback type.
+//
+
+static size_t
+rc4_crypt_cb(_pdfio_crypto_ctx_t *ctx, uint8_t *outbuffer, const uint8_t *inbuffer, size_t len, bool last)
+{
+  return (_pdfioCryptoRC4Crypt(&ctx->rc4, outbuffer, inbuffer, len, last));
+}
+
+static size_t
+aes_decrypt_cb(_pdfio_crypto_ctx_t *ctx, uint8_t *outbuffer, const uint8_t *inbuffer, size_t len, bool last)
+{
+  return (_pdfioCryptoAESDecrypt(&ctx->aes, outbuffer, inbuffer, len, last));
+}
+
+static size_t
+aes_encrypt_cb(_pdfio_crypto_ctx_t *ctx, uint8_t *outbuffer, const uint8_t *inbuffer, size_t len, bool last)
+{
+  return (_pdfioCryptoAESEncrypt(&ctx->aes, outbuffer, inbuffer, len, last));
+}
+
+
+//
 // '_pdfioCryptoMakeReader()' - Setup a cryptographic context and callback for reading.
 //
 
@@ -447,7 +473,7 @@ _pdfioCryptoMakeReader(
         // Initialize the RC4 context using 80 bits of the digest...
 	_pdfioCryptoRC4Init(&ctx->rc4, digest, 10);
 	*ivlen = 0;
-	return ((_pdfio_crypto_cb_t)_pdfioCryptoRC4Crypt);
+	return (rc4_crypt_cb);
 
     case PDFIO_ENCRYPTION_AES_128 :
         if (*ivlen < 16)
@@ -482,13 +508,13 @@ _pdfioCryptoMakeReader(
         {
 	  *ivlen = 0;
           _pdfioCryptoRC4Init(&ctx->rc4, digest, sizeof(digest));
-          return ((_pdfio_crypto_cb_t)_pdfioCryptoRC4Crypt);
+          return (rc4_crypt_cb);
 	}
 	else
 	{
 	  *ivlen = 16;
           _pdfioCryptoAESInit(&ctx->aes, digest, sizeof(digest), iv);
-          return ((_pdfio_crypto_cb_t)_pdfioCryptoAESDecrypt);
+          return (aes_decrypt_cb);
 	}
   }
 }
@@ -548,14 +574,14 @@ _pdfioCryptoMakeWriter(
         {
 	  *ivlen = 0;
           _pdfioCryptoRC4Init(&ctx->rc4, digest, sizeof(digest));
-          return ((_pdfio_crypto_cb_t)_pdfioCryptoRC4Crypt);
+          return (rc4_crypt_cb);
 	}
 	else
 	{
 	  *ivlen = 16;
 	  _pdfioCryptoMakeRandom(iv, *ivlen);
           _pdfioCryptoAESInit(&ctx->aes, digest, sizeof(digest), iv);
-          return ((_pdfio_crypto_cb_t)_pdfioCryptoAESEncrypt);
+          return (aes_encrypt_cb);
 	}
   }
 }

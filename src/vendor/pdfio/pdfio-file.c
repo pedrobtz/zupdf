@@ -6,6 +6,8 @@
 // Licensed under Apache License v2.0.  See the file "LICENSE" for more
 // information.
 //
+// Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #include "pdfio-content.h"
@@ -19,7 +21,7 @@
 //
 
 static pdfio_obj_t	*add_obj(pdfio_file_t *pdf, size_t number, unsigned short generation, off_t offset);
-static int		compare_objmaps(_pdfio_objmap_t *a, _pdfio_objmap_t *b);
+static int		compare_objmaps(const void *a, const void *b);
 static pdfio_file_t	*create_common(const char *filename, int fd, pdfio_output_cb_t output_cb, void *output_cbdata, const char *version, pdfio_rect_t *media_box, pdfio_rect_t *crop_box, pdfio_error_cb_t error_cb, void *error_cbdata);
 static const char	*get_info_string(pdfio_file_t *pdf, const char *key);
 static char		*get_iso_date(time_t t, char *buffer, size_t bufsize);
@@ -70,7 +72,7 @@ _pdfioFileAddMappedObj(
 
   // Sort as needed...
   if (pdf->num_objmaps > 1 && compare_objmaps(map, pdf->objmaps + pdf->num_objmaps - 2) < 0)
-    qsort(pdf->objmaps, pdf->num_objmaps, sizeof(_pdfio_objmap_t), (int (*)(const void *, const void *))compare_objmaps);
+    qsort(pdf->objmaps, pdf->num_objmaps, sizeof(_pdfio_objmap_t), compare_objmaps);
 
   return (true);
 }
@@ -752,7 +754,7 @@ _pdfioFileFindMappedObj(
   memcpy(key.src_id, src_pdf->file_id, sizeof(key.src_id));
   key.src_number = src_number;
 
-  if ((match = (_pdfio_objmap_t *)bsearch(&key, pdf->objmaps, pdf->num_objmaps, sizeof(_pdfio_objmap_t), (int (*)(const void *, const void *))compare_objmaps)) != NULL)
+  if ((match = (_pdfio_objmap_t *)bsearch(&key, pdf->objmaps, pdf->num_objmaps, sizeof(_pdfio_objmap_t), compare_objmaps)) != NULL)
     return (match->obj);
   else
     return (NULL);
@@ -1517,9 +1519,12 @@ add_obj(pdfio_file_t   *pdf,		// I - PDF file
 //
 
 static int				// O - Result of comparison
-compare_objmaps(_pdfio_objmap_t *a,	// I - First object map
-                _pdfio_objmap_t *b)	// I - Second object map
+compare_objmaps(const void *pa,	// I - First object map
+                const void *pb)	// I - Second object map
 {
+  const _pdfio_objmap_t *a = (const _pdfio_objmap_t *)pa,
+			*b = (const _pdfio_objmap_t *)pb;
+					// Object maps
   int	ret = memcmp(a->src_id, b->src_id, sizeof(a->src_id));
 					// Result of comparison
 
@@ -1850,7 +1855,7 @@ load_obj_stream(pdfio_obj_t *obj)	// I - Object to load
 
   PDFIO_DEBUG("load_obj_stream: N=%d\n", count);
 
-  _pdfioTokenInit(&tb, obj->pdf, (_pdfio_tconsume_cb_t)pdfioStreamConsume, (_pdfio_tpeek_cb_t)pdfioStreamPeek, st);
+  _pdfioTokenInit(&tb, obj->pdf, _pdfioStreamConsumeCB, _pdfioStreamPeekCB, st);
 
   // Read the object numbers from the beginning of the stream...
   while (count > 0 && _pdfioTokenGet(&tb, buffer, sizeof(buffer)))
@@ -2086,7 +2091,7 @@ load_xref(
         return (false);
       }
 
-      _pdfioTokenInit(&tb, pdf, (_pdfio_tconsume_cb_t)_pdfioFileConsume, (_pdfio_tpeek_cb_t)_pdfioFilePeek, pdf);
+      _pdfioTokenInit(&tb, pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, pdf);
 
       if (!_pdfioValueRead(pdf, obj, &tb, &trailer, 0))
       {
@@ -2426,7 +2431,7 @@ load_xref(
 	goto repair;
       }
 
-      _pdfioTokenInit(&tb, pdf, (_pdfio_tconsume_cb_t)_pdfioFileConsume, (_pdfio_tpeek_cb_t)_pdfioFilePeek, pdf);
+      _pdfioTokenInit(&tb, pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, pdf);
 
       if (!_pdfioValueRead(pdf, NULL, &tb, &trailer, 0))
       {
@@ -2608,7 +2613,7 @@ repair_xref(
 	    _pdfioFileSeek(pdf, line_offset + (ptr - line + 3), SEEK_SET);
 	  }
 
-	  _pdfioTokenInit(&tb, pdf, (_pdfio_tconsume_cb_t)_pdfioFileConsume, (_pdfio_tpeek_cb_t)_pdfioFilePeek, pdf);
+	  _pdfioTokenInit(&tb, pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, pdf);
 
 	  if (!_pdfioValueRead(pdf, obj, &tb, &obj->value, 0))
 	  {
@@ -2686,7 +2691,7 @@ repair_xref(
 
       PDFIO_DEBUG("repair_xref: TRAILER at offset %ld\n", (long)line_offset);
 
-      _pdfioTokenInit(&tb, pdf, (_pdfio_tconsume_cb_t)_pdfioFileConsume, (_pdfio_tpeek_cb_t)_pdfioFilePeek, pdf);
+      _pdfioTokenInit(&tb, pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, pdf);
       if (!_pdfioValueRead(pdf, NULL, &tb, &trailer, 0))
       {
 	_pdfioFileError(pdf, "Unable to read cross-reference stream dictionary.");
