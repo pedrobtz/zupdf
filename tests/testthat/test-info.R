@@ -14,7 +14,8 @@ test_that("the patch series is the one in tools/patches", {
       "0002-no-stdio",
       "0003-date-buffer",
       "0004-undefined-behaviour",
-      "0005-unsigned-shifts"
+      "0005-unsigned-shifts",
+      "0010-ttf-callbacks"
     )
   )
 })

@@ -295,7 +295,8 @@ test_that("bad images are refused by class", {
 })
 
 test_that("a hundred-page report writes quickly", {
-  skip_heavy()
+  # A timing: meaningless under valgrind or gctorture, so only on request.
+  skip_if_no_slow_tests()
   t <- system.time(written(
     function(page) {
       for (i in 1:40) {

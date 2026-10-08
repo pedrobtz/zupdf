@@ -10,6 +10,8 @@
 //
 // Modified for the zupdf R package: bytes are shifted as unsigned, so a high bit cannot overflow an int (UBSan). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: the ttf callbacks are called through function pointers of their own type (UBSan). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #include "pdfio-content.h"
@@ -95,7 +97,8 @@ static pdfio_obj_t	*create_image(pdfio_dict_t *dict, const unsigned char *data, 
 static void		png_error_func(png_structp pp, png_const_charp message);
 static void		png_read_func(png_structp png_ptr, png_bytep data, size_t length);
 #endif // HAVE_LIBPNG
-static void		ttf_error_cb(pdfio_file_t *pdf, const char *message);
+static void		ttf_error_cb(void *data, const char *message);
+static void		ttf_free(void *font);
 #ifndef HAVE_LIBPNG
 static unsigned		update_png_crc(unsigned crc, const unsigned char *buffer, size_t length);
 #endif // !HAVE_LIBPNG
@@ -1792,7 +1795,7 @@ pdfioFileCreateFontObjFromData(
   }
 
   // Create a TrueType font object from the data...
-  if ((font = ttfCreateData(data, datasize, 0, (ttf_err_cb_t)ttf_error_cb, pdf)) == NULL)
+  if ((font = ttfCreateData(data, datasize, 0, ttf_error_cb, pdf)) == NULL)
     return (NULL);
 
   // Create the font file dictionary and object...
@@ -1874,7 +1877,7 @@ pdfioFileCreateFontObjFromFile(
     return (NULL);
   }
 
-  if ((font = ttfCreate(filename, 0, (ttf_err_cb_t)ttf_error_cb, pdf)) == NULL)
+  if ((font = ttfCreate(filename, 0, ttf_error_cb, pdf)) == NULL)
     goto error;
 
   // Create the font file dictionary and object...
@@ -3654,7 +3657,7 @@ create_font(pdfio_obj_t *file_obj,	// I - Font file object
   done:
 
   if (obj)
-    _pdfioObjSetExtension(obj, font, (_pdfio_extfree_t)ttfDelete);
+    _pdfioObjSetExtension(obj, font, ttf_free);
 
   return (obj);
 }
@@ -3867,10 +3870,23 @@ png_read_func(png_structp pp,		// I - PNG pointer
 //
 
 static void
-ttf_error_cb(pdfio_file_t *pdf,		// I - PDF file
-             const char   *message)	// I - Error message
+ttf_error_cb(void       *data,		// I - PDF file
+             const char *message)	// I - Error message
 {
+  pdfio_file_t *pdf = (pdfio_file_t *)data;
+
   (pdf->error_cb)(pdf, message, pdf->error_data);
+}
+
+
+//
+// 'ttf_free()' - Free a TTF font, as an object extension's free callback.
+//
+
+static void
+ttf_free(void *font)			// I - Font
+{
+  ttfDelete((ttf_t *)font);
 }
 
 
