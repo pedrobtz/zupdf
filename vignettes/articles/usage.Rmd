@@ -1,0 +1,177 @@
+---
+title: "A tour of zupdf"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+This article runs through the main things zupdf does, in one session: write a
+PDF, read it back, take it apart and put it together again, lock it, and use
+the pdftools and qpdf names. Each step has its own guide for the details.
+
+```{r}
+library(zupdf)
+dir <- tempfile("tour-")
+dir.create(dir)
+```
+
+## Write a PDF
+
+A writer collects pages. Each page records what is drawn on it, text, paths and
+images, and `pdf_page_end()` writes it. `pdf_save()` returns the bytes, or
+writes them to a file.
+
+```{r}
+w <- pdf_new(media_box = pdf_paper("a4"))
+pdf_set_meta(w, title = "Ring of Fire", author = "zupdf")
+
+page <- pdf_page_new(w)
+pdf_draw_text(page, 297.6, 780, "Maunga Whau", font = "Helvetica-Bold",
+  size = 24, align = "centre")
+pdf_draw_text(page, 72, 740, "Heights of a volcano in Auckland, from R's volcano data.",
+  font = "Times-Roman", size = 12)
+
+# An image from an R matrix of grey levels between 0 and 1, one row per line
+# of pixels: 61 lines of 87 pixels, the shape of the box it is drawn into.
+heights <- t(volcano - min(volcano)) / diff(range(volcano))
+img <- pdf_image_new(w, heights)
+pdf_draw_image(page, img, 72, 380, 451, 316)
+
+# Paths: a frame round the image and a triangle.
+pdf_draw(page, data.frame(op = "rect", x = 72, y = 380, w = 451, h = 316),
+  stroke = "grey30")
+pdf_draw(page, list(x = c(260, 335, 297.6), y = c(250, 250, 330)),
+  fill = "firebrick", close = TRUE)
+pdf_page_end(page)
+
+page <- pdf_page_new(w)
+pdf_draw_text(page, 72, 760, "Page two", size = 18)
+pdf_draw_text(page, 72, 730, "A second page, to have something to rearrange.")
+pdf_page_end(page)
+
+report <- file.path(dir, "report.pdf")
+pdf_save(w, report)
+```
+
+Fonts are the 14 standard PDF fonts by name, or a TrueType or OpenType file
+given to `pdf_font()`, which embeds it. `pdf_text_width()` measures text, for
+laying out lines: `vignette("writing")` builds a paged report from it.
+
+## Read it back
+
+`pdf_open()` takes a path, a raw vector or a connection. It reads only the
+cross-reference table; each function then reads what it needs.
+
+```{r}
+pdf <- pdf_open(report)
+pdf_meta(pdf)[c("version", "pages", "title", "author")]
+pdf_pages(pdf)[, c("page", "width", "height", "rotate")]
+```
+
+Text comes back per page, in reading order:
+
+```{r}
+cat(pdf_page_text(pdf, pages = 1))
+```
+
+Fonts and images. `pdf_image()` returns an image's samples, or, for 8-bit grey
+and RGB, a `nativeRaster` R can draw:
+
+```{r, fig.width = 5, fig.height = 3.5, fig.alt = "The volcano image, read back from the PDF"}
+pdf_font_table(pdf)
+imgs <- pdf_page_images(pdf, 1)
+imgs
+grey <- pdf_image(pdf, imgs$object[1], as = "native")
+dim(grey)
+grid::grid.raster(grey, interpolate = FALSE)
+```
+
+Underneath, every object is reachable as R values: `pdf_objects()`,
+`pdf_object()` and `pdf_stream()`, covered in `vignette("zupdf")`.
+
+## Words and where they are
+
+`pdf_data()` gives each word with its box, in points from the top left, as
+pdftools does:
+
+```{r}
+head(pdf_data(report)[[1]])
+```
+
+## Take it apart, put it together
+
+Splitting, merging, reordering and rotating are all one operation: copying
+pages from open files into a new writer. Each copied page brings the fonts and
+images it uses.
+
+```{r}
+w <- pdf_new()
+pdf_copy_pages(w, pdf, pages = 2)               # page two first
+pdf_copy_pages(w, pdf, pages = 1, rotate = 90)  # then page one, turned
+pdf_set_meta(w, title = "Rearranged")
+rearranged <- pdf_open(pdf_save(w))
+pdf_pages(rearranged)[, c("page", "rotate")]
+pdf_close(rearranged)
+```
+
+`vignette("assembling")` has more, including pages from several files.
+
+## Lock it
+
+Encryption is set on the writer before any page is added. Permissions say what
+a reader that honours them may do.
+
+```{r}
+w <- pdf_new()
+pdf_set_encryption(w, user = "open sesame", owner = "admin",
+  permissions = c("print", "copy"))
+pdf_copy_pages(w, pdf)
+locked <- file.path(dir, "locked.pdf")
+pdf_save(w, locked)
+
+tryCatch(pdf_open(locked), zupdf_password_error = function(e) "a password is needed")
+secret <- pdf_open(locked, password = "open sesame")
+pdf_meta(secret)[c("encryption", "permissions")]
+pdf_close(secret)
+pdf_close(pdf)
+```
+
+## The pdftools and qpdf names
+
+Code written for pdftools or qpdf runs with `library(zupdf)` in their place,
+for everything but rendering: the same function names, arguments and results.
+
+```{r}
+pdf_info(report)$pages
+substr(pdf_text(report)[1], 1, 40)
+pdf_length(report)
+
+both <- pdf_combine(c(report, report), output = file.path(dir, "both.pdf"))
+pdf_length(both)
+first <- pdf_subset(both, pages = 1, output = file.path(dir, "first.pdf"))
+pdf_length(first)
+```
+
+`vignette("switching")` lists what is covered, where results differ, and what
+happens when both packages are attached.
+
+## Untrusted files
+
+A PDF from elsewhere may be built to cause harm. `pdf_open()` bounds the input
+size, the numbers of objects and pages, the size of any decoded stream and the
+depth of nesting. Going past a limit, a damaged file and a wrong password are
+each their own condition class, under `zupdf_error`:
+
+```{r}
+tryCatch(
+  pdf_open(report, max_pages = 1),
+  zupdf_limit_error = function(e) class(e)
+)
+tryCatch(
+  pdf_open(charToRaw("not a PDF")),
+  zupdf_error = function(e) class(e)
+)
+```
+
+`?zupdf-conditions` lists them all.
