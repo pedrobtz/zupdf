@@ -1,0 +1,14 @@
+# Valgrind suppressions for native-checks.yaml. Only memory that is not
+# zupdf's belongs here, each with the reason.
+
+# R's memCompress() (helper flate() in the tests, which builds FlateDecode
+# test data) keeps libdeflate's compressor, which valgrind reports as
+# possibly lost at exit. It is R's allocation, not zupdf's.
+{
+   r-memCompress-libdeflate-compressor
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   fun:libdeflate_alloc_compressor_ex
+   fun:do_memCompress
+}

@@ -22,7 +22,9 @@
 
 static void zpd_set_class(SEXP x, const char *cls)
 {
-    Rf_setAttrib(x, R_ClassSymbol, Rf_mkString(cls));
+    SEXP c = PROTECT(Rf_mkString(cls));
+    Rf_setAttrib(x, R_ClassSymbol, c);
+    UNPROTECT(1);
 }
 
 static SEXP zpd_number(double d)
@@ -39,17 +41,19 @@ static SEXP zpd_posixct(time_t t)
     SET_STRING_ELT(cls, 0, Rf_mkChar("POSIXct"));
     SET_STRING_ELT(cls, 1, Rf_mkChar("POSIXt"));
     Rf_setAttrib(x, R_ClassSymbol, cls);
-    Rf_setAttrib(x, Rf_install("tzone"), Rf_mkString("UTC"));
-    UNPROTECT(2);
+    SEXP tz = PROTECT(Rf_mkString("UTC"));
+    Rf_setAttrib(x, Rf_install("tzone"), tz);
+    UNPROTECT(3);
     return x;
 }
 
 SEXP zpd_ref(size_t number, unsigned short generation)
 {
     SEXP x = PROTECT(Rf_ScalarInteger(number > INT_MAX ? NA_INTEGER : (int) number));
-    Rf_setAttrib(x, Rf_install("generation"), Rf_ScalarInteger(generation));
+    SEXP g = PROTECT(Rf_ScalarInteger(generation));
+    Rf_setAttrib(x, Rf_install("generation"), g);
     zpd_set_class(x, "pdf_ref");
-    UNPROTECT(1);
+    UNPROTECT(2);
     return x;
 }
 
@@ -259,31 +263,30 @@ static const char *zpd_put(pdfio_file_t *pdf, SEXP x, pdfio_dict_t *dict,
 static const char *zpd_list_to_pdf(pdfio_file_t *pdf, SEXP x, int depth, int max_depth,
                                    pdfio_dict_t **out_dict, pdfio_array_t **out_array)
 {
-    SEXP names = Rf_getAttrib(x, R_NamesSymbol);
+    SEXP names = PROTECT(Rf_getAttrib(x, R_NamesSymbol));
     R_xlen_t n = Rf_xlength(x);
+    const char *status = NULL;
     if (names != R_NilValue) {
         pdfio_dict_t *d = pdfioDictCreate(pdf);
         if (!d)
-            return "pdfio";
-        for (R_xlen_t i = 0; i < n; i++) {
+            status = "pdfio";
+        for (R_xlen_t i = 0; i < n && !status; i++) {
             const char *k = pdfioStringCreate(pdf, Rf_translateCharUTF8(STRING_ELT(names, i)));
-            const char *st = zpd_put(pdf, VECTOR_ELT(x, i), d, k, NULL, depth + 1, max_depth);
-            if (st)
-                return st;
+            status = zpd_put(pdf, VECTOR_ELT(x, i), d, k, NULL, depth + 1, max_depth);
         }
-        *out_dict = d;
-        return NULL;
+        if (!status)
+            *out_dict = d;
+    } else {
+        pdfio_array_t *a = pdfioArrayCreate(pdf);
+        if (!a)
+            status = "pdfio";
+        for (R_xlen_t i = 0; i < n && !status; i++)
+            status = zpd_put(pdf, VECTOR_ELT(x, i), NULL, NULL, a, depth + 1, max_depth);
+        if (!status)
+            *out_array = a;
     }
-    pdfio_array_t *a = pdfioArrayCreate(pdf);
-    if (!a)
-        return "pdfio";
-    for (R_xlen_t i = 0; i < n; i++) {
-        const char *st = zpd_put(pdf, VECTOR_ELT(x, i), NULL, NULL, a, depth + 1, max_depth);
-        if (st)
-            return st;
-    }
-    *out_array = a;
-    return NULL;
+    UNPROTECT(1);
+    return status;
 }
 
 static const char *zpd_put(pdfio_file_t *pdf, SEXP x, pdfio_dict_t *dict,
