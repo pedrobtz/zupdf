@@ -26,3 +26,10 @@ Full text in src/vendor/pdfio/LICENSE; the notice is reproduced in
 inst/COPYRIGHTS. Upstream is https://github.com/michaelrsweet/pdfio, and
 the pinned release, its commit, its checksum, the import date and the local
 patches are recorded in src/vendor/PROVENANCE.
+
+
+Adobe Glyph List
+================
+
+src/zpd_glyphs.h's glyph-name table follows the Adobe Glyph List, Copyright
+2002-2019 Adobe, BSD 3-Clause licence; the notice is in inst/COPYRIGHTS.

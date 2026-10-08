@@ -323,7 +323,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 8 — pkgdown site, vignettes, CRAN · S
 
-**Status:** not started. Waits for zufast on CRAN.
+**Status:** in progress, 2026-10-08. Done: every export documented with `@return` and runnable examples; the package help page; four vignettes (*Inspecting a PDF*, *Assembling PDFs*, *Writing a report from R*, *Switching from pdftools and qpdf*); `_pkgdown.yml` with a reference index; README; `inst/WORDLIST`; `cran-comments.md`; `R CMD check --as-cran` 0/0/0. Waiting for zufast on CRAN (not there on 2026-10-08): `Remotes:` removal, `Version: 0.1.0`, the review skills and the submission.
 
 **Do**
 

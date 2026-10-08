@@ -121,6 +121,7 @@ pdf_draw_text(page, x, y, text, font = "Helvetica", size = 12, ...,
               colour = "black", align = c("left", "centre", "right"),
               line_height = 1.2)
 pdf_font(w, x)             # base-14 name or a .ttf/.otf path
+pdf_text_width(w, text, font = "Helvetica", size = 12)   # for layout
 pdf_draw(page, path, fill = NULL, stroke = NULL, width = 1, ...,
          close = FALSE, rule = c("winding", "evenodd"))
 pdf_image_new(w, x, interpolate = TRUE)   # a PNG/JPEG path or an R image
@@ -146,6 +147,7 @@ zupdf_info()
 - `pdf_font_table()`: every font object but CID descendants, which their Type0 parent stands for, with `object`, `name` (`/BaseFont`), `type` (`/Subtype`) and `embedded` (a `FontFile`, `FontFile2` or `FontFile3` in its descriptor, or its descendant's).
 - The writer takes R colours for `fill`, `stroke` and `colour` through `col2rgb()`, without alpha; `NA` and `"transparent"` mean none. `path` is points (`x`, `y`), joined by lines, or a data frame of operations: `op` in `move`, `line`, `curve` (control points `x1`, `y1`, `x2`, `y2`, end `x`, `y`), `close`, `rect` (`x`, `y`, `w`, `h`). Coordinates are PDF points with the origin at the bottom left. `pdf_draw_text()` recycles `x`, `y` and `text`, splits text at line breaks, and aligns with `pdfioContentTextMeasure()` at replay; base-14 fonts show Windows code page 1252 and print `?` for other characters (pdfio's encoding).
 - `pdf_image_new()`: a PNG or JPEG file (pdfio's own readers; JPEG is copied through), or a `nativeRaster`, a `raster` or colour matrix, a grey matrix in 0 to 1, or an RGB or RGBA array (as `png::readPNG()` returns); alpha becomes a soft mask.
+- `pdf_text_width()` (*Stage 8*): each string's advance in points through `pdfioContentTextMeasure()`, so that callers can lay text out (the *Writing a report* vignette wraps paragraphs with it, as pdfio's `md2pdf` does).
 - `pdf_font()`: a base-14 name (`pdfioFileCreateFontObjFromBase()`) or a font file path (`pdfioFileCreateFontObjFromFile()`, Unicode CID font). There is no system font lookup (D7).
 - `pdf_copy_pages()`: zupdf's port of `pdfioPageCopy()` (*Stage 5*): the page dictionary and every attribute it inherits are copied, with every object they reference, through pdfio's object map (`_pdfioValueCopy()`), so the result is self-contained; `/Rotate` is then advanced by `rotate`, or set (the qpdf layer's absolute mode), before the page is written. `pdfioPageCopy()` itself writes the page as it copies it, leaving no way to rotate it. Streams are copied as stored, not re-encoded. Document-level parts (outlines, forms, named destinations) are not carried over.
 - `pdf_set_meta()`: title, author, subject, keywords, creator (the Info dictionary, ASCII as literals and anything else as UTF-16BE), language (the catalog's `/Lang`) and modification date. In PDF 2.0 pdfio drops the Info entries at close and writes them only into the XMP metadata, which is UTF-8, so for 2.0 output they are set as UTF-8 (*Stage 5*); `pdf_new()` defaults to 1.7 for that reason, since many readers, `pdf_meta()` included, read only the Info dictionary.

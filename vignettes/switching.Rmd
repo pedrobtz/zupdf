@@ -1,0 +1,53 @@
+---
+title: "Switching from pdftools and qpdf"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Switching from pdftools and qpdf}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+zupdf provides the functions of pdftools and qpdf that need no renderer,
+under their names and with exactly their arguments, so code written for
+either runs with `library(zupdf)` in their place:
+
+```{r}
+library(zupdf)
+path <- system.file("examples", "hello.pdf", package = "zupdf")
+pdf_info(path)$pages
+pdf_text(path)
+pdf_data(path)[[1]]
+pdf_length(path)
+```
+
+| From | Provided | Not provided |
+|---|---|---|
+| pdftools | `pdf_info()`, `pdf_text()`, `pdf_data()`, `pdf_fonts()`, `pdf_pagesize()`, `pdf_toc()`, `pdf_attachments()` | `pdf_render_page()`, `pdf_convert()`, `pdf_ocr_text()`, `pdf_ocr_data()`, `poppler_config()` |
+| qpdf | `pdf_length()`, `pdf_split()`, `pdf_subset()`, `pdf_combine()`, `pdf_rotate_pages()` | `pdf_compress()`, `pdf_overlay_stamp()` |
+
+What is not provided is not defined at all, so a call fails with "could not
+find function" rather than doing something else.
+
+## Where results differ
+
+* `pdf_text()` comes from zupdf's extractor, not poppler's physical layout:
+  the same pages and words, single spaces where poppler pads to page
+  positions, and no text from annotations (form fields and stamps).
+* `pdf_data()`'s word boxes agree with poppler's to within a point or two;
+  poppler takes some fonts' heights from elsewhere.
+* `pdf_fonts()` reports `file` as `""` for an embedded font and `NA`
+  otherwise: zupdf looks up no system fonts.
+* `pdf_info()` reports an absent date as `NA`.
+* The qpdf functions write through pdfio, so the output's bytes differ from
+  qpdf's; its pages, content and order are the same. Outlines and forms are
+  not carried over.
+
+## Attaching both
+
+R lets the package attached last win, and says so. Attaching zupdf after
+pdftools or qpdf masks their functions of the same name; `pdftools::` and
+`qpdf::` still reach theirs.

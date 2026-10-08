@@ -3,3 +3,57 @@ template:
   bootstrap: 5
 development:
   mode: auto
+
+articles:
+  - title: Guides
+    navbar: ~
+    contents:
+      - zupdf
+      - assembling
+      - writing
+      - switching
+
+reference:
+  - title: Reading
+    contents:
+      - pdf_open
+      - pdf_close
+      - pdf_meta
+      - pdf_pages
+      - pdf_page_text
+      - pdf_page_tokens
+      - pdf_font_table
+      - pdf_page_images
+      - pdf_image
+  - title: Objects
+    contents:
+      - pdf_objects
+      - pdf_object
+      - pdf_stream
+  - title: Writing
+    contents:
+      - pdf_new
+      - pdf_page_new
+      - pdf_draw_text
+      - pdf_draw
+      - pdf_draw_image
+      - pdf_font
+      - pdf_image_new
+      - pdf_text_width
+      - pdf_paper
+      - pdf_save
+  - title: Assembling
+    contents:
+      - pdf_copy_pages
+      - pdf_set_meta
+      - pdf_set_encryption
+  - title: pdftools and qpdf
+    contents:
+      - pdftools-compat
+      - pdf_data
+      - qpdf-compat
+  - title: About
+    contents:
+      - zupdf-package
+      - zupdf_info
+      - zupdf-conditions
