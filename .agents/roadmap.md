@@ -317,13 +317,13 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 - **`pdf_data()` ships (§18 Q1).** The text walk's glyphs are exposed per page; R groups them into words along each glyph's direction and boxes them with the font's real ascent and descent. Every pdftools word is found with `x` within 2 points; `y` matches except for poppler's Type 3 heights.
 - **Conformance** passes on the fixtures: word recall 0.9 to 1.0 wherever pdftools reads text (two afl cases keep their text in form-field appearances, which zupdf does not read); every written file is read by pdftools with the same words and passes `qpdf --check`.
 - **Benchmarks** (design §16): open + metadata 1 ms, text 5× faster than pdftools, merging at 1.1× qpdf, a 100-page report in 168 ms.
-- **The PR's fuzz run found another leak**: a trailer that is not a dictionary was refused without being freed (three places in pdfio). Patch `0012-trailer-value-leak`, reported upstream with #182's class; the input is a regression fixture.
+- **The PR's fuzz run found another leak**: a trailer that is not a dictionary was refused without being freed (three places in pdfio). Patch `0012-trailer-value-leak`, reported upstream as [michaelrsweet/pdfio#193](https://github.com/michaelrsweet/pdfio/issues/193); the input is a regression fixture.
 
 ---
 
 ## Stage 8 — pkgdown site, vignettes, CRAN · S
 
-**Status:** not started. Waits for zufast on CRAN.
+**Status:** in progress, 2026-10-08. Done: every export documented with `@return` and runnable examples; the package help page; four vignettes (*Inspecting a PDF*, *Assembling PDFs*, *Writing a report from R*, *Switching from pdftools and qpdf*); `_pkgdown.yml` with a reference index; README; `inst/WORDLIST`; `cran-comments.md`; `R CMD check --as-cran` 0/0/0. Waiting for zufast on CRAN (not there on 2026-10-08): `Remotes:` removal, `Version: 0.1.0`, the review skills and the submission.
 
 **Do**
 

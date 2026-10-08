@@ -11,3 +11,5 @@
 ^src/.*\.(so|dll|dylib|a)$
 ^cran-comments\.md$
 ^CRAN-SUBMISSION$
+^doc$
+^Meta$

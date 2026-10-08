@@ -1,0 +1,73 @@
+---
+title: "Inspecting a PDF"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Inspecting a PDF}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+zupdf reads PDF files through the bundled pdfio library. It never renders a
+page to pixels; everything else a PDF holds, it can read.
+
+```{r}
+library(zupdf)
+path <- system.file("examples", "hello.pdf", package = "zupdf")
+pdf <- pdf_open(path)
+pdf
+```
+
+`pdf_open()` reads only the cross-reference table, so opening is cheap; each
+function then reads what it needs. A raw vector or a connection works as well
+as a path.
+
+## The document
+
+```{r}
+str(pdf_meta(pdf))
+pdf_pages(pdf)
+```
+
+## Text
+
+`pdf_page_text()` follows each page's content stream, maps every character
+through its font, and lays the text out in reading order, or in the order the
+stream draws it:
+
+```{r}
+pdf_page_text(pdf)
+pdf_page_text(pdf, pages = 1, layout = "raw")
+```
+
+A character no font maps comes back as U+FFFD and is counted in the
+`unmapped` attribute.
+
+## Objects and streams
+
+Every object is reachable, as R values: dictionaries are named lists, names
+carry the class `pdf_name`, references `pdf_ref`.
+
+```{r}
+pdf_objects(pdf)
+pdf_object(pdf, 4)
+rawToChar(pdf_stream(pdf, 5))
+pdf_page_tokens(pdf, 1)
+```
+
+## Untrusted files
+
+A PDF is a common carrier of hostile input. `pdf_open()` takes limits on the
+input size, the number of objects and pages, the size of any decoded stream,
+and the depth of nesting; reaching one is a `zupdf_limit_error`:
+
+```{r}
+tryCatch(
+  pdf_open(path, max_pages = 1),
+  zupdf_limit_error = function(e) conditionMessage(e)
+)
+pdf_close(pdf)
+```

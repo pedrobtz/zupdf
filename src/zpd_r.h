@@ -40,6 +40,7 @@ SEXP zupdf_writer_image_data(SEXP ptr, SEXP bytes, SEXP width, SEXP height,
 SEXP zupdf_writer_page(SEXP ptr, SEXP media_box, SEXP crop_box, SEXP dict,
                        SEXP ops, SEXP nums, SEXP strs, SEXP max_depth);
 SEXP zupdf_writer_save(SEXP ptr, SEXP created, SEXP deterministic);
+SEXP zupdf_writer_measure(SEXP ptr, SEXP font, SEXP text, SEXP size);
 SEXP zupdf_writer_copy_pages(SEXP ptr, SEXP file, SEXP pages, SEXP rotate, SEXP absolute);
 SEXP zupdf_writer_set_meta(SEXP ptr, SEXP keys, SEXP values, SEXP modified);
 SEXP zupdf_writer_set_encryption(SEXP ptr, SEXP method, SEXP permissions, SEXP owner, SEXP user);

@@ -5,7 +5,9 @@ Authors@R: c(
     person("Pedro", "Baltazar", , "pedrobtz@gmail.com",
            role = c("aut", "cre", "cph")),
     person("Michael R", "Sweet", role = "cph",
-           comment = "pdfio and ttf, bundled in src/vendor/pdfio"))
+           comment = "pdfio and ttf, bundled in src/vendor/pdfio"),
+    person("Adobe", role = "cph",
+           comment = "Adobe Glyph List, in src/zpd_glyphs.h"))
 Description: Opens 'PDF' files and reads their metadata, pages, objects,
     streams, fonts, images and text in reading order; copies pages
     between files to split, merge, rotate and reorder them, and sets
@@ -24,10 +26,13 @@ Depends:
 LinkingTo:
     zufast (>= 0.1.0)
 Suggests:
+    knitr,
     pdftools,
     qpdf,
+    rmarkdown,
     testthat (>= 3.0.0),
     withr
+VignetteBuilder: knitr
 Remotes:
     pedrobtz/zufast@main
 Config/testthat/edition: 3

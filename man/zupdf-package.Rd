@@ -4,18 +4,43 @@
 \name{zupdf-package}
 \alias{zupdf}
 \alias{zupdf-package}
-\title{zupdf: Read, Assemble and Write 'PDF' Files}
+\title{zupdf: read, assemble and write PDF files}
 \description{
-Opens 'PDF' files and reads their metadata, pages, objects, streams, fonts, images and text in reading order; copies pages between files to split, merge, rotate and reorder them, and sets metadata, permissions and encryption; and writes new 'PDF' files from R with text, paths and images. Uses a bundled copy of the 'pdfio' library (\url{https://github.com/michaelrsweet/pdfio}), so no system library beyond 'zlib' is required. Untrusted input is bounded by limits on size, object count, stream size and nesting depth. Pages are never rendered to images.
+zupdf opens PDF files and reads their metadata, pages, objects, streams,
+fonts, images and text; copies pages between files to split, merge,
+rotate and reorder them; and writes new PDF files from R with text, paths
+and images. It never renders a page to pixels: for that, use pdftools.
+It bundles the pdfio C library, so it needs no system library beyond
+zlib.
 }
-\seealso{
-Useful links:
-\itemize{
-  \item \url{https://github.com/pedrobtz/zupdf}
-  \item \url{https://pedrobtz.github.io/zupdf/}
-  \item Report bugs at \url{https://github.com/pedrobtz/zupdf/issues}
+\section{Reading}{
+
+\code{\link[=pdf_open]{pdf_open()}} opens a file, from a path, raw vector or connection, under
+limits on size, objects, streams and nesting that make hostile input
+safe. \code{\link[=pdf_meta]{pdf_meta()}}, \code{\link[=pdf_pages]{pdf_pages()}}, \code{\link[=pdf_page_text]{pdf_page_text()}}, \code{\link[=pdf_font_table]{pdf_font_table()}},
+\code{\link[=pdf_page_images]{pdf_page_images()}} and \code{\link[=pdf_image]{pdf_image()}} read it; \code{\link[=pdf_objects]{pdf_objects()}},
+\code{\link[=pdf_object]{pdf_object()}} and \code{\link[=pdf_stream]{pdf_stream()}} reach every object.
 }
 
+\section{Writing}{
+
+\code{\link[=pdf_new]{pdf_new()}} starts a file; \code{\link[=pdf_page_new]{pdf_page_new()}} and \code{\link[=pdf_page_end]{pdf_page_end()}} add
+pages; \code{\link[=pdf_draw_text]{pdf_draw_text()}}, \code{\link[=pdf_draw]{pdf_draw()}} and \code{\link[=pdf_draw_image]{pdf_draw_image()}} draw on
+them; \code{\link[=pdf_copy_pages]{pdf_copy_pages()}} copies pages from other files;
+\code{\link[=pdf_set_meta]{pdf_set_meta()}} and \code{\link[=pdf_set_encryption]{pdf_set_encryption()}} set information and
+encryption; \code{\link[=pdf_save]{pdf_save()}} finishes.
+}
+
+\section{pdftools and qpdf}{
+
+Their functions that need no renderer exist here under their own names
+and arguments (\link{pdftools-compat}, \link{qpdf-compat}), so \code{library(zupdf)} can
+stand in for either package. Attaching zupdf after them masks theirs.
+}
+
+\seealso{
+\link{zupdf-conditions} for the errors zupdf raises; \code{\link[=zupdf_info]{zupdf_info()}}
+for the bundled library.
 }
 \author{
 \strong{Maintainer}: Pedro Baltazar \email{pedrobtz@gmail.com} [copyright holder]
@@ -28,6 +53,7 @@ Authors:
 Other contributors:
 \itemize{
   \item Michael R Sweet (pdfio and ttf, bundled in src/vendor/pdfio) [copyright holder]
+  \item Adobe (Adobe Glyph List, in src/zpd_glyphs.h) [copyright holder]
 }
 
 }

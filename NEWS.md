@@ -1,6 +1,9 @@
 # zupdf 0.0.0.9000
 
 * Development version, built stage by stage; see the roadmap.
+* `pdf_text_width()` measures text for layout. Four vignettes: inspecting a
+  PDF, assembling PDFs, writing a report from R, and switching from
+  pdftools and qpdf.
 * pdftools's and qpdf's non-rendering functions under their own names and
   arguments: `pdf_info()`, `pdf_text()`, `pdf_fonts()`, `pdf_pagesize()`,
   `pdf_toc()`, `pdf_attachments()`, `pdf_data()`, `pdf_length()`, `pdf_split()`,

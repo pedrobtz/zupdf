@@ -576,3 +576,26 @@ SEXP zupdf_writer_set_encryption(SEXP ptr, SEXP method, SEXP permissions, SEXP o
     }
     return zpd_result("ok", R_NilValue, &w->rec);
 }
+
+/* zupdf_writer_measure(ptr, font, text, size): each string's advance in
+   points, as pdfio measures it (its base-14 metrics or the embedded
+   font's), for laying text out (pdf_text_width()). */
+SEXP zupdf_writer_measure(SEXP ptr, SEXP font, SEXP text, SEXP size)
+{
+    zpd_writer *w = zpd_writer_get(ptr);
+    if (!w)
+        return zpd_status("closed_writer");
+    int k = Rf_asInteger(font);
+    if (k < 1 || (size_t) k > w->nobjs || w->kind[k - 1] == ZPD_IMAGE)
+        return zpd_status("bad_ops");
+    double sz = Rf_asReal(size);
+    R_xlen_t n = XLENGTH(text);
+    SEXP out = PROTECT(Rf_allocVector(REALSXP, n));
+    for (R_xlen_t i = 0; i < n; i++)
+        REAL(out)[i] = pdfioContentTextMeasure(w->objs[k - 1], Rf_translateCharUTF8(STRING_ELT(text, i)), sz);
+    zpd_record rec;
+    zpd_record_reset(&rec);
+    SEXP res = zpd_result("ok", out, &rec);
+    UNPROTECT(1);
+    return res;
+}

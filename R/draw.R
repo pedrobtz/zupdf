@@ -468,3 +468,39 @@ pdf_draw_image <- function(page, image, x, y, width, height) {
   zpd_record(page, "image", c(image$handle, v))
   invisible(page)
 }
+
+#' Measure text
+#'
+#' The width of each string in points, as [pdf_draw_text()] would draw it
+#' in `font` at `size`: from the base-14 metrics or the embedded font's
+#' glyphs. zupdf does no text layout; this is what layout needs, such as
+#' wrapping a paragraph to a column.
+#'
+#' @inheritParams pdf_font
+#' @param text Strings, UTF-8.
+#' @param font A base-14 font name, a font file path, or a font from
+#'   [pdf_font()].
+#' @param size The font size in points.
+#' @return A numeric vector of widths in points.
+#' @export
+#' @examples
+#' w <- pdf_new()
+#' pdf_text_width(w, c("narrow", "a much wider string"), size = 12)
+pdf_text_width <- function(w, text, font = "Helvetica", size = 12) {
+  call <- sys.call()
+  zpd_check_writer(w, call = call)
+  if (!is.character(text) || anyNA(text)) {
+    zpd_invalid_argument("text", "`text` must be strings, not NA.", call)
+  }
+  size <- zpd_check_numbers(size, "size", call)
+  if (length(size) != 1L || size <= 0) {
+    zpd_invalid_argument("size", "`size` must be one positive number.", call)
+  }
+  font <- zpd_font_arg(w, font, call)
+  zpd_unwrap(
+    .Call(zupdf_writer_measure, w, font$handle, enc2utf8(text), size),
+    "Cannot measure the text",
+    call,
+    default = "zupdf_write_error"
+  )
+}

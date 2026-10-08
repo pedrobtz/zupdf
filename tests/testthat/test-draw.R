@@ -313,3 +313,30 @@ test_that("a hundred-page report writes quickly", {
   ))
   expect_lt(t[["elapsed"]], 5)
 })
+
+test_that("pdf_text_width() measures as pdf_draw_text() draws", {
+  w <- pdf_new()
+  widths <- pdf_text_width(w, c("", "i", "W", "Hello"), size = 10)
+  expect_identical(widths[[1]], 0)
+  expect_lt(widths[[2]], widths[[3]])
+  # Helvetica's "Hello" is 2.389 em: H 722, e 556, l 222, l 222, o 556.
+  expect_equal(widths[[4]], 22.78, tolerance = 1e-6)
+  expect_equal(pdf_text_width(w, "Hello", size = 20), 2 * widths[[4]])
+  ttf <- pdf_text_width(
+    w,
+    "Hello",
+    font = fixture("OpenSans-Regular.ttf"),
+    size = 10
+  )
+  expect_gt(ttf, 0)
+  expect_zupdf_error(
+    pdf_text_width(w, NA_character_),
+    "zupdf_invalid_argument",
+    arg = "text"
+  )
+  expect_zupdf_error(
+    pdf_text_width(w, "x", size = 0),
+    "zupdf_invalid_argument",
+    arg = "size"
+  )
+})
