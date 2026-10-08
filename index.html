@@ -31,7 +31,16 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="articles/zupdf.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
+<li class="nav-item dropdown">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
+<li><a class="dropdown-item" href="articles/assembling.html">Assembling PDFs</a></li>
+    <li><a class="dropdown-item" href="articles/writing.html">Writing a report from R</a></li>
+    <li><a class="dropdown-item" href="articles/switching.html">Switching from pdftools and qpdf</a></li>
+  </ul>
+</li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
@@ -51,22 +60,42 @@
 </h1></div>
 <!-- badges: start -->
 
-<p>The goal of zupdf is to …</p>
+<p>zupdf reads, assembles and writes PDF files from R. It opens a file and reads its metadata, pages, objects, streams, fonts, images and text; copies pages between files to split, merge, rotate and reorder them; and writes new files with text, paths and images. It bundles the <a href="https://github.com/michaelrsweet/pdfio" class="external-link">pdfio</a> C library, so it needs no system library beyond zlib. It never renders a page to pixels: for that, use pdftools.</p>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>You can install the development version of zupdf from <a href="https://github.com/" class="external-link">GitHub</a> with:</p>
+<p>zupdf is not on CRAN yet. Install the development version with:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"pedrobtz/zupdf"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
+<h2 id="reading">Reading<a class="anchor" aria-label="anchor" href="#reading"></a>
 </h2>
-<p>This is a basic example which shows you how to solve a common problem:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/pedrobtz/zupdf" class="external-link">zupdf</a></span><span class="op">)</span></span>
-<span><span class="co">## basic example code</span></span></code></pre></div>
+<span><span class="va">pdf</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/pdf_open.html">pdf_open</a></span><span class="op">(</span><span class="st">"report.pdf"</span><span class="op">)</span>         <span class="co"># a path, raw vector or connection</span></span>
+<span><span class="fu"><a href="reference/pdf_meta.html">pdf_meta</a></span><span class="op">(</span><span class="va">pdf</span><span class="op">)</span><span class="op">$</span><span class="va">pages</span></span>
+<span><span class="fu"><a href="reference/pdf_page_text.html">pdf_page_text</a></span><span class="op">(</span><span class="va">pdf</span>, pages <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/pdf_font_table.html">pdf_font_table</a></span><span class="op">(</span><span class="va">pdf</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/pdf_close.html">pdf_close</a></span><span class="op">(</span><span class="va">pdf</span><span class="op">)</span></span></code></pre></div>
+<p>Untrusted files are bounded by limits on size, objects, stream size and nesting depth, and every error is a classed condition.</p>
+</div>
+<div class="section level2">
+<h2 id="writing">Writing<a class="anchor" aria-label="anchor" href="#writing"></a>
+</h2>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">w</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/pdf_new.html">pdf_new</a></span><span class="op">(</span>media_box <span class="op">=</span> <span class="fu"><a href="reference/pdf_paper.html">pdf_paper</a></span><span class="op">(</span><span class="st">"a4"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">page</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/pdf_page_new.html">pdf_page_new</a></span><span class="op">(</span><span class="va">w</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/pdf_draw_text.html">pdf_draw_text</a></span><span class="op">(</span><span class="va">page</span>, <span class="fl">72</span>, <span class="fl">760</span>, <span class="st">"A heading"</span>, font <span class="op">=</span> <span class="st">"Helvetica-Bold"</span>, size <span class="op">=</span> <span class="fl">18</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/pdf_draw.html">pdf_draw</a></span><span class="op">(</span><span class="va">page</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>op <span class="op">=</span> <span class="st">"rect"</span>, x <span class="op">=</span> <span class="fl">72</span>, y <span class="op">=</span> <span class="fl">600</span>, w <span class="op">=</span> <span class="fl">200</span>, h <span class="op">=</span> <span class="fl">100</span><span class="op">)</span>, fill <span class="op">=</span> <span class="st">"steelblue"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/pdf_page_new.html">pdf_page_end</a></span><span class="op">(</span><span class="va">page</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/pdf_save.html">pdf_save</a></span><span class="op">(</span><span class="va">w</span>, <span class="st">"out.pdf"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="switching-from-pdftools-and-qpdf">Switching from pdftools and qpdf<a class="anchor" aria-label="anchor" href="#switching-from-pdftools-and-qpdf"></a>
+</h2>
+<p>zupdf provides the pdftools and qpdf functions that need no renderer, under their names and with their arguments: <code><a href="reference/pdftools-compat.html">pdf_info()</a></code>, <code><a href="reference/pdftools-compat.html">pdf_text()</a></code>, <code><a href="reference/pdf_data.html">pdf_data()</a></code>, <code><a href="reference/pdftools-compat.html">pdf_fonts()</a></code>, <code><a href="reference/pdftools-compat.html">pdf_pagesize()</a></code>, <code><a href="reference/pdftools-compat.html">pdf_toc()</a></code>, <code><a href="reference/pdftools-compat.html">pdf_attachments()</a></code>, <code><a href="reference/qpdf-compat.html">pdf_length()</a></code>, <code><a href="reference/qpdf-compat.html">pdf_split()</a></code>, <code><a href="reference/qpdf-compat.html">pdf_subset()</a></code>, <code><a href="reference/qpdf-compat.html">pdf_combine()</a></code> and <code><a href="reference/qpdf-compat.html">pdf_rotate_pages()</a></code>. Code using only these runs with <code><a href="https://github.com/pedrobtz/zupdf" class="external-link">library(zupdf)</a></code> in their place. Attached after pdftools or qpdf, zupdf masks their functions of the same name. See <code><a href="articles/switching.html">vignette("switching", package = "zupdf")</a></code> for where the results differ.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

@@ -15,7 +15,14 @@
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/zupdf.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="nav-item dropdown">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/assembling.html">Assembling PDFs</a></li>
+    <li><a class="dropdown-item" href="../articles/writing.html">Writing a report from R</a></li>
+    <li><a class="dropdown-item" href="../articles/switching.html">Switching from pdftools and qpdf</a></li>
+  </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -32,7 +39,7 @@
     </div>
 
     <div class="section level2">
-      <h2 id="all-functions">All functions<a class="anchor" aria-label="anchor" href="#all-functions"></a></h2>
+      <h2 id="reading">Reading<a class="anchor" aria-label="anchor" href="#reading"></a></h2>
 
 
 
@@ -43,73 +50,17 @@
 
       <dl><dt>
 
+          <code><a href="pdf_open.html">pdf_open()</a></code>
+
+        </dt>
+        <dd>Open a PDF file</dd>
+
+        <dt>
+
           <code><a href="pdf_close.html">pdf_close()</a></code>
 
         </dt>
         <dd>Close a PDF file</dd>
-
-        <dt>
-
-          <code><a href="pdf_copy_pages.html">pdf_copy_pages()</a></code>
-
-        </dt>
-        <dd>Copy pages between files</dd>
-
-        <dt>
-
-          <code><a href="pdf_data.html">pdf_data()</a></code>
-
-        </dt>
-        <dd>Words and their positions</dd>
-
-        <dt>
-
-          <code><a href="pdf_draw.html">pdf_draw()</a></code>
-
-        </dt>
-        <dd>Draw paths</dd>
-
-        <dt>
-
-          <code><a href="pdf_draw_image.html">pdf_draw_image()</a></code>
-
-        </dt>
-        <dd>Draw images</dd>
-
-        <dt>
-
-          <code><a href="pdf_draw_text.html">pdf_draw_text()</a></code>
-
-        </dt>
-        <dd>Draw text</dd>
-
-        <dt>
-
-          <code><a href="pdf_font.html">pdf_font()</a></code>
-
-        </dt>
-        <dd>Fonts for the writer</dd>
-
-        <dt>
-
-          <code><a href="pdf_font_table.html">pdf_font_table()</a></code>
-
-        </dt>
-        <dd>Fonts in a file</dd>
-
-        <dt>
-
-          <code><a href="pdf_image.html">pdf_image()</a></code>
-
-        </dt>
-        <dd>One image's samples</dd>
-
-        <dt>
-
-          <code><a href="pdf_image_new.html">pdf_image_new()</a></code>
-
-        </dt>
-        <dd>Images for the writer</dd>
 
         <dt>
 
@@ -120,45 +71,10 @@
 
         <dt>
 
-          <code><a href="pdf_new.html">pdf_new()</a></code>
+          <code><a href="pdf_pages.html">pdf_pages()</a></code>
 
         </dt>
-        <dd>Start a new PDF file</dd>
-
-        <dt>
-
-          <code><a href="pdf_object.html">pdf_object()</a></code>
-
-        </dt>
-        <dd>One object's value</dd>
-
-        <dt>
-
-          <code><a href="pdf_objects.html">pdf_objects()</a></code>
-
-        </dt>
-        <dd>The object table</dd>
-
-        <dt>
-
-          <code><a href="pdf_open.html">pdf_open()</a></code>
-
-        </dt>
-        <dd>Open a PDF file</dd>
-
-        <dt>
-
-          <code><a href="pdf_page_images.html">pdf_page_images()</a></code>
-
-        </dt>
-        <dd>Images on a page</dd>
-
-        <dt>
-
-          <code><a href="pdf_page_new.html">pdf_page_new()</a></code> <code><a href="pdf_page_new.html">pdf_page_end()</a></code>
-
-        </dt>
-        <dd>Pages for the writer</dd>
+        <dd>Page sizes and rotation</dd>
 
         <dt>
 
@@ -176,10 +92,119 @@
 
         <dt>
 
-          <code><a href="pdf_pages.html">pdf_pages()</a></code>
+          <code><a href="pdf_font_table.html">pdf_font_table()</a></code>
 
         </dt>
-        <dd>Page sizes and rotation</dd>
+        <dd>Fonts in a file</dd>
+
+        <dt>
+
+          <code><a href="pdf_page_images.html">pdf_page_images()</a></code>
+
+        </dt>
+        <dd>Images on a page</dd>
+
+        <dt>
+
+          <code><a href="pdf_image.html">pdf_image()</a></code>
+
+        </dt>
+        <dd>One image's samples</dd>
+      </dl></div><div class="section level2">
+      <h2 id="objects">Objects<a class="anchor" aria-label="anchor" href="#objects"></a></h2>
+
+
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="pdf_objects.html">pdf_objects()</a></code>
+
+        </dt>
+        <dd>The object table</dd>
+
+        <dt>
+
+          <code><a href="pdf_object.html">pdf_object()</a></code>
+
+        </dt>
+        <dd>One object's value</dd>
+
+        <dt>
+
+          <code><a href="pdf_stream.html">pdf_stream()</a></code>
+
+        </dt>
+        <dd>One object's stream</dd>
+      </dl></div><div class="section level2">
+      <h2 id="writing">Writing<a class="anchor" aria-label="anchor" href="#writing"></a></h2>
+
+
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="pdf_new.html">pdf_new()</a></code>
+
+        </dt>
+        <dd>Start a new PDF file</dd>
+
+        <dt>
+
+          <code><a href="pdf_page_new.html">pdf_page_new()</a></code> <code><a href="pdf_page_new.html">pdf_page_end()</a></code>
+
+        </dt>
+        <dd>Pages for the writer</dd>
+
+        <dt>
+
+          <code><a href="pdf_draw_text.html">pdf_draw_text()</a></code>
+
+        </dt>
+        <dd>Draw text</dd>
+
+        <dt>
+
+          <code><a href="pdf_draw.html">pdf_draw()</a></code>
+
+        </dt>
+        <dd>Draw paths</dd>
+
+        <dt>
+
+          <code><a href="pdf_draw_image.html">pdf_draw_image()</a></code>
+
+        </dt>
+        <dd>Draw images</dd>
+
+        <dt>
+
+          <code><a href="pdf_font.html">pdf_font()</a></code>
+
+        </dt>
+        <dd>Fonts for the writer</dd>
+
+        <dt>
+
+          <code><a href="pdf_image_new.html">pdf_image_new()</a></code>
+
+        </dt>
+        <dd>Images for the writer</dd>
+
+        <dt>
+
+          <code><a href="pdf_text_width.html">pdf_text_width()</a></code>
+
+        </dt>
+        <dd>Measure text</dd>
 
         <dt>
 
@@ -194,13 +219,22 @@
 
         </dt>
         <dd>Finish a PDF file</dd>
+      </dl></div><div class="section level2">
+      <h2 id="assembling">Assembling<a class="anchor" aria-label="anchor" href="#assembling"></a></h2>
 
-        <dt>
 
-          <code><a href="pdf_set_encryption.html">pdf_set_encryption()</a></code>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="pdf_copy_pages.html">pdf_copy_pages()</a></code>
 
         </dt>
-        <dd>Encrypt the written file</dd>
+        <dd>Copy pages between files</dd>
 
         <dt>
 
@@ -211,12 +245,21 @@
 
         <dt>
 
-          <code><a href="pdf_stream.html">pdf_stream()</a></code>
+          <code><a href="pdf_set_encryption.html">pdf_set_encryption()</a></code>
 
         </dt>
-        <dd>One object's stream</dd>
+        <dd>Encrypt the written file</dd>
+      </dl></div><div class="section level2">
+      <h2 id="pdftools-and-qpdf">pdftools and qpdf<a class="anchor" aria-label="anchor" href="#pdftools-and-qpdf"></a></h2>
 
-        <dt>
+
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
 
           <code><a href="pdftools-compat.html">pdf_info()</a></code> <code><a href="pdftools-compat.html">pdf_text()</a></code> <code><a href="pdftools-compat.html">pdf_fonts()</a></code> <code><a href="pdftools-compat.html">pdf_pagesize()</a></code> <code><a href="pdftools-compat.html">pdf_toc()</a></code> <code><a href="pdftools-compat.html">pdf_attachments()</a></code>
 
@@ -225,17 +268,33 @@
 
         <dt>
 
+          <code><a href="pdf_data.html">pdf_data()</a></code>
+
+        </dt>
+        <dd>Words and their positions</dd>
+
+        <dt>
+
           <code><a href="qpdf-compat.html">pdf_length()</a></code> <code><a href="qpdf-compat.html">pdf_split()</a></code> <code><a href="qpdf-compat.html">pdf_subset()</a></code> <code><a href="qpdf-compat.html">pdf_combine()</a></code> <code><a href="qpdf-compat.html">pdf_rotate_pages()</a></code>
 
         </dt>
         <dd>qpdf-compatible assembly</dd>
+      </dl></div><div class="section level2">
+      <h2 id="about">About<a class="anchor" aria-label="anchor" href="#about"></a></h2>
 
-        <dt>
 
-          <code><a href="zupdf-conditions.html">zupdf-conditions</a></code>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="zupdf-package.html">zupdf</a></code> <code><a href="zupdf-package.html">zupdf-package</a></code>
 
         </dt>
-        <dd>Conditions raised by zupdf</dd>
+        <dd>zupdf: read, assemble and write PDF files</dd>
 
         <dt>
 
@@ -243,8 +302,16 @@
 
         </dt>
         <dd>Build information</dd>
+
+        <dt>
+
+          <code><a href="zupdf-conditions.html">zupdf-conditions</a></code>
+
+        </dt>
+        <dd>Conditions raised by zupdf</dd>
       </dl></div>
-  </main></div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">

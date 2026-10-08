@@ -7,6 +7,9 @@
 - **Michael R Sweet**. Copyright holder.  
   pdfio and ttf, bundled in src/vendor/pdfio
 
+- **Adobe**. Copyright holder.  
+  Adobe Glyph List, in src/zpd_glyphs.h
+
 ## Citation
 
 Source:

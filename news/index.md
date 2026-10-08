@@ -3,6 +3,9 @@
 ## zupdf 0.0.0.9000
 
 - Development version, built stage by stage; see the roadmap.
+- [`pdf_text_width()`](https://pedrobtz.github.io/zupdf/reference/pdf_text_width.md)
+  measures text for layout. Four vignettes: inspecting a PDF, assembling
+  PDFs, writing a report from R, and switching from pdftools and qpdf.
 - pdftools’s and qpdf’s non-rendering functions under their own names
   and arguments:
   [`pdf_info()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md),
