@@ -96,7 +96,10 @@ zpd_warn <- function(message, ..., detail = NULL, call = NULL) {
 zpd_pdfio_prefixes <- c(
   "Unable to unlock PDF file." = "zupdf_password_error",
   "Unable to unlock AES-256" = "zupdf_unsupported_input",
-  "Unable to open file" = "zupdf_io_error"
+  "Unable to open file" = "zupdf_io_error",
+  "Unable to open image file" = "zupdf_io_error",
+  "Unable to open font file" = "zupdf_io_error",
+  "Unsupported image file" = "zupdf_unsupported_input"
 )
 
 zpd_pdfio_class <- function(detail, default = "zupdf_parse_error") {
@@ -175,6 +178,18 @@ zpd_unwrap <- function(
       sprintf("%s: a pdf_ref names no object in the file.", what),
       call = call
     ),
+    font = zpd_abort(
+      zpd_pdfio_class(res$detail, "zupdf_font_error"),
+      paste0(what, ": ", res$detail),
+      detail = res$detail,
+      call = call
+    ),
+    image = zpd_abort(
+      zpd_pdfio_class(res$detail, "zupdf_parse_error"),
+      paste0(what, ": ", res$detail),
+      detail = res$detail,
+      call = call
+    ),
     memory = zpd_abort(
       "zupdf_parse_error",
       sprintf("%s: out of memory.", what),
@@ -183,6 +198,11 @@ zpd_unwrap <- function(
     unsupported = zpd_invalid_argument(
       "x",
       sprintf("%s: a value has no PDF form.", what),
+      call = call
+    ),
+    closed_writer = zpd_abort(
+      "zupdf_write_error",
+      sprintf("%s: the writer is closed.", what),
       call = call
     ),
     stop("unknown status from C: ", res$status)

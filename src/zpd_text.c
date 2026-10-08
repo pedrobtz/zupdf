@@ -371,6 +371,15 @@ static void zpd_show(zpd_text_ctx *c, zpd_run *r, const unsigned char *s, size_t
         }
         uint32_t cps[8];
         size_t ncp = zpd_font_unicode(f, code, cps, 8);
+        if (f->identity && code >= 0xD800 && code <= 0xDBFF && i + 1 < n) {
+            /* UTF-16 codes: a surrogate pair is one character, one glyph. */
+            uint32_t lo = ((uint32_t) s[i] << 8) | s[i + 1];
+            if (lo >= 0xDC00 && lo <= 0xDFFF) {
+                cps[0] = 0x10000 + ((code - 0xD800) << 10) + (lo - 0xDC00);
+                ncp = 1;
+                i += 2;
+            }
+        }
         if (ncp == 0) {
             cps[0] = 0xFFFD;
             ncp = 1;

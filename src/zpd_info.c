@@ -19,6 +19,7 @@ static const char *zpd_patches[] = {
     "0002-no-stdio",
     "0003-date-buffer",
     "0004-undefined-behaviour",
+    "0005-unsigned-shifts",
 };
 
 /* Features pdfio 1.7.0 adds that the 1.6.5 pin lacks (design section 9).

@@ -38,6 +38,7 @@ typedef struct zpd_font {
     size_t num;
     uint32_t *cps;
     size_t ncps;
+    int identity;       /* an Identity-UCS2 ToUnicode with no entries: codes are UTF-16 */
     struct zpd_font *next;
 } zpd_font;
 

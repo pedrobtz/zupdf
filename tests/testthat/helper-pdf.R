@@ -291,3 +291,31 @@ image_pdf <- function(data, w, h, cs = "/DeviceRGB", filter = "") {
     ))
   )
 }
+
+# A writer test's whole file: `draw` is called with each new page (one page
+# unless `pages` says more) and the bytes are returned.
+written <- function(
+  draw = function(page) NULL,
+  pages = 1L,
+  ...,
+  deterministic = TRUE
+) {
+  w <- pdf_new(
+    created = as.POSIXct("2024-01-02 03:04:05", tz = "UTC"),
+    deterministic = deterministic,
+    ...
+  )
+  for (i in seq_len(pages)) {
+    page <- pdf_page_new(w)
+    draw(page)
+    pdf_page_end(page)
+  }
+  pdf_save(w)
+}
+
+# Opens written bytes and returns what reading them gives.
+reread <- function(bytes, what = pdf_page_text) {
+  pdf <- pdf_open(bytes)
+  on.exit(pdf_close(pdf))
+  what(pdf)
+}

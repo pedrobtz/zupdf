@@ -10,6 +10,8 @@
 //
 // Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: bytes are shifted as unsigned, so a high bit cannot overflow an int (UBSan). See tools/patches/ in zupdf.
+//
 
 #ifdef _WIN32
 #  define _CRT_SECURE_NO_WARNINGS 1
@@ -860,7 +862,7 @@ copy_name(ttf_t    *font,		// I - Font
 	else if (bpc == 2)
 	  ch = ((storptr[0] & 255) << 8) | (storptr[1] & 255);
 	else
-	  ch = ((storptr[0] & 255) << 24) | ((storptr[1] & 255) << 16) | ((storptr[2] & 255) << 8) | (storptr[3] & 255);
+	  ch = (int)(((unsigned)(storptr[0] & 255) << 24) | ((unsigned)(storptr[1] & 255) << 16) | ((unsigned)(storptr[2] & 255) << 8) | (unsigned)(storptr[3] & 255));
 
         // Convert to UTF-8...
         if (ch < 0x80)
@@ -2221,7 +2223,7 @@ read_ulong(ttf_t *font)			// I - Font
   if ((font->read_cb)(font, buffer, sizeof(buffer)) != sizeof(buffer))
     return ((unsigned)EOF);
   else
-    return ((unsigned)((buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]));
+    return (((unsigned)buffer[0] << 24) | ((unsigned)buffer[1] << 16) | ((unsigned)buffer[2] << 8) | (unsigned)buffer[3]);
 }
 
 

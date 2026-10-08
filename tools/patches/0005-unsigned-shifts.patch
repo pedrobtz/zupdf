@@ -1,0 +1,105 @@
+diff -ruN a/pdfio-content.c b/pdfio-content.c
+--- a/pdfio-content.c
++++ b/pdfio-content.c
+@@ -8,6 +8,8 @@
+ //
+ // Modified for the zupdf R package: the date buffers hold any int the format can print (gcc -Wformat-truncation). See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: bytes are shifted as unsigned, so a high bit cannot overflow an int (UBSan). See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ #include "pdfio-content.h"
+@@ -2933,8 +2935,8 @@
+   while (read(fd, buffer, 8) == 8)
+   {
+     // Get the chunk length and type values...
+-    length = (unsigned)((buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]);
+-    type   = (unsigned)((buffer[4] << 24) | (buffer[5] << 16) | (buffer[6] << 8) | buffer[7]);
++    length = (unsigned)(((unsigned)buffer[0] << 24) | ((unsigned)buffer[1] << 16) | ((unsigned)buffer[2] << 8) | (unsigned)buffer[3]);
++    type   = (unsigned)(((unsigned)buffer[4] << 24) | ((unsigned)buffer[5] << 16) | ((unsigned)buffer[6] << 8) | (unsigned)buffer[7]);
+     crc    = update_png_crc(0xffffffff, buffer + 4, 4);
+ 
+     switch (type)
+@@ -3026,8 +3028,8 @@
+           }
+ 
+ 	  crc    = update_png_crc(crc, buffer, length);
+-	  width  = (unsigned)((buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]);
+-	  height = (unsigned)((buffer[4] << 24) | (buffer[5] << 16) | (buffer[6] << 8) | buffer[7]);
++	  width  = (unsigned)(((unsigned)buffer[0] << 24) | ((unsigned)buffer[1] << 16) | ((unsigned)buffer[2] << 8) | (unsigned)buffer[3]);
++	  height = (unsigned)(((unsigned)buffer[4] << 24) | ((unsigned)buffer[5] << 16) | ((unsigned)buffer[6] << 8) | (unsigned)buffer[7]);
+ 
+ 	  if (width == 0 || height == 0)
+ 	  {
+@@ -3125,14 +3127,14 @@
+ 
+ 	  crc = update_png_crc(crc, buffer, length);
+ 
+-          wx = 0.00001 * ((buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]);
+-          wy = 0.00001 * ((buffer[4] << 24) | (buffer[5] << 16) | (buffer[6] << 8) | buffer[7]);
+-          rx = 0.00001 * ((buffer[8] << 24) | (buffer[9] << 16) | (buffer[10] << 8) | buffer[11]);
+-          ry = 0.00001 * ((buffer[12] << 24) | (buffer[13] << 16) | (buffer[14] << 8) | buffer[15]);
+-          gx = 0.00001 * ((buffer[16] << 24) | (buffer[17] << 16) | (buffer[18] << 8) | buffer[19]);
+-          gy = 0.00001 * ((buffer[20] << 24) | (buffer[21] << 16) | (buffer[22] << 8) | buffer[23]);
+-          bx = 0.00001 * ((buffer[24] << 24) | (buffer[25] << 16) | (buffer[26] << 8) | buffer[27]);
+-          by = 0.00001 * ((buffer[28] << 24) | (buffer[29] << 16) | (buffer[30] << 8) | buffer[31]);
++          wx = 0.00001 * (double)(((unsigned)buffer[0] << 24) | ((unsigned)buffer[1] << 16) | ((unsigned)buffer[2] << 8) | (unsigned)buffer[3]);
++          wy = 0.00001 * (double)(((unsigned)buffer[4] << 24) | ((unsigned)buffer[5] << 16) | ((unsigned)buffer[6] << 8) | (unsigned)buffer[7]);
++          rx = 0.00001 * (double)(((unsigned)buffer[8] << 24) | ((unsigned)buffer[9] << 16) | ((unsigned)buffer[10] << 8) | (unsigned)buffer[11]);
++          ry = 0.00001 * (double)(((unsigned)buffer[12] << 24) | ((unsigned)buffer[13] << 16) | ((unsigned)buffer[14] << 8) | (unsigned)buffer[15]);
++          gx = 0.00001 * (double)(((unsigned)buffer[16] << 24) | ((unsigned)buffer[17] << 16) | ((unsigned)buffer[18] << 8) | (unsigned)buffer[19]);
++          gy = 0.00001 * (double)(((unsigned)buffer[20] << 24) | ((unsigned)buffer[21] << 16) | ((unsigned)buffer[22] << 8) | (unsigned)buffer[23]);
++          bx = 0.00001 * (double)(((unsigned)buffer[24] << 24) | ((unsigned)buffer[25] << 16) | ((unsigned)buffer[26] << 8) | (unsigned)buffer[27]);
++          by = 0.00001 * (double)(((unsigned)buffer[28] << 24) | ((unsigned)buffer[29] << 16) | ((unsigned)buffer[30] << 8) | (unsigned)buffer[31]);
+           break;
+ 
+       case _PDFIO_PNG_CHUNK_gAMA : // Gamma correction
+@@ -3150,7 +3152,7 @@
+ 
+ 	  crc = update_png_crc(crc, buffer, length);
+ 
+-          gamma = 10000.0 / ((buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]);
++          gamma = 10000.0 / (((unsigned)buffer[0] << 24) | ((unsigned)buffer[1] << 16) | ((unsigned)buffer[2] << 8) | (unsigned)buffer[3]);
+           break;
+ 
+       case _PDFIO_PNG_CHUNK_tRNS : // Transparency information
+@@ -3273,7 +3275,7 @@
+       return (NULL);
+     }
+ 
+-    temp = (unsigned)((buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]);
++    temp = (unsigned)(((unsigned)buffer[0] << 24) | ((unsigned)buffer[1] << 16) | ((unsigned)buffer[2] << 8) | (unsigned)buffer[3]);
+     if (temp != crc)
+     {
+       pdfioStreamClose(st);
+diff -ruN a/ttf.c b/ttf.c
+--- a/ttf.c
++++ b/ttf.c
+@@ -10,6 +10,8 @@
+ //
+ // Modified for the zupdf R package: PDFIO_NO_STDIO leaves out every write to stdio. See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: bytes are shifted as unsigned, so a high bit cannot overflow an int (UBSan). See tools/patches/ in zupdf.
++//
+ 
+ #ifdef _WIN32
+ #  define _CRT_SECURE_NO_WARNINGS 1
+@@ -860,7 +862,7 @@
+ 	else if (bpc == 2)
+ 	  ch = ((storptr[0] & 255) << 8) | (storptr[1] & 255);
+ 	else
+-	  ch = ((storptr[0] & 255) << 24) | ((storptr[1] & 255) << 16) | ((storptr[2] & 255) << 8) | (storptr[3] & 255);
++	  ch = (int)(((unsigned)(storptr[0] & 255) << 24) | ((unsigned)(storptr[1] & 255) << 16) | ((unsigned)(storptr[2] & 255) << 8) | (unsigned)(storptr[3] & 255));
+ 
+         // Convert to UTF-8...
+         if (ch < 0x80)
+@@ -2221,7 +2223,7 @@
+   if ((font->read_cb)(font, buffer, sizeof(buffer)) != sizeof(buffer))
+     return ((unsigned)EOF);
+   else
+-    return ((unsigned)((buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]));
++    return (((unsigned)buffer[0] << 24) | ((unsigned)buffer[1] << 16) | ((unsigned)buffer[2] << 8) | (unsigned)buffer[3]);
+ }
+ 
+ 
