@@ -60,7 +60,7 @@ These are zupdf's cells for the family table that alignment rule R1 of [`zu-fami
 | Public C prefix | none; internal `zpd_` / `ZPD_` |
 | From C | no C API |
 | Hides symbols (`$(C_VISIBILITY)`) | yes, from Stage 0 (R3); pdfio's and ttf's symbols included |
-| Vendored code | pdfio 1.6.5 (then 1.7.0 when tagged), ttf (§9) |
+| Vendored code | pdfio 1.6.5 (then 1.7.0 when tagged), with its ttf library in the same tree (§9) |
 | `LinkingTo` | `zufast (>= 0.1.0)` |
 | `Depends: R` | 4.1 (R2) |
 | Language | en-GB (R2) |
@@ -68,6 +68,8 @@ These are zupdf's cells for the family table that alignment rule R1 of [`zu-fami
 Its names follow two rules (D8). The compatibility layer (§5.1) reuses pdftools's and qpdf's names with exactly their formal arguments and return shapes, so code written for those packages runs when `library(zupdf)` replaces `library(pdftools)` or `library(qpdf)`. Every other export uses a name that neither package exports. A shared name never means something different: no zupdf function uses a pdftools or qpdf name for a different job. pdftools 3.9.0 exports `pdf_attachments`, `pdf_convert`, `pdf_data`, `pdf_fonts`, `pdf_info`, `pdf_ocr_data`, `pdf_ocr_text`, `pdf_pagesize`, `pdf_render_page`, `pdf_text`, `pdf_toc` and `poppler_config`, and re-exports all seven of qpdf 1.4.1's: `pdf_combine`, `pdf_compress`, `pdf_length`, `pdf_overlay_stamp`, `pdf_rotate_pages`, `pdf_split`, `pdf_subset` (*verified 2026-10-08* from installed copies; the RFC also listed a qpdf `pdf_encrypt` and `pdf_decrypt`, which do not exist). It consumes `zufast` for UTF-8 validation of extracted text (`zuf_utf8_valid()`, *verified 2026-10-08*) and number formatting, and could later hand `zusvg`'s (RFC 0007) paths into content streams (§18). Stage 0 verifies `zpd_` is free against every sibling.
 
 **Consumers.** None named. Nothing in 0.1.0 is shaped around a sibling.
+
+**Audience** (*Stage 0 survey, 2026-10-08*). CRAN has 166 packages that depend on pdftools or qpdf (pdftools: 39 hard, 55 in `Suggests`; qpdf: 28 hard, 49 in `Suggests`). In their R code and vignettes, excluding tests, 79 call a pdftools or qpdf function. 50 of those (63 %) call only functions that §5.1 provides in 0.1.0; 55 (70 %) once `pdf_data()`, `pdf_overlay_stamp()` and `pdf_compress()` are decided (§18 Q1, Q3, Q10); 24 (30 %) call `pdf_render_page()`, `pdf_convert()` or `pdf_ocr_*()` and need pdftools anyway. The most-called functions are `pdf_text()` (38 packages), `pdf_info()` (17), `pdf_combine()` and `pdf_convert()` (16 each), `pdf_render_page()` (8), `pdf_length()` (7), `pdf_data()` and `pdf_subset()` (5 each). So most users of these packages do not render, and the text extractor and the compatibility layer are what they would use. The count matches function names as calls, so it can include a package's own function of the same name.
 
 ---
 
@@ -141,7 +143,7 @@ zupdf_info()
 - `pdf_copy_pages()`: `pdfioPageCopy()` per page, which copies the page object and everything it references, so the result is self-contained.
 - `pdf_save()` with `file = NULL` returns a raw vector; a connection is written in blocks as pdfio's output callback delivers them.
 - `pdf_paper()`: ISO A and B series, US letter, legal, tabloid, in points, landscape if asked.
-- `zupdf_info()`: pdfio and ttf versions, the vendored commits and patch identifiers, zlib's version, which features the pin lacks (§9), the limits' defaults.
+- `zupdf_info()`: the pdfio version (ttf ships inside it), the patch identifiers, zlib's version, which features the pin lacks (§9), the limits' defaults, and a self-test that writes a one-page file in memory.
 
 Printing a `pdf_file` shows the path, version, page count and encryption; `length()` is the page count. `pdf_page_text()` has a `pages` argument because text extraction walks every token of each page and a 2 000-page file should not be forced whole.
 
@@ -224,23 +226,25 @@ The `pdf2text` example is 1 420 lines of C that walk a page's content tokens, tr
 
 | Library | Pin | Files | Lines | Licence |
 |---|---|---|---|---|
-| pdfio | **v1.6.5** (*verified 2026-10-08*: upstream's latest release; no 1.7.0 tag) | 16 `.c`, 5 `.h` | 19 k | Apache-2.0 with exceptions |
-| ttf | the commit pdfio's submodule points at for that tag | 2 `.c`, 2 `.h` | 3.8 k | Apache-2.0 with exceptions |
+| pdfio, with ttf | **v1.6.5**, commit `5102edd` (*verified 2026-10-08*: upstream's latest release; no 1.7.0 tag) | 17 `.c` (16 pdfio, `ttf.c`), 6 `.h` | 21 k | Apache-2.0 with exceptions |
+
+From 1.6.0 the ttf library ships inside pdfio's own tree (`ttf.c`, `ttf.h`), not as a submodule, so one release tarball and one vendor tree cover both (*found at Stage 0*; the RFC planned two trees with two pins).
 
 Facts read from the source that shape the design (the RFC read `master` at `5841fd0`; where a fact is 1.7.0-only it says so):
 
 - **Input is a file name.** `pdfioFileOpen()` takes a path and reads through a descriptor with `open()`, `read()` and `lseek()`; there is no memory or callback input. A raw vector or connection is spilled to a temporary file under `tempdir()` that the handle owns and the finalizer unlinks (§10). Output has both: `pdfioFileCreate()` to a path and `pdfioFileCreateOutput()` to a callback.
-- **Errors.** The default error callback writes `filename: message` to `stderr` and returns `false` unless the message starts with `WARNING:`. zupdf always installs its own callback (§4), so the default is never reached, but the function and the `fputs(stderr)` in `copy_png()`'s `setjmp` handler are still `stdio` writes in compiled code, which R CMD check flags. They are removed by a recorded patch (D4), as are the `fprintf(fp, ...)` debug printers in `pdfio-dict.c` and `pdfio-value.c` (`_pdfioValueDebug()`), which are only compiled under `DEBUG` but which `tools/check-symbols` must not find. The patch set is sent upstream with a proposal for a `PDFIO_NO_STDIO` build option.
+- **Errors.** The default error callback writes `filename: message` to `stderr` and returns `false` unless the message starts with `WARNING:`. zupdf always installs its own callback (§4), so the default is never reached, but it is still a `stdio` write in compiled code, which R CMD check flags. So are ttf's `errorf()` fallback to `stderr` and the three debug printers (`_pdfioArrayDebug()`, `_pdfioDictDebug()`, `_pdfioValueDebug()`), which are compiled in every build, not only under `DEBUG` (*found at Stage 0*). Patch 0002 puts all of them behind a `PDFIO_NO_STDIO` build option, which `Makevars` defines; it is offered upstream. `copy_png()`'s `fputs(stderr)` is inside `HAVE_LIBPNG`, which zupdf never defines, so it is never compiled and needs no patch.
+- **Visibility** (*found at Stage 0*). `pdfio.h` marks the whole API `visibility("default")` and `pdfio-private.h` does the same for `_PDFIO_PRIVATE`, which would export every pdfio function from `zupdf.so` past `$(C_VISIBILITY)`. Patch 0001 lets both macros be defined on the command line, and `Makevars` defines them empty.
 - **zlib.** `pdfio-private.h` includes `zlib.h` and streams hold a `z_stream`; `Makevars` links `-lz`. The pdfio manual requires zlib 1.0 or later and a C99 compiler (*verified 2026-10-08*). R on every CRAN platform ships zlib (R itself needs it), so this is not a system requirement in CRAN's sense; the build matrix at Stage 0 proves the header is found on Windows (Rtools) and macOS (the R installation's `opt/R` tree).
 - **Images.** `pdfioFileCreateImageObjFromFile()` reads JPEG (header only; DCT bytes are copied through), PNG through libpng when `HAVE_LIBPNG` or through its own decoder otherwise, GIF (1.7.0 only) and WebP only with `HAVE_LIBWEBP`. zupdf defines neither `HAVE_*`, so PNG uses pdfio's built-in reader and WebP is `zupdf_unsupported_input`. The built-in PNG reader has its own zlib inflate and a `setjmp` error path that writes to `stderr` (patched out, above).
-- **Fonts.** `pdfio-content.c` uses the `ttf` library (a git submodule of pdfio, vendored as its own tree) for embedded TrueType and OpenType fonts: `ttfCreate()` from a path, `ttfCreateData()` from memory. 1.7.0's `pdfioFileCreateFontObjFromSystem()` scans system font directories through `ttfCacheCreate()`, and `ttf-cache.c` has a `fprintf(stderr)` default error path. zupdf does not call any system lookup (D7), installs the error callback on every `ttfCreate*()` call, and the stdio patch covers `ttf-cache.c` wherever the pin includes it. Base-14 fonts use `pdfio-base-font-widths.h` for metrics, so `pdf_draw_text()` can measure without any font file.
-- **Filters.** Flate (zlib), ASCII85, RunLength, ASCIIHex in 1.6.5; LZW and compound filters per the 1.7.0 change log. The pdfio manual lists LZWDecode among the decoded filters for 1.6.x (*verified 2026-10-08*, which contradicts the RFC's reading of the change log); Stage 0 settles it from the pinned source and records the answer here and in `zupdf_info()`. Not DCT, JPX, JBIG2 or CCITT, whose streams come back undecoded with their filter name.
+- **Fonts.** `pdfio-content.c` uses the `ttf` library (in pdfio's own tree) for embedded TrueType and OpenType fonts: `ttfCreate()` from a path, `ttfCreateData()` from memory. 1.7.0's `pdfioFileCreateFontObjFromSystem()` scans system font directories through `ttfCacheCreate()`, and `ttf-cache.c` has a `fprintf(stderr)` default error path; 1.6.5 has neither. zupdf does not call any system lookup (D7), installs the error callback on every `ttfCreate*()` call, and the stdio patch must cover `ttf-cache.c` when the pin moves. Base-14 fonts use `pdfio-base-font-widths.h` for metrics, so `pdf_draw_text()` can measure without any font file.
+- **Filters.** Flate (zlib), ASCII85, RunLength, ASCIIHex in 1.6.5; LZW and compound filters only from 1.7.0. `pdfio-stream.c` at 1.6.5 has no LZW code (*settled at Stage 0*, §18 Q8), so `zupdf_info()` lists `lzw` as absent. Not DCT, JPX, JBIG2 or CCITT, whose streams come back undecoded with their filter name.
 - **Encryption.** RC4 40 (reading), RC4 128, AES 128 read and write; AES 256 marked `@exclude all@` with a buffer-overflow fix in 1.7.0's change log, so zupdf exposes it for reading only when pdfio does and never for writing. The 1.6.5 release fixed an invalid-empty-string read in AES (GHSA-527h-2p2v-g388), which puts a floor on the pin.
 - **1.7.0-only features**, absent from the 1.6.5 pin and stated as absent by `zupdf_info()` until the pin moves: LZW (if Stage 0 confirms), GIF images, object streams on write, the `pdfioPageGet*` accessors (zupdf reads the page dictionary directly instead), Unicode file names on Windows, the system font lookup (which zupdf does not use anyway).
-- **Corpus.** `afl-input/` holds 23 PDFBox-derived crash cases and `afl-pdf.dict` a fuzzing dictionary; `testfiles/` 35 files including fonts (DejaVu, Noto Sans JP, Open Sans with their licences) and images. zupdf's fuzz job seeds from `afl-input` and the dictionary; the test fixtures take the small files from `testfiles` and the licences with them.
-- **Standard and warnings.** C99 with `ssize_t`, `open()`, `lseek()` and `unistd.h` on POSIX and the Windows CRT equivalents under `_WIN32`; no threads. The first build under `-Wall -Wextra -pedantic` records warnings; any CRAN's flags would print are patched, not silenced, and never by a diagnostic-suppressing pragma.
+- **Corpus.** `afl-input/` holds the PDFBox-derived crash cases and `afl-pdf.dict` a fuzzing dictionary; both are in the git tag but not in the release tarball (*found at Stage 0*), so `tools/update-fixtures` fetches them from the tag's commit. `testfiles/` in 1.6.5 holds fonts (Noto Sans JP, Open Sans, with their licences), images and ICC profiles, but only one PDF (`testpdfio.pdf`), so the reading fixtures come mostly from other producers (§15). zupdf's fuzz job seeds from `afl-input` and the dictionary; the test fixtures take the small files from `testfiles` and the licences with them.
+- **Standard and warnings.** C99 with `ssize_t`, `open()`, `lseek()` and `unistd.h` on POSIX and the Windows CRT equivalents under `_WIN32`; no threads. Random bytes for encryption come from `arc4random()` on macOS, `CryptGenRandom()` on Windows and `/dev/urandom` elsewhere (`HAVE_GETRANDOM` is not defined), with a time-seeded fallback; none is the C library's `rand()`. The first build (*Stage 0*) is clean under clang's `-Wall -pedantic -Wstrict-prototypes`; `-Wextra` adds function-type-cast and null-pointer-subtraction warnings, recorded in `PROVENANCE` and not patched, since CRAN's flags do not print them. Anything CRAN's flags print is patched, not silenced, and never by a diagnostic-suppressing pragma.
 
-Vendoring follows zucbor §13 and the template: `src/vendor/pdfio/` and `src/vendor/ttf/` byte-identical at the pinned tags plus the recorded patch set in `tools/patches/`, applied by `tools/update-pdfio` and verified by `tools/verify-vendor` in CI (`vendor.yaml`); `src/vendor/PROVENANCE` records tags, commits, tarball checksums, file lists, every patch with its reason, and the warnings seen. `inst/COPYRIGHTS` reproduces both `NOTICE` files with their exception text; `LICENSE.note` records provenance; the fixtures' font licences ride along. The `License:` field is §18 Q7.
+Vendoring follows zucbor §13 and the template: `src/vendor/pdfio/` is byte-identical to the files `tools/pdfio-files.txt` lists from the release tarball, plus the recorded patch set in `tools/patches/`, applied by `tools/update-pdfio` and verified by `tools/verify-vendor` in CI (`vendor.yaml`); `src/vendor/PROVENANCE` records the tag, its commit, the tarball checksum, every patch with its reason, and the warnings seen. Each patch adds a modification notice to the files it changes (Apache-2.0 §4(b)). `inst/COPYRIGHTS` reproduces pdfio's `NOTICE` with its exception text; `LICENSE.note` records provenance; the fixtures' font licences ride along. The `License:` field is D15.
 
 ---
 
@@ -299,8 +303,8 @@ A `pdf_file` owns its `pdfio_file_t`, its temporary file and its text caches in 
 
 ## 14. Build, portability and CRAN
 
-- `src/Makevars` lists the vendored and project object files by hand (18 and 6 at the 1.7.0 count; Stage 0 counts 1.6.5's), portable make only; `PKG_CFLAGS = $(C_VISIBILITY) -I vendor/pdfio -I vendor/ttf -DPDFIO_STATIC`; `PKG_LIBS = -lz`. No `Makevars.win`: Rtools provides zlib and the `unistd.h` equivalents the sources already handle under `_WIN32`.
-- `tools/check-symbols` on an installed build (`R_init_zupdf` only; no stdio, `abort`, `exit`, `assert`, system RNG); `tools/check-status-table` has no equivalent, since pdfio's errors are strings, so the test of §15 that maps each known message prefix to a class stands in for it.
+- `src/Makevars` lists the vendored and project object files by hand (17 vendored at 1.6.5), portable make only; `PKG_CPPFLAGS = -I vendor/pdfio -DPDFIO_NO_STDIO -D_PDFIO_PUBLIC= -D_PDFIO_PRIVATE=` (patches 0001 and 0002), `PKG_CFLAGS = $(C_VISIBILITY)`, `PKG_LIBS = -lz`. No `Makevars.win`: Rtools provides zlib and the `unistd.h` equivalents the sources already handle under `_WIN32`, and MinGW links `advapi32` (for `CryptGenRandom()`) by default.
+- `tools/check-symbols` on an installed build (`R_init_zupdf` the only exported text symbol; no stdio, `abort`, `exit`, `assert`, `rand`; its canary plants both a `fprintf(stderr)` and an extra export); `tools/check-status-table` has no equivalent, since pdfio's errors are strings, so the test of §15 that maps each known message prefix to a class stands in for it.
 - The native-checks matrix as zucbor: ASan, UBSan (with `-UNDEBUG`), valgrind, LTO, gctorture, rchk; the fuzz job builds `pdf_open()` and the text and object walks under libFuzzer with the `afl-input` seed and dictionary.
 - `R CMD check` NOTE hazards: `stdio` writes (patched), `abort()` or `exit()` (none found), file-system access outside temp (the system font scan, never called), and the vendored font files in fixtures (licences included; the tarball stays under 5 MB by taking only `OpenSans-Regular.ttf` and the small PDFs).
 - `LinkingTo: zufast (>= 0.1.0)` with `Remotes: pedrobtz/zufast@main` during development only (R10.2); CRAN order: after `zufast`. `Suggests: pdftools, qpdf, jpeg, png, testthat (>= 3.0.0), withr, knitr, rmarkdown`.
@@ -337,10 +341,10 @@ Measured by `tools/run-benchmarks` against `pdftools` and `qpdf` where installed
 
 | # | Question | Decision |
 |---|---|---|
-| D1 | Libraries | pdfio and ttf vendored, not linked; ttf as a second tree with its own pin and verify |
+| D1 | Libraries | pdfio vendored, not linked, with its ttf library, which ships in the same release tarball and tree from 1.6.0 |
 | D2 | Rendering | never, from this package; the API has no `render` slot to fill |
 | D3 | Raw and connection input | spilled to a temporary file, not a patch adding memory input; an upstream input callback is requested and would replace it |
-| D4 | Vendor trees | byte-identical plus a recorded patch set (stdio writes, `DEBUG` printers' symbols, strict-build warnings), applied by the update script, verified in CI, sent upstream with a `PDFIO_NO_STDIO` proposal |
+| D4 | Vendor tree | byte-identical plus a recorded patch set, applied by the update script, verified in CI, offered upstream. At 1.6.5: 0001 makes the visibility macros overridable, 0002 adds `PDFIO_NO_STDIO`; neither changes behaviour |
 | D5 | Error callback | records and returns; never raises inside pdfio |
 | D6 | JPEG | no decoder; DCT streams come back as JPEG bytes for `jpeg::readJPEG()` |
 | D7 | Fonts | base-14 names or a file path; no system font lookup |
@@ -351,6 +355,7 @@ Measured by `tools/run-benchmarks` against `pdftools` and `qpdf` where installed
 | D12 | The pin | 1.6.5 at Stage 0 (*verified 2026-10-08*: still the latest release); move to 1.7.0 when it is tagged, at which point the 1.7.0-only features of §9 switch on and `zupdf_info()` stops listing them as absent |
 | D13 | Font table | The native table, with object numbers, is `pdf_font_table()`. `pdf_fonts()` is the pdftools-compatible view in §5.1. (This was §18 Q9.) |
 | D14 | Writer text | `pdf_draw_text()`, alongside `pdf_draw()` and `pdf_draw_image()`. The RFC's `pdf_text()` is pdftools's extractor and belongs to §5.1. |
+| D15 | Licence | `License: MIT + file LICENSE` with `Copyright: file inst/COPYRIGHTS`, Michael R Sweet as `cph`, pdfio's `NOTICE` reproduced (the zuhtml and data.sketches precedent; was §18 Q7, decided at Stage 0) |
 
 Reasons where they are not in the section cited:
 
@@ -374,8 +379,8 @@ Each stays the maintainer's until recorded above; the recommendation is the RFC'
 4. **`zusvg` paths into content streams** (RFC 0007 §18), which would give SVG to PDF without a renderer.
 5. **AES-256 writing** once pdfio removes its exclusion.
 6. **Upstream acceptance** of an input callback (D3) and a no-stdio option (D4), which would empty the patch set.
-7. **The `License:` field** (*new*). The RFC's §9 says `License: Apache License (== 2.0)` with `Copyright:` naming Michael R Sweet. The family's precedent for an MIT package bundling Apache-2.0 code is zuhtml and the CRAN-accepted data.sketches 0.1.1: `License: MIT + file LICENSE`, `Copyright: file inst/COPYRIGHTS`, the upstream holders as `cph`, and the Apache `NOTICE` text reproduced. The skeleton already carries MIT files. Recommended (this document's): follow the precedent, which keeps zupdf's own code under the family's licence and is what CRAN has already accepted; decide at Stage 0, since the field, `LICENSE` and `inst/COPYRIGHTS` are written then.
-8. **The LZW question** (*new*, §9): decoded in 1.6.5 or only from 1.7.0? Stage 0 reads `pdfio-stream.c` at the pin and records the answer.
+7. *(Decided at Stage 0 as D15.)*
+8. *(Settled at Stage 0: LZW is decoded only from 1.7.0; §9.)*
 9. *(Decided 2026-10-08 as D13.)*
 10. **`pdf_compress()`** (*new*). qpdf's version recompresses a file. If pdfio's `pdfioPageCopy()` copies page streams as stored, which Stage 5 confirms from the pinned source, then a zupdf rewrite would not compress an uncompressed file. A function named "compress" must not ship until it measurably compresses, for example by re-encoding unfiltered streams with Flate on copy. Object streams in 1.7.0 would help further. `linearize = TRUE` is `zupdf_unsupported_input` either way. Recommended: leave it out of 0.1.0 unless Stage 5 finds the re-encoding cheap.
 11. **Following upstream signatures** (*new*). When pdftools or qpdf change a signature, zupdf has to decide whether to follow in its next release, and whether a shared name may ever gain arguments of its own. Recommended: follow within one release, and never add arguments to a shared name. Extra arguments belong on the native function, and the wrapper stays a wrapper.
@@ -397,7 +402,7 @@ Each stays the maintainer's until recorded above; the recommendation is the RFC'
 
 ## 20. What this design does not decide
 
-- Whether the audience that lacks rendering is large enough: people who split, merge and extract from PDFs in R today mostly also render a page at some point, and may keep `pdftools` anyway. Stage 0's second task is a survey of reverse dependencies of `pdftools` and `qpdf` for the functions they call.
+- Whether people who do not render will switch from pdftools for a smaller install. The Stage 0 survey (§3) shows that most reverse dependencies do not render; it cannot show whether they will switch.
 - The drawing API's final shape (data frame paths versus a `grid`-like grammar), which Stage 4 settles by porting `md2pdf.c` and seeing what an R author needs.
-- The patch set's content and whether upstream takes it.
+- Whether upstream takes the patch set (D4).
 - When 1.7.0 is tagged and the pin moves (D12).
