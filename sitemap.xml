@@ -7,6 +7,7 @@
 <url><loc>https://pedrobtz.github.io/zupdf/news/index.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/index.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_close.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_copy_pages.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_draw.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_draw_image.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_draw_text.html</loc></url>
@@ -26,7 +27,11 @@
 <url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_pages.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_paper.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_save.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_set_encryption.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_set_meta.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/pdf_stream.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zupdf/reference/pdftools-compat.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zupdf/reference/qpdf-compat.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/zupdf-conditions.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/zupdf-package.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zupdf/reference/zupdf_info.html</loc></url>

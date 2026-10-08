@@ -29,6 +29,8 @@ library(zupdf)
 
 - [`pdf_close()`](https://pedrobtz.github.io/zupdf/reference/pdf_close.md)
   : Close a PDF file
+- [`pdf_copy_pages()`](https://pedrobtz.github.io/zupdf/reference/pdf_copy_pages.md)
+  : Copy pages between files
 - [`pdf_draw()`](https://pedrobtz.github.io/zupdf/reference/pdf_draw.md)
   : Draw paths
 - [`pdf_draw_image()`](https://pedrobtz.github.io/zupdf/reference/pdf_draw_image.md)
@@ -68,8 +70,25 @@ library(zupdf)
   : Paper sizes
 - [`pdf_save()`](https://pedrobtz.github.io/zupdf/reference/pdf_save.md)
   : Finish a PDF file
+- [`pdf_set_encryption()`](https://pedrobtz.github.io/zupdf/reference/pdf_set_encryption.md)
+  : Encrypt the written file
+- [`pdf_set_meta()`](https://pedrobtz.github.io/zupdf/reference/pdf_set_meta.md)
+  : Document metadata for the writer
 - [`pdf_stream()`](https://pedrobtz.github.io/zupdf/reference/pdf_stream.md)
   : One object's stream
+- [`pdf_info()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md)
+  [`pdf_text()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md)
+  [`pdf_fonts()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md)
+  [`pdf_pagesize()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md)
+  [`pdf_toc()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md)
+  [`pdf_attachments()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md)
+  : pdftools-compatible readers
+- [`pdf_length()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md)
+  [`pdf_split()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md)
+  [`pdf_subset()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md)
+  [`pdf_combine()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md)
+  [`pdf_rotate_pages()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md)
+  : qpdf-compatible assembly
 - [`zupdf-conditions`](https://pedrobtz.github.io/zupdf/reference/zupdf-conditions.md)
   : Conditions raised by zupdf
 - [`zupdf_info()`](https://pedrobtz.github.io/zupdf/reference/zupdf_info.md)

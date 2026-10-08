@@ -31,5 +31,5 @@ The bytes as a raw vector when `file` is `NULL`, else `file`, invisibly.
 w <- pdf_new()
 pdf_page_end(pdf_page_new(w))
 length(pdf_save(w))
-#> [1] 9996
+#> [1] 10018
 ```

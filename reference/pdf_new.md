@@ -16,7 +16,7 @@ and drawn on any page.
 
 ``` r
 pdf_new(
-  version = "2.0",
+  version = "1.7",
   media_box = pdf_paper("a4"),
   created = Sys.time(),
   deterministic = FALSE,
@@ -28,7 +28,11 @@ pdf_new(
 
 - version:
 
-  The PDF version to write, such as `"1.7"` or `"2.0"`.
+  The PDF version to write, such as `"1.7"` or `"2.0"`. In PDF 2.0 the
+  document information (title, author, ...) lives only in XMP metadata,
+  which
+  [`pdf_meta()`](https://pedrobtz.github.io/zupdf/reference/pdf_meta.md)
+  and many other readers do not show, so 1.7 is the default.
 
 - media_box:
 

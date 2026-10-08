@@ -20,7 +20,8 @@ pdf_font_table(pdf)
 A data frame with columns `object` (the font's object number), `name`
 (its `/BaseFont`, with any subset prefix such as `ABCDEF+` kept), `type`
 (its `/Subtype`, such as `"Type1"`, `"TrueType"` or `"Type0"`) and
-`embedded` (whether the font program is in the file).
+`embedded` (whether the font program is in the file; always for a Type 3
+font, whose glyphs are drawn by the file).
 
 ## Examples
 

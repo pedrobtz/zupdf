@@ -3,6 +3,28 @@
 ## zupdf 0.0.0.9000
 
 - Development version, built stage by stage; see the roadmap.
+- pdftools’s and qpdf’s non-rendering functions under their own names
+  and arguments:
+  [`pdf_info()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md),
+  [`pdf_text()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md),
+  [`pdf_fonts()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md),
+  [`pdf_pagesize()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md),
+  [`pdf_toc()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md),
+  [`pdf_attachments()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md),
+  [`pdf_length()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md),
+  [`pdf_split()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md),
+  [`pdf_subset()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md),
+  [`pdf_combine()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md)
+  and
+  [`pdf_rotate_pages()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md),
+  so [`library(zupdf)`](https://github.com/pedrobtz/zupdf) can stand in
+  for either package where no rendering is needed.
+- [`pdf_copy_pages()`](https://pedrobtz.github.io/zupdf/reference/pdf_copy_pages.md)
+  copies pages between files, with rotation;
+  [`pdf_set_meta()`](https://pedrobtz.github.io/zupdf/reference/pdf_set_meta.md)
+  sets the document information;
+  [`pdf_set_encryption()`](https://pedrobtz.github.io/zupdf/reference/pdf_set_encryption.md)
+  encrypts with AES-128 or RC4-128 and sets permissions.
 - A writer:
   [`pdf_new()`](https://pedrobtz.github.io/zupdf/reference/pdf_new.md)
   starts a file,
