@@ -490,8 +490,10 @@ SEXP zupdf_native_raster(SEXP bytes, SEXP width_, SEXP height_, SEXP channels_)
     INTEGER(dim)[0] = hgt;
     INTEGER(dim)[1] = w;
     Rf_setAttrib(out, R_DimSymbol, dim);
-    Rf_setAttrib(out, R_ClassSymbol, Rf_mkString("nativeRaster"));
-    Rf_setAttrib(out, Rf_install("channels"), Rf_ScalarInteger(4));
-    UNPROTECT(2);
+    SEXP cls = PROTECT(Rf_mkString("nativeRaster"));
+    Rf_setAttrib(out, R_ClassSymbol, cls);
+    SEXP nch = PROTECT(Rf_ScalarInteger(4));
+    Rf_setAttrib(out, Rf_install("channels"), nch);
+    UNPROTECT(4);
     return out;
 }
