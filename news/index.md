@@ -3,6 +3,14 @@
 ## zupdf 0.0.0.9000
 
 - Development version, built stage by stage; see the roadmap.
+- [`pdf_objects()`](https://pedrobtz.github.io/zupdf/reference/pdf_objects.md)
+  lists every object;
+  [`pdf_object()`](https://pedrobtz.github.io/zupdf/reference/pdf_object.md)
+  reads one object’s value as R values, with marker classes for names
+  (`pdf_name`), references (`pdf_ref`) and byte strings (`pdf_binary`);
+  [`pdf_stream()`](https://pedrobtz.github.io/zupdf/reference/pdf_stream.md)
+  reads a stream, decoded (FlateDecode) or as stored, bounded by
+  `max_stream`.
 - [`pdf_open()`](https://pedrobtz.github.io/zupdf/reference/pdf_open.md)
   opens a PDF from a path, a raw vector or a connection, with an
   optional password (a string, or a function called only when the file
