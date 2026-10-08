@@ -139,8 +139,13 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             fuzzing (a 716-byte file that never finished).
   0009-index-cast           An /Index entry was cast to intmax_t unchecked,
                             which 0007 missed; fuzzing found a 1.9e104.
+  0011-object-value-leak    An object whose own value is a hex string never
+                            freed it, at close or when the repair scan read
+                            the object again; LeakSanitizer reported it
+                            fuzzing. The value is freed with the object and
+                            before it is read again.
 
-0001 and 0002 are proposed upstream as build options and 0003 to 0008 as
+0001 and 0002 are proposed upstream as build options and 0003 to 0011 as
 fixes; none but 0006 changes behaviour on well-formed input, and 0006 only
 what is written.
 

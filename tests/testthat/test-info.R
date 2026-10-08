@@ -19,7 +19,8 @@ test_that("the patch series is the one in tools/patches", {
       "0007-number-casts",
       "0008-repair-loop",
       "0009-index-cast",
-      "0010-ttf-callbacks"
+      "0010-ttf-callbacks",
+      "0011-object-value-leak"
     )
   )
 })

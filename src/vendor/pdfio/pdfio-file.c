@@ -14,6 +14,8 @@
 //
 // Modified for the zupdf R package: an /Index entry is clamped before it becomes an object number (fuzzing). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: an object's own binary value is freed when the object is, and before the object is read again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #include "pdfio-content.h"
@@ -2605,6 +2607,8 @@ repair_xref(
           if ((obj = pdfioFileFindObj(pdf, (size_t)number)) != NULL)
           {
             obj->offset = line_offset;
+            _pdfioValueDelete(&obj->value);
+            memset(&obj->value, 0, sizeof(obj->value));
           }
           else if ((obj = add_obj(pdf, (size_t)number, (unsigned short)generation, line_offset)) == NULL)
 	  {
