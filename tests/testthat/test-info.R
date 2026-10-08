@@ -16,7 +16,11 @@ test_that("the patch series is the one in tools/patches", {
       "0004-undefined-behaviour",
       "0005-unsigned-shifts",
       "0006-dict-getstring",
-      "0010-ttf-callbacks"
+      "0007-number-casts",
+      "0008-repair-loop",
+      "0009-index-cast",
+      "0010-ttf-callbacks",
+      "0011-object-value-leak"
     )
   )
 })

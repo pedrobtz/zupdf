@@ -1,0 +1,52 @@
+diff -ruN a/pdfio-file.c b/pdfio-file.c
+--- a/pdfio-file.c
++++ b/pdfio-file.c
+@@ -14,6 +14,8 @@
+ //
+ // Modified for the zupdf R package: an /Index entry is clamped before it becomes an object number (fuzzing). See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: an object's own binary value is freed when the object is, and before the object is read again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ #include "pdfio-content.h"
+@@ -2605,6 +2607,8 @@
+           if ((obj = pdfioFileFindObj(pdf, (size_t)number)) != NULL)
+           {
+             obj->offset = line_offset;
++            _pdfioValueDelete(&obj->value);
++            memset(&obj->value, 0, sizeof(obj->value));
+           }
+           else if ((obj = add_obj(pdf, (size_t)number, (unsigned short)generation, line_offset)) == NULL)
+ 	  {
+diff -ruN a/pdfio-object.c b/pdfio-object.c
+--- a/pdfio-object.c
++++ b/pdfio-object.c
+@@ -10,6 +10,8 @@
+ //
+ // Modified for the zupdf R package: numbers read from a file are converted to integers with clamping, never out of range (UBSan, fuzzing). See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: an object's own binary value is freed when the object is, and before the object is read again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -229,6 +231,8 @@
+ 
+     if (obj->datafree)
+       (obj->datafree)(obj->data);
++
++    _pdfioValueDelete(&obj->value);
+   }
+ 
+   free(obj);
+@@ -495,6 +499,9 @@
+ 
+   // Then grab the object value...
+   _pdfioTokenInit(&tb, obj->pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, obj->pdf);
++
++  _pdfioValueDelete(&obj->value);
++  memset(&obj->value, 0, sizeof(obj->value));
+ 
+   if (!_pdfioValueRead(obj->pdf, obj, &tb, &obj->value, 0))
+   {

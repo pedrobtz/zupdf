@@ -8,6 +8,8 @@
 //
 // Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: numbers read from a file are converted to integers with clamping, never out of range (UBSan, fuzzing). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #if _WIN32
@@ -621,9 +623,9 @@ _pdfioCryptoUnlock(
   // See if we support the type of encryption specified by the Encrypt
   // dictionary...
   handler  = pdfioDictGetName(pdf->encrypt_dict, "Filter");
-  version  = (int)pdfioDictGetNumber(pdf->encrypt_dict, "V");
-  revision = (int)pdfioDictGetNumber(pdf->encrypt_dict, "R");
-  length   = (int)pdfioDictGetNumber(pdf->encrypt_dict, "Length");
+  version  = _pdfioToInt(pdfioDictGetNumber(pdf->encrypt_dict, "V"));
+  revision = _pdfioToInt(pdfioDictGetNumber(pdf->encrypt_dict, "R"));
+  length   = _pdfioToInt(pdfioDictGetNumber(pdf->encrypt_dict, "Length"));
 
   if ((value = _pdfioDictGetValue(pdf->encrypt_dict, "EncryptMetadata")) != NULL && value->type == PDFIO_VALTYPE_BOOLEAN)
     pdf->encrypt_metadata = value->value.boolean;

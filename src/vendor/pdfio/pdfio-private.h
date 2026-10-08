@@ -10,6 +10,8 @@
 //
 // Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: numbers read from a file are converted to integers with clamping, never out of range (UBSan, fuzzing). See tools/patches/ in zupdf.
+//
 
 #ifndef PDFIO_PRIVATE_H
 #  define PDFIO_PRIVATE_H
@@ -57,6 +59,30 @@
 #    define O_BINARY	0		// Map Windows-specific open flag
 #  endif // _WIN32
 #  include <zlib.h>
+#  include <limits.h>
+#  include <stdint.h>
+
+// Numbers in a PDF are doubles; a hostile file can make one negative, NaN or
+// too large for the integer it is converted to, which is undefined
+// behaviour. These clamp instead.
+static inline size_t _pdfioToSize(double d)
+{
+  // 2^53, past which a double no longer counts in ones, or 2^32 - 1 for a
+  // 32-bit size_t.
+  const double max = sizeof(size_t) >= 8 ? 9007199254740992.0 : 4294967295.0;
+
+  return (d != d || d <= 0.0) ? 0 : d >= max ? (size_t)max : (size_t)d;
+}
+
+static inline int _pdfioToInt(double d)
+{
+  return (d != d) ? 0 : d <= (double)INT_MIN ? INT_MIN : d >= (double)INT_MAX ? INT_MAX : (int)d;
+}
+
+static inline off_t _pdfioToOff(double d)
+{
+  return (d != d || d <= 0.0) ? 0 : d >= 9007199254740992.0 ? (off_t)9007199254740992.0 : (off_t)d;
+}
 
 
 //

@@ -8,6 +8,10 @@
 //
 // Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: numbers read from a file are converted to integers with clamping, never out of range (UBSan, fuzzing). See tools/patches/ in zupdf.
+//
+// Modified for the zupdf R package: an object's own binary value is freed when the object is, and before the object is read again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -227,6 +231,8 @@ _pdfioObjDelete(pdfio_obj_t *obj)	// I - Object
 
     if (obj->datafree)
       (obj->datafree)(obj->data);
+
+    _pdfioValueDelete(&obj->value);
   }
 
   free(obj);
@@ -311,7 +317,7 @@ pdfioObjGetLength(pdfio_obj_t *obj)	// I - Object
     return (0);
 
   // Try getting the length, directly or indirectly
-  if ((length = (size_t)pdfioDictGetNumber(obj->value.value.dict, "Length")) > 0)
+  if ((length = _pdfioToSize(pdfioDictGetNumber(obj->value.value.dict, "Length"))) > 0)
   {
     PDFIO_DEBUG("pdfioObjGetLength(obj=%p) returning %lu.\n", (void *)obj, (unsigned long)length);
     return (length);
@@ -493,6 +499,9 @@ _pdfioObjLoad(pdfio_obj_t *obj)		// I - Object
 
   // Then grab the object value...
   _pdfioTokenInit(&tb, obj->pdf, _pdfioFileConsumeCB, _pdfioFilePeekCB, obj->pdf);
+
+  _pdfioValueDelete(&obj->value);
+  memset(&obj->value, 0, sizeof(obj->value));
 
   if (!_pdfioValueRead(obj->pdf, obj, &tb, &obj->value, 0))
   {

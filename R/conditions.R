@@ -153,6 +153,12 @@ zpd_unwrap <- function(
       ),
       call = call
     ),
+    form_cycle = zpd_limit_error(
+      "max_depth",
+      limits$max_depth,
+      sprintf("%s: a form XObject draws itself.", what),
+      call = call
+    ),
     max_stream = zpd_limit_error(
       "max_stream",
       limits$max_stream,

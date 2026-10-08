@@ -16,37 +16,6 @@
 
 /* ---- records and results -------------------------------------------------- */
 
-void zpd_record_reset(zpd_record *rec)
-{
-    rec->error[0] = '\0';
-    rec->nerror = 0;
-    rec->warning[0] = '\0';
-    rec->nwarning = 0;
-}
-
-static void zpd_copy_message(char *dst, size_t n, const char *src)
-{
-    size_t len = strlen(src);
-    if (len >= n)
-        len = n - 1;
-    memcpy(dst, src, len);
-    dst[len] = '\0';
-}
-
-bool zpd_error_cb(pdfio_file_t *pdf, const char *message, void *data)
-{
-    zpd_record *rec = data;
-    (void) pdf;
-    if (strncmp(message, "WARNING:", 8) == 0) {
-        if (rec->nwarning++ == 0)
-            zpd_copy_message(rec->warning, sizeof(rec->warning), message);
-        return true;
-    }
-    if (rec->nerror++ == 0)
-        zpd_copy_message(rec->error, sizeof(rec->error), message);
-    return false;
-}
-
 SEXP zpd_result(const char *status, SEXP value, const zpd_record *rec)
 {
     const char *names[] = {"status", "value", "detail", "nwarning", "warning", ""};
@@ -78,7 +47,7 @@ static void zpd_record_fallback(zpd_record *rec, const char *message)
 {
     if (rec->nerror == 0) {
         rec->nerror = 1;
-        zpd_copy_message(rec->error, sizeof(rec->error), message);
+        snprintf(rec->error, sizeof(rec->error), "%s", message);
     }
 }
 
@@ -283,51 +252,6 @@ SEXP zupdf_meta(SEXP ptr)
 
 /* ---- the page table -------------------------------------------------------- */
 
-/* pdfio's dictionary getters do not follow indirect references; these do,
-   one level, which is what the page attributes need. */
-pdfio_dict_t *zpd_dict_dict(pdfio_dict_t *dict, const char *key)
-{
-    pdfio_valtype_t t = pdfioDictGetType(dict, key);
-    if (t == PDFIO_VALTYPE_DICT)
-        return pdfioDictGetDict(dict, key);
-    if (t == PDFIO_VALTYPE_INDIRECT) {
-        pdfio_obj_t *obj = pdfioDictGetObj(dict, key);
-        return obj ? pdfioObjGetDict(obj) : NULL;
-    }
-    return NULL;
-}
-
-pdfio_array_t *zpd_dict_array(pdfio_dict_t *dict, const char *key)
-{
-    pdfio_valtype_t t = pdfioDictGetType(dict, key);
-    if (t == PDFIO_VALTYPE_ARRAY)
-        return pdfioDictGetArray(dict, key);
-    if (t == PDFIO_VALTYPE_INDIRECT) {
-        pdfio_obj_t *obj = pdfioDictGetObj(dict, key);
-        return obj ? pdfioObjGetArray(obj) : NULL;
-    }
-    return NULL;
-}
-
-/* The dictionary that supplies an inheritable page attribute (MediaBox,
-   CropBox, Rotate; PDF 2.0, 7.7.3.4): the page's own or the nearest
-   ancestor's through /Parent. The walk is bounded by max_depth, which
-   also stops a /Parent cycle. Sets *deep when the bound is reached. */
-pdfio_dict_t *zpd_inherited(pdfio_dict_t *dict, const char *key,
-                                   int max_depth, int *deep)
-{
-    for (int d = 0; dict; d++) {
-        if (d > max_depth) { /* GUARD: max_depth */
-            *deep = 1;
-            return NULL;
-        }
-        if (pdfioDictGetType(dict, key) != PDFIO_VALTYPE_NONE)
-            return dict;
-        dict = zpd_dict_dict(dict, "Parent");
-    }
-    return NULL;
-}
-
 /* A rectangle as four numbers, normalised so x1 <= x2 and y1 <= y2.
    False when the array is not four numbers. */
 static bool zpd_rect(pdfio_array_t *a, double r[4])
@@ -407,8 +331,8 @@ SEXP zupdf_pages(SEXP ptr, SEXP max_depth_)
 
         src = zpd_inherited(dict, "Rotate", max_depth, &deep);
         double r = src ? pdfioDictGetNumber(src, "Rotate") : 0.0;
-        long q = (long) floor(r / 90.0 + 0.5) % 4;
-        INTEGER(rotate)[i] = (int) (((q + 4) % 4) * 90);
+        int q = zpd_clamp_int(floor(r / 90.0 + 0.5), -1000000, 1000000) % 4;
+        INTEGER(rotate)[i] = ((q + 4) % 4) * 90;
 
         INTEGER(streams)[i] = (int) pdfioPageGetNumStreams(page);
 

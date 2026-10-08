@@ -8,6 +8,14 @@
 //
 // Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: numbers read from a file are converted to integers with clamping, never out of range (UBSan, fuzzing). See tools/patches/ in zupdf.
+//
+// Modified for the zupdf R package: repair_xref() keeps line_offset current when it skips an object it cannot read, so it cannot loop (fuzzing). See tools/patches/ in zupdf.
+//
+// Modified for the zupdf R package: an /Index entry is clamped before it becomes an object number (fuzzing). See tools/patches/ in zupdf.
+//
+// Modified for the zupdf R package: an object's own binary value is freed when the object is, and before the object is read again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #include "pdfio-content.h"
@@ -1851,7 +1859,7 @@ load_obj_stream(pdfio_obj_t *obj)	// I - Object to load
     return (false);
   }
 
-  count = (int)pdfioDictGetNumber(pdfioObjGetDict(obj), "N");
+  count = _pdfioToInt(pdfioDictGetNumber(pdfioObjGetDict(obj), "N"));
 
   PDFIO_DEBUG("load_obj_stream: N=%d\n", count);
 
@@ -2131,9 +2139,9 @@ load_xref(
         goto repair;
       }
 
-      w[0]    = (size_t)pdfioArrayGetNumber(w_array, 0);
-      w[1]    = (size_t)pdfioArrayGetNumber(w_array, 1);
-      w[2]    = (size_t)pdfioArrayGetNumber(w_array, 2);
+      w[0]    = _pdfioToSize(pdfioArrayGetNumber(w_array, 0));
+      w[1]    = _pdfioToSize(pdfioArrayGetNumber(w_array, 1));
+      w[2]    = _pdfioToSize(pdfioArrayGetNumber(w_array, 2));
       w_total = w[0] + w[1] + w[2];
       w_2     = w[0];
       w_3     = w[0] + w[1];
@@ -2161,8 +2169,8 @@ load_xref(
 	}
 	else
 	{
-          number = (intmax_t)pdfioArrayGetNumber(index_array, index_n);
-          count  = (size_t)pdfioArrayGetNumber(index_array, index_n + 1);
+          number = (intmax_t)_pdfioToSize(pdfioArrayGetNumber(index_array, index_n));
+          count  = _pdfioToSize(pdfioArrayGetNumber(index_array, index_n + 1));
 	}
 
 	while (count > 0 && pdfioStreamRead(st, buffer, w_total) > 0)
@@ -2477,7 +2485,7 @@ load_xref(
     PDFIO_DEBUG_VALUE(&trailer);
     PDFIO_DEBUG("\n");
 
-    off_t new_offset = (off_t)pdfioDictGetNumber(trailer.value.dict, "Prev");
+    off_t new_offset = _pdfioToOff(pdfioDictGetNumber(trailer.value.dict, "Prev"));
 
     if (new_offset <= 0)
     {
@@ -2599,6 +2607,8 @@ repair_xref(
           if ((obj = pdfioFileFindObj(pdf, (size_t)number)) != NULL)
           {
             obj->offset = line_offset;
+            _pdfioValueDelete(&obj->value);
+            memset(&obj->value, 0, sizeof(obj->value));
           }
           else if ((obj = add_obj(pdf, (size_t)number, (unsigned short)generation, line_offset)) == NULL)
 	  {
@@ -2619,8 +2629,12 @@ repair_xref(
 	  {
 	    if (!_pdfioFileError(pdf, "WARNING: Unable to read object dictionary/value."))
 	      return (false);
-	    else
-	      continue;
+
+	    // Carry on from here: without this, the next object's offset is
+	    // computed from a stale line_offset and the scan can go back over
+	    // the same bytes for ever.
+	    line_offset = _pdfioFileTell(pdf);
+	    continue;
 	  }
 
 	  if (_pdfioTokenGet(&tb, line, sizeof(line)))

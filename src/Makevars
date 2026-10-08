@@ -34,6 +34,7 @@ PDFIO = \
 
 OBJECTS = \
 	init.o \
+	zpd_core.o \
 	zpd_file.o \
 	zpd_font.o \
 	zpd_info.o \

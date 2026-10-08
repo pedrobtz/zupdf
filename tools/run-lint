@@ -1,0 +1,42 @@
+#!/bin/sh
+# Project C code compiles warning-free under strict flags (design section 14;
+# roadmap Stage 6). Vendored pdfio is not held to this gate. The check first
+# compiles a planted warning and requires it to fail, since -fsyntax-only
+# alone exits 0 on warnings: a gate is trusted once it has been seen to fail.
+# Run from the package root.
+set -eu
+
+CC=${CC:-cc}
+RINC=$(Rscript -e 'cat(R.home("include"))')
+ZUFAST=$(Rscript -e 'cat(system.file("include", package = "zufast"))')
+FLAGS="-std=gnu17 -DNDEBUG -Wall -Wextra -Wpedantic -Wshadow -Wstrict-prototypes -Werror -fsyntax-only"
+DEFS="-DPDFIO_NO_STDIO -D_PDFIO_PUBLIC= -D_PDFIO_PRIVATE="
+# R's, pdfio's and zufast's headers are -isystem: the gate is for zupdf's
+# code. R 4.6's R_ext/Boolean.h uses a C23 enum form -Wpedantic rejects in
+# gnu17.
+INC="-isystem $RINC -isystem src/vendor/pdfio -isystem $ZUFAST -Isrc -Ifuzz"
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+printf 'int zpd_lint_canary(void) { int unused; return 0; }\n' > "$WORK/canary.c"
+if $CC $FLAGS "$WORK/canary.c" 2>/dev/null; then
+  echo "FAIL: the lint gate accepted a planted warning" >&2
+  exit 2
+fi
+
+fail=0
+for f in src/*.c; do
+  extra=""
+  # init.c casts each entry point to DL_FUNC, the registration idiom Writing
+  # R Extensions prescribes; -Wextra's function-cast check rejects it.
+  [ "$f" = src/init.c ] && extra="-Wno-cast-function-type"
+  # shellcheck disable=SC2086
+  $CC $FLAGS $extra $DEFS $INC "$f" || fail=1
+done
+# The R-free build, as the fuzz target compiles it.
+for f in src/zpd_core.c src/zpd_lex.c src/zpd_font.c src/zpd_text.c fuzz/*.c; do
+  # shellcheck disable=SC2086
+  $CC $FLAGS -DZPD_STANDALONE $DEFS $INC "$f" || fail=1
+done
+[ $fail = 0 ] || { echo "FAIL: warnings in project C code" >&2; exit 1; }
+echo "==> project C code is warning-free under $FLAGS"

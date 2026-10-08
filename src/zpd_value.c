@@ -88,7 +88,7 @@ static SEXP zpd_dict_rec(pdfio_dict_t *d, int depth, int max_depth, int *deep)
 
 static SEXP zpd_value_rec(_pdfio_value_t *v, int depth, int max_depth, int *deep)
 {
-    if (depth > max_depth) { /* GUARD: max_depth */
+    if (depth > max_depth) { /* GUARD: max_depth_read */
         *deep = 1;
         return R_NilValue;
     }
@@ -293,7 +293,7 @@ static const char *zpd_put(pdfio_file_t *pdf, SEXP x, pdfio_dict_t *dict,
                            const char *key, pdfio_array_t *array, int depth,
                            int max_depth)
 {
-    if (depth > max_depth) /* GUARD: max_depth */
+    if (depth > max_depth) /* GUARD: max_depth_write */
         return "max_depth";
     bool ok;
     if (x == R_NilValue) {

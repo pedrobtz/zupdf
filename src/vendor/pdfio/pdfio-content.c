@@ -10,6 +10,8 @@
 //
 // Modified for the zupdf R package: bytes are shifted as unsigned, so a high bit cannot overflow an int (UBSan). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: numbers read from a file are converted to integers with clamping, never out of range (UBSan, fuzzing). See tools/patches/ in zupdf.
+//
 // Modified for the zupdf R package: the ttf callbacks are called through function pointers of their own type (UBSan). See tools/patches/ in zupdf.
 //
 
@@ -2237,16 +2239,16 @@ pdfioImageGetBytesPerLine(
     return (0);
 
   params = pdfioDictGetDict(obj->value.value.dict, "DecodeParms");
-  bpc    = (int)pdfioDictGetNumber(params, "BitsPerComponent");
-  colors = (int)pdfioDictGetNumber(params, "Colors");
-  width  = (int)pdfioDictGetNumber(params, "Columns");
+  bpc    = _pdfioToInt(pdfioDictGetNumber(params, "BitsPerComponent"));
+  colors = _pdfioToInt(pdfioDictGetNumber(params, "Colors"));
+  width  = _pdfioToInt(pdfioDictGetNumber(params, "Columns"));
 
   if (width == 0)
-    width = (int)pdfioDictGetNumber(obj->value.value.dict, "Width");
+    width = _pdfioToInt(pdfioDictGetNumber(obj->value.value.dict, "Width"));
 
   if (bpc == 0)
   {
-    if ((bpc = (int)pdfioDictGetNumber(obj->value.value.dict, "BitsPerComponent")) == 0)
+    if ((bpc = _pdfioToInt(pdfioDictGetNumber(obj->value.value.dict, "BitsPerComponent"))) == 0)
       bpc = 8;
   }
 

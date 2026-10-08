@@ -93,7 +93,7 @@ static int zpd_utf16_cps(zpd_umap_builder *b, const unsigned char *s, size_t n,
                 i += 2;
             }
         }
-        if (b->ncps >= ZPD_MAX_UMAP) /* GUARD: cmap_size */
+        if (b->ncps >= ZPD_MAX_UMAP) /* GUARD: cmap_cps */
             return 0;
         if (b->ncps == b->capcps) {
             size_t cap = b->capcps ? b->capcps * 2 : 256;
@@ -114,7 +114,7 @@ static int zpd_utf16_cps(zpd_umap_builder *b, const unsigned char *s, size_t n,
 static int zpd_umap_add(zpd_umap_builder *b, uint32_t lo, uint32_t hi,
                         const unsigned char *dst, size_t dstlen)
 {
-    if (hi < lo || b->num >= ZPD_MAX_UMAP) /* GUARD: cmap_size */
+    if (hi < lo || b->num >= ZPD_MAX_UMAP) /* GUARD: cmap_entries */
         return 0;
     if (b->num == b->cap) {
         size_t cap = b->cap ? b->cap * 2 : 64;
@@ -290,12 +290,12 @@ static void zpd_cid_widths(zpd_font *f, pdfio_array_t *w)
     for (size_t i = 0; i + 1 < n;) {
         if (pdfioArrayGetType(w, i) != PDFIO_VALTYPE_NUMBER)
             break;
-        uint32_t c = (uint32_t) pdfioArrayGetNumber(w, i);
+        uint32_t c = (uint32_t) zpd_clamp_int(pdfioArrayGetNumber(w, i), 0, 0x10FFFF);
         pdfio_array_t *list = pdfioArrayGetType(w, i + 1) == PDFIO_VALTYPE_ARRAY
                                   ? pdfioArrayGetArray(w, i + 1) : NULL;
         if (list) {
             size_t m = pdfioArrayGetSize(list);
-            if (m == 0 || m > ZPD_MAX_UMAP || nws + m > ZPD_MAX_UMAP) /* GUARD: cmap_size */
+            if (m == 0 || m > ZPD_MAX_UMAP || nws + m > ZPD_MAX_UMAP) /* GUARD: cid_widths */
                 break;
             if (nws + m > capws) {
                 size_t cap = capws ? capws : 256;
@@ -313,7 +313,7 @@ static void zpd_cid_widths(zpd_font *f, pdfio_array_t *w)
             k++;
             i += 2;
         } else if (i + 2 < n) {
-            uint32_t last = (uint32_t) pdfioArrayGetNumber(w, i + 1);
+            uint32_t last = (uint32_t) zpd_clamp_int(pdfioArrayGetNumber(w, i + 1), 0, 0x10FFFF);
             if (last >= c)
                 wr[k++] = (zpd_wrange){c, last, pdfioArrayGetNumber(w, i + 2), -1};
             i += 3;
@@ -381,7 +381,7 @@ static void zpd_apply_differences(zpd_font *f, pdfio_array_t *d)
     for (size_t i = 0; i < n; i++) {
         pdfio_valtype_t t = pdfioArrayGetType(d, i);
         if (t == PDFIO_VALTYPE_NUMBER) {
-            code = (long) pdfioArrayGetNumber(d, i);
+            code = zpd_clamp_int(pdfioArrayGetNumber(d, i), -1, 256);
         } else if (t == PDFIO_VALTYPE_NAME) {
             if (code >= 0 && code < 256)
                 f->enc[code] = zpd_glyph_unicode(pdfioArrayGetName(d, i));
@@ -461,7 +461,7 @@ static void zpd_load_simple(zpd_font *f, pdfio_dict_t *dict, const char *subtype
     for (int i = 0; i < 256; i++)
         f->widths[i] = b14 ? b14[i] : f->default_width;
     if (w) {
-        long first = (long) pdfioDictGetNumber(dict, "FirstChar");
+        long first = zpd_clamp_int(pdfioDictGetNumber(dict, "FirstChar"), -1, 256);
         size_t n = pdfioArrayGetSize(w);
         for (int i = 0; i < 256; i++)
             f->widths[i] = missing;

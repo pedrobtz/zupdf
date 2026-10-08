@@ -8,6 +8,8 @@
 //
 // Modified for the zupdf R package: no undefined behaviour UBSan reports: calls through function pointers of the right type, no memcpy() from NULL, no pointer arithmetic on NULL. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: numbers read from a file are converted to integers with clamping, never out of range (UBSan, fuzzing). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -239,13 +241,13 @@ _pdfioStreamCreate(
     // Flate compression
     pdfio_dict_t *params = pdfioDictGetDict(obj->value.value.dict, "DecodeParms");
 					// Decoding parameters
-    int bpc = (int)pdfioDictGetNumber(params, "BitsPerComponent");
+    int bpc = _pdfioToInt(pdfioDictGetNumber(params, "BitsPerComponent"));
 					// Bits per component
-    int colors = (int)pdfioDictGetNumber(params, "Colors");
+    int colors = _pdfioToInt(pdfioDictGetNumber(params, "Colors"));
 					// Number of colors
-    int columns = (int)pdfioDictGetNumber(params, "Columns");
+    int columns = _pdfioToInt(pdfioDictGetNumber(params, "Columns"));
 					// Number of columns
-    int predictor = (int)pdfioDictGetNumber(params, "Predictor");
+    int predictor = _pdfioToInt(pdfioDictGetNumber(params, "Predictor"));
 					// Predictory value, if any
     int status;				// ZLIB status code
 
@@ -516,13 +518,13 @@ _pdfioStreamOpen(pdfio_obj_t *obj,	// I - Object
       // Flate compression
       pdfio_dict_t *params = pdfioDictGetDict(dict, "DecodeParms");
 					// Decoding parameters
-      int bpc = (int)pdfioDictGetNumber(params, "BitsPerComponent");
+      int bpc = _pdfioToInt(pdfioDictGetNumber(params, "BitsPerComponent"));
 					// Bits per component
-      int colors = (int)pdfioDictGetNumber(params, "Colors");
+      int colors = _pdfioToInt(pdfioDictGetNumber(params, "Colors"));
 					// Number of colors
-      int columns = (int)pdfioDictGetNumber(params, "Columns");
+      int columns = _pdfioToInt(pdfioDictGetNumber(params, "Columns"));
 					// Number of columns
-      int predictor = (int)pdfioDictGetNumber(params, "Predictor");
+      int predictor = _pdfioToInt(pdfioDictGetNumber(params, "Predictor"));
 					// Predictory value, if any
       int status;			// ZLIB status
       ssize_t rbytes;			// Bytes read

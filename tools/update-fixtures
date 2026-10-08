@@ -39,6 +39,10 @@ while read -r f; do
 done < "$WORK/afl"
 echo "    $(wc -l < "$WORK/afl" | tr -d ' ') files"
 
+echo "==> afl-pdf.dict, pdfio's fuzzing dictionary, for fuzz/"
+curl -fsSL --retry 3 -o "$ROOT/fuzz/afl-pdf.dict" \
+  "https://raw.githubusercontent.com/michaelrsweet/pdfio/$COMMIT/afl-pdf.dict"
+
 echo "==> testpdfio.pdf from pdfio $VERSION"
 curl -fsSL --retry 3 -o "$WORK/pdfio.tar.gz" "$URL"
 tar xzf "$WORK/pdfio.tar.gz" -C "$WORK"

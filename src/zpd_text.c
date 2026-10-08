@@ -108,7 +108,7 @@ unsigned char *zpd_slurp(pdfio_stream_t *st, double max_stream, size_t *len, int
         if (got == 0)
             break;
         b.n += (size_t) got;
-        if ((double) b.n > max_stream) { /* GUARD: max_stream */
+        if ((double) b.n > max_stream) { /* GUARD: max_stream_content */
             free(b.p);
             *over = 1;
             return NULL;
@@ -229,7 +229,7 @@ void zpd_fonts_release(zpd_file *h)
     }
 }
 
-static zpd_text_ctx *zpd_text_ctx_new(zpd_file *h, int max_depth, double max_stream)
+zpd_text_ctx *zpd_text_ctx_new(zpd_file *h, int max_depth, double max_stream)
 {
     zpd_text_release(h);
     if (!h->fonts && !(h->fonts = calloc(1, sizeof(zpd_font_cache))))
@@ -441,10 +441,10 @@ static void zpd_do(zpd_text_ctx *c, zpd_run *r, int depth)
     size_t num = pdfioObjGetNumber(obj);
     for (int i = 0; i < c->nxobj; i++)
         if (c->xobj[i] == num) { /* GUARD: form_cycle */
-            zpd_fail(c, "max_depth");
+            zpd_fail(c, "form_cycle");
             return;
         }
-    if (depth + 1 > c->max_depth || c->nxobj >= ZPD_MAX_XOBJ) { /* GUARD: max_depth */
+    if (depth + 1 > c->max_depth || c->nxobj >= ZPD_MAX_XOBJ) { /* GUARD: max_depth_form */
         zpd_fail(c, "max_depth");
         return;
     }
@@ -807,6 +807,55 @@ static int zpd_reading_layout(zpd_text_ctx *c)
 
 /* ---- entry points ------------------------------------------------------------------ */
 
+
+static pdfio_dict_t *zpd_page_resources(pdfio_obj_t *page, int max_depth, int *deep)
+{
+    pdfio_dict_t *dict = pdfioObjGetDict(page);
+    pdfio_dict_t *src = dict ? zpd_inherited(dict, "Resources", max_depth, deep) : NULL;
+    return src ? zpd_dict_dict(src, "Resources") : NULL;
+}
+
+const char *zpd_text_extract(zpd_text_ctx *c, pdfio_obj_t *page, int raw,
+                             const unsigned char **text, size_t *len, int *unmapped)
+{
+    c->ng = 0;
+    c->pool.n = c->raw.n = c->out.n = 0;
+    c->raw_text = 0;
+    c->unmapped = 0;
+    if (page) {
+        int deep = 0;
+        zpd_run r = {0};
+        r.gs.ctm = zpd_identity;
+        r.gs.th = 1.0;
+        r.tm = r.tlm = zpd_identity;
+        r.resources = zpd_page_resources(page, c->max_depth, &deep);
+        if (deep)
+            zpd_fail(c, "max_depth");
+        if (!c->status)
+            zpd_read_page(c, page);
+        if (!c->status)
+            zpd_walk(c, c->content.p, c->content.n, &r, 0);
+    }
+    if (c->status)
+        return c->status;
+    const zpd_buf *b = &c->raw;
+    if (!raw) {
+        if (!zpd_reading_layout(c))
+            return "memory";
+        b = &c->out;
+    }
+    /* Trailing white space is not text. */
+    size_t n = b->n;
+    while (n && (b->p[n - 1] == ' ' || b->p[n - 1] == '\n'))
+        n--;
+    *text = n ? b->p : (const unsigned char *) "";
+    *len = n;
+    *unmapped = c->unmapped;
+    return NULL;
+}
+
+#ifndef ZPD_STANDALONE
+
 static void zpd_errors_to_warnings(zpd_record *rec)
 {
     if (rec->nerror == 0)
@@ -816,13 +865,6 @@ static void zpd_errors_to_warnings(zpd_record *rec)
     rec->nwarning += rec->nerror;
     rec->nerror = 0;
     rec->error[0] = '\0';
-}
-
-static pdfio_dict_t *zpd_page_resources(pdfio_obj_t *page, int max_depth, int *deep)
-{
-    pdfio_dict_t *dict = pdfioObjGetDict(page);
-    pdfio_dict_t *src = dict ? zpd_inherited(dict, "Resources", max_depth, deep) : NULL;
-    return src ? zpd_dict_dict(src, "Resources") : NULL;
 }
 
 /* zupdf_page_text(ptr, pages, raw, max_depth, max_stream): list(text,
@@ -851,43 +893,15 @@ SEXP zupdf_page_text(SEXP ptr, SEXP pages, SEXP raw_, SEXP max_depth, SEXP max_s
     const char *status = NULL;
     for (R_xlen_t k = 0; k < np && !status; k++) {
         R_CheckUserInterrupt(); /* between pages: only h->text is in flight */
-        c->ng = 0;
-        c->pool.n = c->raw.n = c->out.n = 0;
-        c->raw_text = 0;
-        c->unmapped = 0;
+        const unsigned char *t;
+        size_t len;
+        int um = 0;
         pdfio_obj_t *page = pdfioFileGetPage(h->pdf, (size_t) INTEGER(pages)[k] - 1);
-        if (page) {
-            int deep = 0;
-            zpd_run r = {0};
-            r.gs.ctm = zpd_identity;
-            r.gs.th = 1.0;
-            r.tm = r.tlm = zpd_identity;
-            r.resources = zpd_page_resources(page, c->max_depth, &deep);
-            if (deep)
-                zpd_fail(c, "max_depth");
-            if (!c->status)
-                zpd_read_page(c, page);
-            if (!c->status)
-                zpd_walk(c, c->content.p, c->content.n, &r, 0);
-        }
-        if (c->status) {
-            status = c->status;
+        status = zpd_text_extract(c, page, raw, &t, &len, &um);
+        if (status)
             break;
-        }
-        const zpd_buf *b = &c->raw;
-        if (!raw) {
-            if (!zpd_reading_layout(c)) {
-                status = "memory";
-                break;
-            }
-            b = &c->out;
-        }
-        /* Trailing white space is not text. */
-        size_t len = b->n;
-        while (len && (b->p[len - 1] == ' ' || b->p[len - 1] == '\n'))
-            len--;
-        SET_STRING_ELT(text, k, Rf_mkCharLenCE(len ? (const char *) b->p : "", (int) len, CE_UTF8));
-        INTEGER(unmapped)[k] = c->unmapped;
+        SET_STRING_ELT(text, k, Rf_mkCharLenCE((const char *) t, (int) len, CE_UTF8));
+        INTEGER(unmapped)[k] = um;
     }
     zpd_text_release(h);
     zpd_errors_to_warnings(&h->rec);
@@ -987,3 +1001,5 @@ SEXP zupdf_page_tokens(SEXP ptr, SEXP page_, SEXP max_stream)
     }
     return out;
 }
+
+#endif /* !ZPD_STANDALONE */

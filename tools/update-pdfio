@@ -123,8 +123,31 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             which other readers misread. It now returns the
                             converted string and leaves the value as it is.
 
-0001 and 0002 are proposed upstream as build options and 0003 to 0006 as
-fixes; none but 0006 changes behaviour, and 0006 only what is written.
+  0007-number-casts         Numbers read from a file (/W, /Index, /Length,
+                            /Prev, /N, filter parameters, the encryption
+                            dictionary's /V, /R and /Length) were cast to
+                            size_t, int or off_t unchecked, undefined for a
+                            negative, NaN or huge value; the fuzzer found
+                            /W. Clamping conversions in pdfio-private.h
+                            replace the 23 casts; in-range values convert as
+                            before.
+
+  0008-repair-loop          repair_xref() skipped its line_offset update
+                            when it could not read an object, so the next
+                            object was read from a stale offset and the scan
+                            could loop for ever on a damaged file; found by
+                            fuzzing (a 716-byte file that never finished).
+  0009-index-cast           An /Index entry was cast to intmax_t unchecked,
+                            which 0007 missed; fuzzing found a 1.9e104.
+  0011-object-value-leak    An object whose own value is a hex string never
+                            freed it, at close or when the repair scan read
+                            the object again; LeakSanitizer reported it
+                            fuzzing. The value is freed with the object and
+                            before it is read again.
+
+0001 and 0002 are proposed upstream as build options and 0003 to 0011 as
+fixes; none but 0006 changes behaviour on well-formed input, and 0006 only
+what is written.
 
 Only the library is imported: the sixteen pdfio-*.c translation units and
 ttf.c, the headers they include, LICENSE and NOTICE. The examples (pdf2text.c

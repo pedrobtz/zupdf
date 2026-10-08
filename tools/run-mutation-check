@@ -1,0 +1,8 @@
+#!/bin/sh
+# Every guard on the limits is load-bearing (roadmap Stage 6): see
+# tools/mutation-check.R. Run from the package root; takes a few minutes,
+# since each mutant is reinstalled.
+set -eu
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+Rscript tools/mutation-check.R "$WORK"
