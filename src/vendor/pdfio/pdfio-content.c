@@ -6,6 +6,8 @@
 // Licensed under Apache License v2.0.  See the file "LICENSE" for more
 // information.
 //
+// Modified for the zupdf R package: the date buffers hold any int the format can print (gcc -Wformat-truncation). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #include "pdfio-content.h"
@@ -4116,7 +4118,7 @@ write_value(pdfio_stream_t *st,		// I - Stream
     case PDFIO_VALTYPE_DATE :
         {
           struct tm	date;		// Date values
-          char		datestr[32];	// Formatted date value
+          char		datestr[80];	// Formatted date value
 
 #ifdef _WIN32
           gmtime_s(&date, &v->value.date);
