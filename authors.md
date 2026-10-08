@@ -4,6 +4,9 @@
 
 - **Pedro Baltazar**. Author, maintainer, copyright holder.
 
+- **Michael R Sweet**. Copyright holder.  
+  pdfio and ttf, bundled in src/vendor/pdfio
+
 ## Citation
 
 Source:

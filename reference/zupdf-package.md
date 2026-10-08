@@ -27,3 +27,8 @@ Useful links:
 Authors:
 
 - Pedro Baltazar <pedrobtz@gmail.com> \[copyright holder\]
+
+Other contributors:
+
+- Michael R Sweet (pdfio and ttf, bundled in src/vendor/pdfio)
+  \[copyright holder\]
