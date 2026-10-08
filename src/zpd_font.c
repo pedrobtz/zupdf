@@ -7,6 +7,7 @@
  * else from pdfio's base-14 metrics, else an estimate. Nothing here raises:
  * a font that cannot be read maps nothing and has estimated widths. */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -361,6 +362,42 @@ static const short *zpd_base14_widths(const char *name)
     return NULL;
 }
 
+/* The base-14 fonts' ascent and descent in em (their AFM files). */
+static void zpd_base14_extent(const char *name, double *asc, double *desc)
+{
+    if (!name)
+        return;
+    const char *plus = strchr(name, '+');
+    if (plus && plus - name == 6)
+        name = plus + 1;
+    if (!strncmp(name, "Helvetica", 9)) {
+        *asc = 0.718;
+        *desc = -0.207;
+    } else if (!strncmp(name, "Times", 5)) {
+        *asc = 0.683;
+        *desc = -0.217;
+    } else if (!strncmp(name, "Courier", 7)) {
+        *asc = 0.629;
+        *desc = -0.157;
+    } else if (!strcmp(name, "Symbol") || !strcmp(name, "ZapfDingbats")) {
+        *asc = 1.010;
+        *desc = -0.293;
+    }
+}
+
+/* Ascent and descent from a font descriptor, in em, when it gives them. */
+static void zpd_descriptor_extent(pdfio_dict_t *desc_dict, double *asc, double *desc)
+{
+    if (!desc_dict)
+        return;
+    if (pdfioDictGetType(desc_dict, "Ascent") == PDFIO_VALTYPE_NUMBER &&
+        pdfioDictGetNumber(desc_dict, "Ascent") > 0)
+        *asc = pdfioDictGetNumber(desc_dict, "Ascent") / 1000.0;
+    if (pdfioDictGetType(desc_dict, "Descent") == PDFIO_VALTYPE_NUMBER &&
+        pdfioDictGetNumber(desc_dict, "Descent") < 0)
+        *desc = pdfioDictGetNumber(desc_dict, "Descent") / 1000.0;
+}
+
 /* ---- simple-font encodings ------------------------------------------------------- */
 
 static void zpd_set_base_encoding(zpd_font *f, const char *name)
@@ -453,6 +490,8 @@ static void zpd_load_simple(zpd_font *f, pdfio_dict_t *dict, const char *subtype
 
     /* Widths: /FirstChar and /Widths, else the base-14 metrics. */
     pdfio_dict_t *desc = zpd_dict_dict(dict, "FontDescriptor");
+    zpd_base14_extent(base, &f->ascent, &f->descent);
+    zpd_descriptor_extent(desc, &f->ascent, &f->descent);
     double missing = desc && pdfioDictGetType(desc, "MissingWidth") == PDFIO_VALTYPE_NUMBER
                          ? pdfioDictGetNumber(desc, "MissingWidth") : 0.0;
     pdfio_array_t *w = zpd_dict_array(dict, "Widths");
@@ -487,6 +526,7 @@ static void zpd_load_type0(zpd_font *f, pdfio_dict_t *dict)
     }
     if (!cid)
         return;
+    zpd_descriptor_extent(zpd_dict_dict(cid, "FontDescriptor"), &f->ascent, &f->descent);
     if (pdfioDictGetType(cid, "DW") == PDFIO_VALTYPE_NUMBER)
         f->default_width = pdfioDictGetNumber(cid, "DW");
     zpd_cid_widths(f, zpd_dict_array(cid, "W"));
@@ -510,11 +550,16 @@ zpd_font *zpd_font_get(zpd_font_cache *cache, zpd_font_cache *local,
     f->code_bytes = 1;
     f->scale = 0.001;
     f->default_width = 500.0;
+    f->ascent = 0.8;
+    f->descent = -0.2;
     for (int i = 0; i < 256; i++)
         f->widths[i] = 500.0;
     zpd_set_base_encoding(f, NULL);
 
     if (dict) {
+        const char *base = pdfioDictGetName(dict, "BaseFont");
+        if (base)
+            snprintf(f->name, sizeof(f->name), "%s", base);
         const char *subtype = pdfioDictGetName(dict, "Subtype");
         if (subtype && strcmp(subtype, "Type0") == 0) {
             zpd_load_type0(f, dict);
@@ -524,6 +569,16 @@ zpd_font *zpd_font_get(zpd_font_cache *cache, zpd_font_cache *local,
                 pdfio_array_t *m = zpd_dict_array(dict, "FontMatrix");
                 if (m && pdfioArrayGetSize(m) == 6 && pdfioArrayGetNumber(m, 0) != 0.0)
                     f->scale = pdfioArrayGetNumber(m, 0);
+                /* A Type 3 font's extent is its bounding box in glyph space. */
+                pdfio_array_t *bb = zpd_dict_array(dict, "FontBBox");
+                double sy = m && pdfioArrayGetSize(m) == 6 ? pdfioArrayGetNumber(m, 3) : 0.001;
+                if (bb && pdfioArrayGetSize(bb) == 4 && sy > 0) {
+                    double top = pdfioArrayGetNumber(bb, 3) * sy, bottom = pdfioArrayGetNumber(bb, 1) * sy;
+                    if (top > 0 && top < 4)
+                        f->ascent = top;
+                    if (bottom < 0 && bottom > -4)
+                        f->descent = bottom;
+                }
             }
         }
         zpd_load_tounicode(f, dict, max_stream);

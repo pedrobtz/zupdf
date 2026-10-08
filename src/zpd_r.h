@@ -22,6 +22,7 @@ SEXP zupdf_native_raster(SEXP bytes, SEXP width, SEXP height, SEXP channels);
 /* zpd_text.c */
 SEXP zupdf_page_text(SEXP ptr, SEXP pages, SEXP raw, SEXP max_depth, SEXP max_stream);
 SEXP zupdf_page_tokens(SEXP ptr, SEXP page, SEXP max_stream);
+SEXP zupdf_page_glyphs(SEXP ptr, SEXP page, SEXP max_depth, SEXP max_stream);
 
 /* zpd_object.c */
 SEXP zupdf_objects(SEXP ptr);

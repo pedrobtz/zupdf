@@ -16,6 +16,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"zupdf_object",     (DL_FUNC) &zupdf_object,     3},
     {"zupdf_objects",    (DL_FUNC) &zupdf_objects,    1},
     {"zupdf_native_raster", (DL_FUNC) &zupdf_native_raster, 4},
+    {"zupdf_page_glyphs", (DL_FUNC) &zupdf_page_glyphs, 4},
     {"zupdf_page_text",  (DL_FUNC) &zupdf_page_text,  5},
     {"zupdf_page_tokens", (DL_FUNC) &zupdf_page_tokens, 3},
     {"zupdf_page_xobjects", (DL_FUNC) &zupdf_page_xobjects, 3},

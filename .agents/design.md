@@ -168,7 +168,7 @@ pdf_fonts(pdf, opw = "", upw = "")
 pdf_pagesize(pdf, opw = "", upw = "")
 pdf_toc(pdf, opw = "", upw = "")
 pdf_attachments(pdf, opw = "", upw = "")
-pdf_data(pdf, font_info = FALSE, opw = "", upw = "")              # §18 Q1
+pdf_data(pdf, font_info = FALSE, opw = "", upw = "")
 
 # qpdf 1.4.1, also re-exported by pdftools
 pdf_length(input, password = "")
@@ -188,7 +188,7 @@ pdf_overlay_stamp(input, stamp, output = NULL, password = "")    # §18 Q3
 | `pdf_pagesize()` | `pdf_pages()` | Same six columns (`top`, `right`, `bottom`, `left`, `width`, `height`). |
 | `pdf_toc()` | the outline tree, walked under `max_depth` | Same nested `title` / `children` list. |
 | `pdf_attachments()` | the `EmbeddedFiles` name tree | Same list of entries with their data. |
-| `pdf_data()` | the text walk's matrices | Exported only once §18 Q1 is decided. |
+| `pdf_data()` | the text walk's glyphs (`zupdf_page_glyphs`) | Words split at spaces and word gaps along each glyph's writing direction; each box is the page-aligned box around its glyphs, from the font's descent to its ascent (descriptor, Type 3 bounding box or base-14 metrics), rounded to points, in reading order. On the Stage 7 fixtures every pdftools word is found and `x` agrees within 2 points; `y` agrees exactly except where poppler takes a font's ascent from elsewhere (a Type 3 font's height near twice its size). `space` can differ after rotated words. |
 | qpdf's six | `pdf_open()`, `pdf_copy_pages()`, `pdf_save()` | pdfio writes the output, so the bytes differ from qpdf's. Pages, their content and their order are the same. `pdf_overlay_stamp()` waits for §18 Q3. |
 
 Not provided: `pdf_render_page()`, `pdf_convert()`, `pdf_ocr_text()` and `pdf_ocr_data()` (they need a renderer), `poppler_config()` (there is no poppler), and `pdf_compress()` (§18 Q10: pdfio copies streams as stored, so a rewrite does not compress).
@@ -348,7 +348,8 @@ A `pdf_file` owns its `pdfio_file_t`, its temporary file and its text caches in 
 ## 15. Testing
 
 - **Fixtures.** pdfio's `testpdfio.pdf`, PDFs written by `grDevices::pdf()`, `cairo_pdf()`, LaTeX and LibreOffice (one each, CC0 content), encrypted files written by pdfio itself at each method (`tools/fixtures/make-encrypted.c`, compiled against the vendored tree), and the `afl-input` cases. Each `afl-input` case must open and read, or be refused with a classed condition, with nothing on stderr. At 1.6.5 all 23 open, since pdfio has fixed the crashes they came from (*Stage 1*; the RFC said they must all be refused). The LaTeX and LibreOffice fixtures wait for a machine that has those tools. `tools/update-fixtures` pulls them; nothing is hand-edited; `tests/testthat/fixtures/README.md` lists sources and licences.
-- **Reading.** `pdf_meta()`, `pdf_pages()`, `pdf_objects()` pinned per fixture; `pdf_page_text()` compared with `pdftools::pdf_text()` after whitespace normalisation in the conformance job (a `Suggests`), pinned exactly in the package tests.
+- **Reading.** `pdf_meta()`, `pdf_pages()`, `pdf_objects()` pinned per fixture; `pdf_page_text()` pinned exactly in the package tests.
+- **Conformance** (`tools/run-conformance`, `conformance.yaml`, *Stage 7*). Word recall against `pdftools::pdf_text()` of at least 0.9 on every fixture pdftools reads, except those whose text is in annotation appearances; every pdftools word found by `pdf_data()` with `x` within 2 points; `pdf_info()`, `pdf_pagesize()` and `pdf_length()` equal to the originals' on the fixtures; every kind of file zupdf writes (base-14 and embedded text, shapes, PNG, JPEG and R images, copied and rotated pages, encryption) read by pdftools with the same words, counted by qpdf, and passed by `qpdf --check`; deterministic bytes identical twice over, with their MD5 and zlib version printed per runner.
 - **Writing.** Each writer function's bytes pinned under `deterministic = TRUE`; every written file reopened with `pdf_open()` and, in the conformance job, with `qpdf::pdf_length()` and `pdftools::pdf_text()` to prove other readers accept it; `qpdf --check` where the binary exists.
 - **Round trips.** `pdf_copy_pages()` of every fixture into a new file, then text and page boxes equal.
 - **Compatibility.** Whenever the original is installed, each §5.1 wrapper's `formals()` must be identical to its original's. On every fixture, return values are compared with the originals' for names, columns and classes, and for values wherever the §5.1 table says they agree: `pdf_info()` fields, `pdf_pagesize()`, `pdf_length()`, and the page counts and text of split, subset, combined and rotated output. `pdf_text()` is compared after whitespace normalisation, like `pdf_page_text()`.
@@ -362,13 +363,16 @@ A `pdf_file` owns its `pdfio_file_t`, its temporary file and its text caches in 
 
 ## 16. Performance targets
 
-Measured by `tools/run-benchmarks` against `pdftools` and `qpdf` where installed, and recorded here when Stage 7 runs them:
+Measured by `tools/run-benchmarks` against `pdftools` and `qpdf` on files it builds, the median of several runs. Targets, and the first measurement (*Stage 7*, 2026-10-08, Apple M-series, R 4.6.1, pdftools 3.9.0, qpdf 1.4.1):
 
-- `pdf_open()` plus `pdf_meta()` on a 100-page file: under 5 ms, since pdfio reads the xref and nothing else.
-- `pdf_page_text()` on a 100-page text document: within 2× of `pdftools::pdf_text()`; poppler's layout engine does more and is not the bar.
-- Merging 100 one-page files: within 2× of `qpdf::pdf_combine()`.
-- Writing a 100-page report of text and paths: under 200 ms.
+| Task | Target | zupdf | Other |
+|---|---|---|---|
+| `pdf_open()` + `pdf_meta()`, 100 pages | under 5 ms | 1 ms | `pdftools::pdf_info()` 1 ms |
+| `pdf_page_text()`, 100 pages of text | within 2× of pdftools | 12 ms | `pdftools::pdf_text()` 62 ms (zupdf 0.19×) |
+| merging 100 one-page files | within 2× of qpdf | 10 ms | `qpdf::pdf_combine()` 9 ms (1.1×) |
+| writing a 100-page report of text and paths | under 200 ms | 168 ms | |
 
+The conformance job on CI runs the same script after its checks, on Linux and macOS, for comparison; it is informational.
 ---
 
 ## 17. Decisions
@@ -408,7 +412,7 @@ Reasons where they are not in the section cited:
 
 Each stays the maintainer's until recorded above; the recommendation is the RFC's unless marked otherwise.
 
-1. **`pdf_data()`** (words with positions), pdftools's function in §5.1, built from the text walk. The matrices are already tracked. The questions are whether the walk's word boxes can match pdftools's columns (`width`, `height`, `x`, `y`, `space`, `text`, plus the font columns under `font_info = TRUE`) closely enough to share the name, and what it costs. Not exported until decided; likely Stage 7 if the text port is solid.
+1. *(Decided at Stage 7: `pdf_data()` ships; its boxes agree with poppler's closely enough to share the name, §5.1.)*
 2. **Streaming output** for very large reports: `pdfioFileCreateOutput()` delivers blocks, so a connection could receive them as pages close instead of at `pdf_save()`; the question is whether the writer can be reopened by R after an error mid-stream.
 3. **Overlays and stamps**: §5.1 fixes the API as qpdf's `pdf_overlay_stamp(input, stamp, output, password)`. Copying a page as a Form XObject and drawing it onto another page is within pdfio's model. The open question is whether the result matches qpdf's closely enough (stamp scaling, which pages get stamped) to ship under that name.
 4. **`zusvg` paths into content streams** (RFC 0007 §18), which would give SVG to PDF without a renderer.

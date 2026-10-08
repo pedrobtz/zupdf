@@ -298,7 +298,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 7 — Conformance against pdftools and qpdf, benchmarks, `pdf_data()`? · M
 
-**Status:** not started.
+**Status:** done, 2026-10-08. Deviation: cross-runner byte identity is printed (MD5 and zlib version per runner), not asserted, since deflate output depends on the zlib build (design §7).
 
 **Do**
 
@@ -310,6 +310,13 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 **Exit**
 
 - Conformance green; benchmarks recorded; §18 Q1 decided.
+
+
+**What actually happened**
+
+- **`pdf_data()` ships (§18 Q1).** The text walk's glyphs are exposed per page; R groups them into words along each glyph's direction and boxes them with the font's real ascent and descent. Every pdftools word is found with `x` within 2 points; `y` matches except for poppler's Type 3 heights.
+- **Conformance** passes on the fixtures: word recall 0.9 to 1.0 wherever pdftools reads text (two afl cases keep their text in form-field appearances, which zupdf does not read); every written file is read by pdftools with the same words and passes `qpdf --check`.
+- **Benchmarks** (design §16): open + metadata 1 ms, text 5× faster than pdftools, merging at 1.1× qpdf, a 100-page report in 168 ms.
 
 ---
 

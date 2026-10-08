@@ -1,0 +1,6 @@
+#!/bin/sh
+# Benchmarks against pdftools and qpdf (roadmap Stage 7): see
+# tools/benchmarks.R. Informational, not a gate. Run from the package root
+# with zupdf installed.
+set -eu
+Rscript tools/benchmarks.R
