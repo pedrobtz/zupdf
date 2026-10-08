@@ -363,3 +363,29 @@ const char *zpd_value_from_r(pdfio_file_t *pdf, SEXP x, int max_depth,
     *array = NULL;
     return zpd_list_to_pdf(pdf, x, 0, max_depth, dict, array);
 }
+
+/* Sets dict[key] to a text string: ASCII as a literal, anything else as
+   UTF-16BE with its byte-order mark (see zpd_put_text()). */
+bool zpd_dict_set_text(pdfio_file_t *pdf, pdfio_dict_t *dict, const char *key, const char *utf8)
+{
+    zpd_dict_slot slot = {dict, pdfioStringCreate(pdf, key)};
+    zpd_text_sink sink = {zpd_dict_set_string, zpd_dict_set_binary, &slot};
+    return slot.key && zpd_put_text(&sink, utf8);
+}
+
+pdfio_obj_t *zpd_info_obj(pdfio_file_t *pdf)
+{
+    return pdf->info_obj;
+}
+
+/* The catalog: a dictionary pdfio keeps without its object. */
+SEXP zpd_catalog_to_r(pdfio_file_t *pdf, int max_depth, int *deep)
+{
+    pdfio_dict_t *cat = pdfioFileGetCatalog(pdf);
+    if (!cat)
+        return R_NilValue;
+    _pdfio_value_t v;
+    v.type = PDFIO_VALTYPE_DICT;
+    v.value.dict = cat;
+    return zpd_value_to_r(&v, max_depth, deep);
+}

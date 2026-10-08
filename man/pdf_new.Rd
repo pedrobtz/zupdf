@@ -5,7 +5,7 @@
 \title{Start a new PDF file}
 \usage{
 pdf_new(
-  version = "2.0",
+  version = "1.7",
   media_box = pdf_paper("a4"),
   created = Sys.time(),
   deterministic = FALSE,
@@ -13,7 +13,10 @@ pdf_new(
 )
 }
 \arguments{
-\item{version}{The PDF version to write, such as \code{"1.7"} or \code{"2.0"}.}
+\item{version}{The PDF version to write, such as \code{"1.7"} or \code{"2.0"}. In
+PDF 2.0 the document information (title, author, ...) lives only in
+XMP metadata, which \code{\link[=pdf_meta]{pdf_meta()}} and many other readers do not show,
+so 1.7 is the default.}
 
 \item{media_box}{The default page size, \code{c(x1, y1, x2, y2)} in points;
 see \code{\link[=pdf_paper]{pdf_paper()}}.}

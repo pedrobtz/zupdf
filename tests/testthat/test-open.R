@@ -197,6 +197,7 @@ test_that("a spilled copy is removed by pdf_close() and by the finalizer", {
   spilled <- function() {
     list.files(tempdir(), pattern = "^zupdf-.*[.]pdf$", full.names = TRUE)
   }
+  gc() # other tests' unclosed handles
   before <- spilled()
   pdf <- pdf_open(minimal_pdf())
   expect_length(setdiff(spilled(), before), 1L)
@@ -219,6 +220,7 @@ test_that("a thousand unclosed handles leave no descriptors or files", {
     d <- "/proc/self/fd"
     if (dir.exists(d)) length(list.files(d)) else NA_integer_
   }
+  gc() # other tests' unclosed handles
   before_fd <- fds()
   before <- list.files(tempdir(), pattern = "^zupdf-")
   bytes <- minimal_pdf()

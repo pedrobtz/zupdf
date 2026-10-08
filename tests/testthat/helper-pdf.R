@@ -319,3 +319,20 @@ reread <- function(bytes, what = pdf_page_text) {
   on.exit(pdf_close(pdf))
   what(pdf)
 }
+
+# The compatibility layer (design section 5.1), by original package.
+compat_pdftools <- c(
+  "pdf_info",
+  "pdf_text",
+  "pdf_fonts",
+  "pdf_pagesize",
+  "pdf_toc",
+  "pdf_attachments"
+)
+compat_qpdf <- c(
+  "pdf_length",
+  "pdf_split",
+  "pdf_subset",
+  "pdf_combine",
+  "pdf_rotate_pages"
+)

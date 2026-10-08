@@ -6,7 +6,8 @@
 #' @return A data frame with columns `object` (the font's object number),
 #'   `name` (its `/BaseFont`, with any subset prefix such as `ABCDEF+`
 #'   kept), `type` (its `/Subtype`, such as `"Type1"`, `"TrueType"` or
-#'   `"Type0"`) and `embedded` (whether the font program is in the file).
+#'   `"Type0"`) and `embedded` (whether the font program is in the file;
+#'   always for a Type 3 font, whose glyphs are drawn by the file).
 #' @export
 #' @examples
 #' pdf <- pdf_open(system.file("examples", "hello.pdf", package = "zupdf"))
@@ -48,6 +49,10 @@ zpd_deref <- function(pdf, x) {
 }
 
 zpd_font_embedded <- function(pdf, d) {
+  # A Type 3 font's glyphs are content streams in the file itself.
+  if (identical(zpd_chr(d$Subtype), "Type3")) {
+    return(TRUE)
+  }
   if (identical(zpd_chr(d$Subtype), "Type0")) {
     desc <- zpd_deref(pdf, d$DescendantFonts)
     if (length(desc) == 0L) {

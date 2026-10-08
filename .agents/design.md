@@ -113,7 +113,7 @@ pdf_stream(pdf, n, decode = TRUE)   # raw
 pdf_image(pdf, n, as = c("raw", "native"))
 
 # writing
-pdf_new(version = "2.0", media_box = pdf_paper("a4"), created = Sys.time(),
+pdf_new(version = "1.7", media_box = pdf_paper("a4"), created = Sys.time(),
         deterministic = FALSE, ...)
 pdf_page_new(w, media_box = NULL, crop_box = NULL, dict = NULL)
 pdf_page_end(page)
@@ -147,7 +147,9 @@ zupdf_info()
 - The writer takes R colours for `fill`, `stroke` and `colour` through `col2rgb()`, without alpha; `NA` and `"transparent"` mean none. `path` is points (`x`, `y`), joined by lines, or a data frame of operations: `op` in `move`, `line`, `curve` (control points `x1`, `y1`, `x2`, `y2`, end `x`, `y`), `close`, `rect` (`x`, `y`, `w`, `h`). Coordinates are PDF points with the origin at the bottom left. `pdf_draw_text()` recycles `x`, `y` and `text`, splits text at line breaks, and aligns with `pdfioContentTextMeasure()` at replay; base-14 fonts show Windows code page 1252 and print `?` for other characters (pdfio's encoding).
 - `pdf_image_new()`: a PNG or JPEG file (pdfio's own readers; JPEG is copied through), or a `nativeRaster`, a `raster` or colour matrix, a grey matrix in 0 to 1, or an RGB or RGBA array (as `png::readPNG()` returns); alpha becomes a soft mask.
 - `pdf_font()`: a base-14 name (`pdfioFileCreateFontObjFromBase()`) or a font file path (`pdfioFileCreateFontObjFromFile()`, Unicode CID font). There is no system font lookup (D7).
-- `pdf_copy_pages()`: `pdfioPageCopy()` per page, which copies the page object and everything it references, so the result is self-contained.
+- `pdf_copy_pages()`: zupdf's port of `pdfioPageCopy()` (*Stage 5*): the page dictionary and every attribute it inherits are copied, with every object they reference, through pdfio's object map (`_pdfioValueCopy()`), so the result is self-contained; `/Rotate` is then advanced by `rotate`, or set (the qpdf layer's absolute mode), before the page is written. `pdfioPageCopy()` itself writes the page as it copies it, leaving no way to rotate it. Streams are copied as stored, not re-encoded. Document-level parts (outlines, forms, named destinations) are not carried over.
+- `pdf_set_meta()`: title, author, subject, keywords, creator (the Info dictionary, ASCII as literals and anything else as UTF-16BE), language (the catalog's `/Lang`) and modification date. In PDF 2.0 pdfio drops the Info entries at close and writes them only into the XMP metadata, which is UTF-8, so for 2.0 output they are set as UTF-8 (*Stage 5*); `pdf_new()` defaults to 1.7 for that reason, since many readers, `pdf_meta()` included, read only the Info dictionary.
+- `pdf_set_encryption()`: must come before any page, font or image, since pdfio fixes the keys before the first object (anything later is `zupdf_write_error`). The encryption key is derived from the file ID, so `deterministic = TRUE` leaves the ID random for an encrypted file (§7).
 - `pdf_save()` with `file = NULL` returns a raw vector; a connection is written in blocks as pdfio's output callback delivers them.
 - `pdf_paper()`: ISO A and B series, US letter, legal, tabloid, in points, landscape if asked.
 - `zupdf_info()`: the pdfio version (ttf ships inside it), the patch identifiers, zlib's version, which features the pin lacks (§9), the limits' defaults, and a self-test that writes a one-page file in memory.
@@ -180,7 +182,7 @@ pdf_overlay_stamp(input, stamp, output = NULL, password = "")    # §18 Q3
 
 | Function | Built on | Where it differs from the original |
 |---|---|---|
-| `pdf_info()` | `pdf_meta()`, the catalog | The same eleven fields. `metadata` is the text of the XMP stream; `linearized` comes from the first object's `/Linearized`. |
+| `pdf_info()` | `pdf_meta()`, the Info dictionary, the catalog | The same eleven fields. `keys` is the Info dictionary's text entries; `metadata` the XMP stream's text; `linearized` comes from a `/Linearized` among the first objects; `locked` is always `FALSE`, since a file zupdf could not unlock is an error. |
 | `pdf_text()` | `pdf_page_text()` | pdftools returns poppler's physical layout, padded with spaces to page positions. zupdf returns the `pdf2text` reading order (§8). Pages and words match, but spacing differs and line order sometimes does. `raw = TRUE` is `layout = "raw"`, which is stream order in both packages. |
 | `pdf_fonts()` | `pdf_font_table()` | For a non-embedded font, pdftools reports the system substitute fontconfig chose in `file`. zupdf reports `NA`, because it has no system font lookup (D7). |
 | `pdf_pagesize()` | `pdf_pages()` | Same six columns (`top`, `right`, `bottom`, `left`, `width`, `height`). |
@@ -189,7 +191,9 @@ pdf_overlay_stamp(input, stamp, output = NULL, password = "")    # §18 Q3
 | `pdf_data()` | the text walk's matrices | Exported only once §18 Q1 is decided. |
 | qpdf's six | `pdf_open()`, `pdf_copy_pages()`, `pdf_save()` | pdfio writes the output, so the bytes differ from qpdf's. Pages, their content and their order are the same. `pdf_overlay_stamp()` waits for §18 Q3. |
 
-Not provided: `pdf_render_page()`, `pdf_convert()`, `pdf_ocr_text()` and `pdf_ocr_data()` (they need a renderer), `poppler_config()` (there is no poppler), and `pdf_compress()` (§18 Q10). None of these is defined as a stub that always fails. A user who switches packages gets "could not find function" on the first call, and that message already names what is missing.
+Not provided: `pdf_render_page()`, `pdf_convert()`, `pdf_ocr_text()` and `pdf_ocr_data()` (they need a renderer), `poppler_config()` (there is no poppler), and `pdf_compress()` (§18 Q10: pdfio copies streams as stored, so a rewrite does not compress).
+
+Found when the layer was built and compared with the originals (*Stage 5*): `pdf_toc()` items carry `is_open` (pdftools's third field; a positive `/Count`); `pdf_text()` ends every page's text with a line break, as poppler does; `pdf_fonts()` reports poppler's type names (`type1`, `type1c`, `truetype`, `type3`, `cid_type0`, `cid_type0c`, `cid_truetype`) and counts Type 3 fonts as embedded; `pdf_info()` reports an absent date as `NA` where pdftools reports one second before 1970; and the qpdf functions take any R index for `pages` (`-1` included) and report `"Selected pages out of range"` as qpdf does, but as a `zupdf_invalid_argument`. None of these is defined as a stub that always fails. A user who switches packages gets "could not find function" on the first call, and that message already names what is missing.
 
 The originals' signatures are pinned at pdftools 3.9.0 and qpdf 1.4.1. Whenever an original is installed, a test compares each wrapper's `formals()` with it, so a signature change upstream fails a check before it reaches a user (§18 Q11). Attaching zupdf after pdftools or qpdf masks their functions, and R's attach message lists them. The package help page and the README say so.
 
@@ -373,7 +377,7 @@ Measured by `tools/run-benchmarks` against `pdftools` and `qpdf` where installed
 | D1 | Libraries | pdfio vendored, not linked, with its ttf library, which ships in the same release tarball and tree from 1.6.0 |
 | D2 | Rendering | never, from this package; the API has no `render` slot to fill |
 | D3 | Raw and connection input | spilled to a temporary file, not a patch adding memory input; an upstream input callback is requested and would replace it |
-| D4 | Vendor tree | byte-identical plus a recorded patch set, applied by the update script, verified in CI, offered upstream. At 1.6.5: 0001 makes the visibility macros overridable, 0002 adds `PDFIO_NO_STDIO`, 0003 enlarges two date buffers gcc's `-Wformat-truncation` flagged, 0004 removes the undefined behaviour UBSan found (calls through mistyped function pointers, `memcpy()` from NULL, pointer arithmetic on NULL), 0005 the signed overflow in big-endian byte reads (Stage 4, reading a TrueType font), 0010 the ttf callbacks' mistyped function pointers (Stage 4); none changes behaviour |
+| D4 | Vendor tree | byte-identical plus a recorded patch set, applied by the update script, verified in CI, offered upstream. At 1.6.5: 0001 makes the visibility macros overridable, 0002 adds `PDFIO_NO_STDIO`, 0003 enlarges two date buffers gcc's `-Wformat-truncation` flagged, 0004 removes the undefined behaviour UBSan found (calls through mistyped function pointers, `memcpy()` from NULL, pointer arithmetic on NULL), 0005 the signed overflow in big-endian byte reads (Stage 4, reading a TrueType font), 0010 the ttf callbacks' mistyped function pointers (Stage 4), 0006 stops `pdfioDictGetString()` rewriting a UTF-16 value as UTF-8 when it reads it (Stage 5, metadata); none changes how files are read |
 | D5 | Error callback | records and returns; never raises inside pdfio |
 | D6 | JPEG | no decoder; DCT streams come back as JPEG bytes for `jpeg::readJPEG()` |
 | D7 | Fonts | base-14 names or a file path; no system font lookup |
@@ -412,7 +416,7 @@ Each stays the maintainer's until recorded above; the recommendation is the RFC'
 7. *(Decided at Stage 0 as D15.)*
 8. *(Settled at Stage 0: LZW is decoded only from 1.7.0; §9.)*
 9. *(Decided 2026-10-08 as D13.)*
-10. **`pdf_compress()`** (*new*). qpdf's version recompresses a file. If pdfio's `pdfioPageCopy()` copies page streams as stored, which Stage 5 confirms from the pinned source, then a zupdf rewrite would not compress an uncompressed file. A function named "compress" must not ship until it measurably compresses, for example by re-encoding unfiltered streams with Flate on copy. Object streams in 1.7.0 would help further. `linearize = TRUE` is `zupdf_unsupported_input` either way. Recommended: leave it out of 0.1.0 unless Stage 5 finds the re-encoding cheap.
+10. *(Decided at Stage 5: `pdf_compress()` is not in 0.1.0. pdfio's object copy writes streams as stored (`pdfioObjCopy()` opens the source with `decode = false`), so a rewrite compresses nothing; re-encoding unfiltered streams is future work.)*
 11. **Following upstream signatures** (*new*). When pdftools or qpdf change a signature, zupdf has to decide whether to follow in its next release, and whether a shared name may ever gain arguments of its own. Recommended: follow within one release, and never add arguments to a shared name. Extra arguments belong on the native function, and the wrapper stays a wrapper.
 
 ---

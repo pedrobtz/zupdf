@@ -13,7 +13,8 @@ pdf_font_table(pdf)
 A data frame with columns \code{object} (the font's object number),
 \code{name} (its \verb{/BaseFont}, with any subset prefix such as \verb{ABCDEF+}
 kept), \code{type} (its \verb{/Subtype}, such as \code{"Type1"}, \code{"TrueType"} or
-\code{"Type0"}) and \code{embedded} (whether the font program is in the file).
+\code{"Type0"}) and \code{embedded} (whether the font program is in the file;
+always for a Type 3 font, whose glyphs are drawn by the file).
 }
 \description{
 Lists every font object in the file.
