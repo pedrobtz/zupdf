@@ -208,7 +208,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 4 — Writer: `pdf_new()`, pages, text, paths, images, fonts, `pdf_save()` · L
 
-**Status:** not started.
+**Status:** done, 2026-10-08. Deviation: the `md2pdf.c` port was not drafted; the drawing API was settled on what the tests and the examples need (D16), and the port moves to the Stage 8 vignette.
 
 **Do**
 
@@ -220,6 +220,16 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 **Exit**
 
 - Written bytes identical across every CI platform under `deterministic = TRUE`; every written fixture reopens and round-trips its text.
+
+
+**What actually happened**
+
+- **Pages are recorded, then written whole (D16).** pdfio refuses to create an object while a content stream is open, and writes a page's dictionary when the page is created, so drawing straight into an open stream would forbid making a font or image after the first page starts. `pdf_page_end()` creates the page with exactly the resources its operations use and replays them through pdfio's content API.
+- **Output always goes through memory**; `pdf_save()` returns the bytes or writes them to a path or connection.
+- **Determinism**: the ID is a hash of the bytes written before the trailer, set through pdfio's private `id_array`; deflate output depends on the zlib build, so pinned hashes are per zlib version (`fixtures/hashes.tsv`), and encrypted output is never byte-stable. Design §7 and §19 amended.
+- **pdfio's Unicode fonts carry an `Identity-UCS2` ToUnicode CMap with no entries**; the text extractor now reads it as identity (poppler does the same), so text written in an embedded font reads back.
+- **Patch `0005-unsigned-shifts`**: UBSan (local) reported `byte << 24` overflowing an int in ttf.c's big-endian reads when a TrueType font was embedded; the same pattern in pdfio's PNG reader is fixed with it.
+- Fixtures gained OpenSans-Regular.ttf (with its licence), two PNGs and a JPEG from pdfio's `testfiles/`.
 
 ---
 

@@ -7,6 +7,8 @@
 #                     tag pinned in src/vendor/PROVENANCE (they are in the
 #                     repository, not the release tarball)
 #   testpdfio.pdf     pdfio's own test document, from the release tarball
+#   OpenSans-Regular.ttf (and its licence), pdfio-color.png,
+#   pdfio-rgba.png, color.jpg: pdfio's test files, for the writer
 #   encrypted-*.pdf   one page each, written by pdfio itself through
 #                     tools/fixtures/make-encrypted.c
 #   grdevices.pdf,    one page each from R's own devices
@@ -41,6 +43,10 @@ echo "==> testpdfio.pdf from pdfio $VERSION"
 curl -fsSL --retry 3 -o "$WORK/pdfio.tar.gz" "$URL"
 tar xzf "$WORK/pdfio.tar.gz" -C "$WORK"
 cp "$WORK/pdfio-$VERSION/testfiles/testpdfio.pdf" "$OUT/testpdfio.pdf"
+# For the writer: one font with its licence, two PNGs and a JPEG.
+for f in OpenSans-Regular.ttf OpenSans-LICENSE.txt pdfio-color.png pdfio-rgba.png color.jpg; do
+  cp "$WORK/pdfio-$VERSION/testfiles/$f" "$OUT/$f"
+done
 
 echo "==> encrypted fixtures"
 ${CC:-cc} -O1 -w -I src/vendor/pdfio -o "$WORK/make-encrypted" \

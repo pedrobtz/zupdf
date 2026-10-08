@@ -152,9 +152,14 @@ static void zpd_parse_cmap(zpd_font *f, const unsigned char *data, size_t n)
     size_t alen = 0, clen = 0;
     int codelen = 0;
 
+    int identity = 0;
     for (zpd_tok_type t = zpd_lex_next(&lx); t != ZPD_TOK_EOF && t != ZPD_TOK_ERROR && !b.oom;
          t = zpd_lex_next(&lx)) {
-        if (zpd_lex_is(&lx, "begincodespacerange")) {
+        if (t == ZPD_TOK_NAME && strstr((const char *) lx.buf, "Identity-UCS2")) {
+            /* pdfio's own fonts map each code to itself this way, with no
+               entries; poppler reads the name the same way. */
+            identity = 1;
+        } else if (zpd_lex_is(&lx, "begincodespacerange")) {
             if (zpd_lex_next(&lx) == ZPD_TOK_HEXSTRING && codelen == 0)
                 codelen = (int) lx.len;
         } else if (zpd_lex_is(&lx, "beginbfchar")) {
@@ -200,6 +205,7 @@ static void zpd_parse_cmap(zpd_font *f, const unsigned char *data, size_t n)
     f->num = b.num;
     f->cps = b.cps;
     f->ncps = b.ncps;
+    f->identity = identity && b.num == 0;
     if (codelen == 1 || codelen == 2)
         f->code_bytes = codelen;
 }
@@ -232,6 +238,10 @@ size_t zpd_font_unicode(const zpd_font *f, uint32_t code, uint32_t *out, size_t 
         memcpy(out, f->cps + e->off, n * sizeof(uint32_t));
         out[n - 1] += code - e->lo;
         return n;
+    }
+    if (f->identity && code < 0x10000) {
+        out[0] = code;
+        return 1;
     }
     if (f->code_bytes == 1 && code < 256 && f->enc[code]) {
         out[0] = f->enc[code];

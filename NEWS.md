@@ -1,6 +1,12 @@
 # zupdf 0.0.0.9000
 
 * Development version, built stage by stage; see the roadmap.
+* A writer: `pdf_new()` starts a file, `pdf_page_new()` and `pdf_page_end()`
+  add pages, `pdf_draw_text()`, `pdf_draw()` and `pdf_draw_image()` draw
+  text, paths and images, `pdf_font()` and `pdf_image_new()` make fonts
+  (base-14 or embedded TrueType/OpenType) and images (PNG, JPEG or R
+  images), and `pdf_save()` returns or writes the bytes. `deterministic =
+  TRUE` makes the output reproducible. `pdf_paper()` gives paper sizes.
 * `pdf_page_text()` extracts each page's text in reading order or stream
   order, through ToUnicode maps, font encodings and Form XObjects, with
   U+FFFD and a count for characters no font maps. `pdf_page_tokens()`

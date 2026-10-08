@@ -43,4 +43,5 @@ OBJECTS = \
 	zpd_string.o \
 	zpd_text.o \
 	zpd_value.o \
+	zpd_writer.o \
 	$(PDFIO)

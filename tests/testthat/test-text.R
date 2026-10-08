@@ -261,7 +261,8 @@ test_that("every afl-input page's text extracts or is refused cleanly", {
 })
 
 test_that("a page of 2,000 is read without reading the others", {
-  skip_heavy()
+  # A timing: meaningless under valgrind or gctorture, so only on request.
+  skip_if_no_slow_tests()
   bytes <- minimal_pdf(text = sprintf("page %d", 1:2000))
   pdf <- pdf_open(bytes)
   withr::defer(pdf_close(pdf))

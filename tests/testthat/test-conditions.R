@@ -50,7 +50,10 @@ test_that("every known pdfio message prefix maps to its class", {
   expected <- c(
     "Unable to unlock PDF file." = "zupdf_password_error",
     "Unable to unlock AES-256 encrypted file at this time." = "zupdf_unsupported_input",
-    "Unable to open file - No such file or directory" = "zupdf_io_error"
+    "Unable to open file - No such file or directory" = "zupdf_io_error",
+    "Unable to open image file 'x.png': No such file or directory" = "zupdf_io_error",
+    "Unable to open font file 'x.ttf': No such file or directory" = "zupdf_io_error",
+    "Unsupported image file 'x.gif'." = "zupdf_unsupported_input"
   )
   for (msg in names(expected)) {
     expect_identical(zpd_pdfio_class(msg), expected[[msg]], label = msg)

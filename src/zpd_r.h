@@ -28,6 +28,17 @@ SEXP zupdf_objects(SEXP ptr);
 SEXP zupdf_object(SEXP ptr, SEXP number, SEXP max_depth);
 SEXP zupdf_stream(SEXP ptr, SEXP number, SEXP decode, SEXP max_stream);
 
+/* zpd_writer.c */
+SEXP zupdf_writer_new(SEXP version, SEXP media_box);
+SEXP zupdf_writer_is_open(SEXP ptr);
+SEXP zupdf_writer_font(SEXP ptr, SEXP kind, SEXP name);
+SEXP zupdf_writer_image_file(SEXP ptr, SEXP path, SEXP interpolate);
+SEXP zupdf_writer_image_data(SEXP ptr, SEXP bytes, SEXP width, SEXP height,
+                             SEXP colors, SEXP alpha, SEXP interpolate);
+SEXP zupdf_writer_page(SEXP ptr, SEXP media_box, SEXP crop_box, SEXP dict,
+                       SEXP ops, SEXP nums, SEXP strs, SEXP max_depth);
+SEXP zupdf_writer_save(SEXP ptr, SEXP created, SEXP deterministic);
+
 /* zpd_roundtrip.c */
 SEXP zupdf_value_roundtrip(SEXP x, SEXP max_depth);
 

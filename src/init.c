@@ -21,6 +21,13 @@ static const R_CallMethodDef CallEntries[] = {
     {"zupdf_pages",      (DL_FUNC) &zupdf_pages,      2},
     {"zupdf_stream",     (DL_FUNC) &zupdf_stream,     4},
     {"zupdf_value_roundtrip", (DL_FUNC) &zupdf_value_roundtrip, 2},
+    {"zupdf_writer_font", (DL_FUNC) &zupdf_writer_font, 3},
+    {"zupdf_writer_image_data", (DL_FUNC) &zupdf_writer_image_data, 7},
+    {"zupdf_writer_image_file", (DL_FUNC) &zupdf_writer_image_file, 3},
+    {"zupdf_writer_is_open", (DL_FUNC) &zupdf_writer_is_open, 1},
+    {"zupdf_writer_new", (DL_FUNC) &zupdf_writer_new, 2},
+    {"zupdf_writer_page", (DL_FUNC) &zupdf_writer_page, 8},
+    {"zupdf_writer_save", (DL_FUNC) &zupdf_writer_save, 3},
     {NULL, NULL, 0}
 };
 

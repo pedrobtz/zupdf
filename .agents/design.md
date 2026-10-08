@@ -78,7 +78,7 @@ Its names follow two rules (D8). The compatibility layer (§5.1) reuses pdftools
 Two kinds of handle and a stateless layer between them:
 
 1. **`pdf_file`**: an open pdfio file for reading, a finalized external pointer over `pdfio_file_t *`, holding the path (or the temporary file a raw vector or connection was spilled to, §10), the password callback's answer and the error callback's record. pdfio reads lazily by cross-reference, so opening is cheap and page and object access go back to the file descriptor; the handle keeps the file open until `pdf_close()` or the finalizer.
-2. **`pdf_writer`**: a pdfio file being created, over `pdfioFileCreate()` (to a path) or `pdfioFileCreateOutput()` (to a callback that appends to a growable buffer owned by the handle, for raw and connection output). Pages are added through `pdf_page_new()`, which returns a `pdf_page` handle whose content stream is open until `pdf_page_end()`; `pdf_save()` closes the file and yields the bytes.
+2. **`pdf_writer`**: a pdfio file being created with `pdfioFileCreateOutput()`, into a growable buffer the handle owns; `pdf_save()` closes it and returns the bytes or writes them to a path or connection (*Stage 4*: always through memory, since a path gains nothing but a second code path; streaming output is §18 Q2). pdfio writes a page's dictionary when the page is created and refuses to create any object while a content stream is open ("Another object is already open"), so a `pdf_page` from `pdf_page_new()` **records** its drawing operations in R, and `pdf_page_end()` writes the page in one call: it creates the page with the resources the operations use, opens the content stream, replays the operations through pdfio's content API (which encodes text for each font) and closes it (D16). No pdfio stream is open between calls, so fonts and images can be made at any time and an abandoned page needs no cleanup.
 3. **Conversion** (`src/zpd_value.c`): pdfio values (`pdfio_dict_t`, `pdfio_array_t`, names, strings, numbers, booleans, dates, binary strings, indirect references) to and from R lists with the mapping of §6, with recursion bounded by `max_depth`.
 
 **The error callback never longjmps.** `pdfio_error_cb_t` copies the message into the handle and returns `false` for errors and `true` for `WARNING:` messages, as pdfio's default does without the `stderr` write; after the pdfio call returns, the R side raises the recorded message as a classed condition. This is the rule that keeps pdfio's frames clean, since pdfio holds `malloc()`ed state and open descriptors across its calls and R's error path would leak them. The password callback likewise returns a string the handle already owns.
@@ -117,10 +117,13 @@ pdf_new(version = "2.0", media_box = pdf_paper("a4"), created = Sys.time(),
         deterministic = FALSE, ...)
 pdf_page_new(w, media_box = NULL, crop_box = NULL, dict = NULL)
 pdf_page_end(page)
-pdf_draw_text(page, x, y, text, font = "Helvetica", size = 12, ...)
+pdf_draw_text(page, x, y, text, font = "Helvetica", size = 12, ...,
+              colour = "black", align = c("left", "centre", "right"),
+              line_height = 1.2)
 pdf_font(w, x)             # base-14 name or a .ttf/.otf path
-pdf_draw(page, path, fill = NULL, stroke = NULL, width = 1, ...)
-pdf_image_new(w, x)        # a file path or a raster/nativeRaster
+pdf_draw(page, path, fill = NULL, stroke = NULL, width = 1, ...,
+         close = FALSE, rule = c("winding", "evenodd"))
+pdf_image_new(w, x, interpolate = TRUE)   # a PNG/JPEG path or an R image
 pdf_draw_image(page, image, x, y, width, height)
 pdf_copy_pages(w, pdf, pages = NULL, rotate = 0)
 pdf_set_meta(w, ...)
@@ -141,7 +144,8 @@ zupdf_info()
 - `pdf_image()`: the image's samples, decoded when the filter is Flate or none, with `width`, `height`, `bits`, `color_space`, `filter` and `decoded` attributes, or as a `nativeRaster` when the image is DeviceRGB or DeviceGray (or ICCBased with 3 or 1 components) at 8 bits that zupdf can decode, else `zupdf_unsupported_input`. DCT (JPEG), JPX and JBIG2 images come back as stored, so a JPEG is its JPEG file, for `jpeg::readJPEG()`, since pdfio does not decode JPEG and zupdf does not vendor a decoder (D6). An SMask (alpha) is not applied.
 - `pdf_page_images()`: the image XObjects in a page's resources (inherited), with `object`, `name`, `width`, `height`, `bits`, `color_space` and `filter`; images inside forms and inline images are not listed.
 - `pdf_font_table()`: every font object but CID descendants, which their Type0 parent stands for, with `object`, `name` (`/BaseFont`), `type` (`/Subtype`) and `embedded` (a `FontFile`, `FontFile2` or `FontFile3` in its descriptor, or its descendant's).
-- The writer takes R colours for `fill` and `stroke` through `col2rgb()`; `path` is a data frame of `x`, `y` and an operation (`move`, `line`, `curve`, `close`, `rect`) or a `grid`-style list; coordinates are PDF points with the origin at the bottom left.
+- The writer takes R colours for `fill`, `stroke` and `colour` through `col2rgb()`, without alpha; `NA` and `"transparent"` mean none. `path` is points (`x`, `y`), joined by lines, or a data frame of operations: `op` in `move`, `line`, `curve` (control points `x1`, `y1`, `x2`, `y2`, end `x`, `y`), `close`, `rect` (`x`, `y`, `w`, `h`). Coordinates are PDF points with the origin at the bottom left. `pdf_draw_text()` recycles `x`, `y` and `text`, splits text at line breaks, and aligns with `pdfioContentTextMeasure()` at replay; base-14 fonts show Windows code page 1252 and print `?` for other characters (pdfio's encoding).
+- `pdf_image_new()`: a PNG or JPEG file (pdfio's own readers; JPEG is copied through), or a `nativeRaster`, a `raster` or colour matrix, a grey matrix in 0 to 1, or an RGB or RGBA array (as `png::readPNG()` returns); alpha becomes a soft mask.
 - `pdf_font()`: a base-14 name (`pdfioFileCreateFontObjFromBase()`) or a font file path (`pdfioFileCreateFontObjFromFile()`, Unicode CID font). There is no system font lookup (D7).
 - `pdf_copy_pages()`: `pdfioPageCopy()` per page, which copies the page object and everything it references, so the result is self-contained.
 - `pdf_save()` with `file = NULL` returns a raw vector; a connection is written in blocks as pdfio's output callback delivers them.
@@ -217,7 +221,7 @@ The conversion (`src/zpd_value.c`) reads pdfio's value structures through `pdfio
 
 ## 7. Writing
 
-pdfio writes objects as they close, cross-reference and trailer at `pdfioFileClose()`, compressing content streams with Flate; 1.7.0 adds object streams, which zupdf enables by default for 1.5 or later versions once that pin lands. Output is deterministic per input and arguments except for two fields pdfio fills from the clock and the environment: the creation date (`CreationDate`) and the file ID, which pdfio seeds from the time and the file name. zupdf sets both from arguments (`created =` on `pdf_new()`, defaulting to `Sys.time()`; the ID from a hash of the content when `deterministic = TRUE`), so a test can pin bytes and a build can reproduce a report. The conformance job writes each fixture twice and compares.
+pdfio writes objects as they close, cross-reference and trailer at `pdfioFileClose()`, compressing content streams with Flate; 1.7.0 adds object streams, which zupdf enables by default for 1.5 or later versions once that pin lands. Output is deterministic per input and arguments except for what pdfio takes from the clock and the random source: the creation date (`CreationDate`), the file ID, which pdfio 1.6.5 makes from random bytes (*found at Stage 4*; the RFC said time and file name), and, for encrypted files, the keys. zupdf sets the date from `created =` on `pdf_new()` (defaulting to `Sys.time()`) and, when `deterministic = TRUE`, replaces the ID with the first 16 bytes of the SHA-256 of everything written before the trailer, through pdfio's private `id_array` (no public setter exists). So the same calls give the same bytes with the same zupdf, pdfio and **zlib**: deflate output differs between zlib builds (zlib-ng, Apple's), so pinned bytes are recorded per zlib version in `tests/testthat/fixtures/hashes.tsv`, and a version without a row skips the pin. **Encrypted output is never byte-stable**: its keys are random (§18 has no plan to change that).
 
 Encryption uses pdfio's own RC4, MD5, AES and SHA-256 (`pdfio-rc4.c`, `pdfio-md5.c`, `pdfio-aes.c`, `pdfio-sha256.c`): no OpenSSL, no `zucrypt`. These are the PDF standard's algorithms for its security handler, not a general-purpose crypto offering; zupdf's documentation says RC4 is there for compatibility and AES 128 is the one to use, and does not offer AES 256 for writing while pdfio marks it excluded.
 
@@ -322,7 +326,7 @@ A limit is a positive whole number or `Inf` where that makes sense; anything els
 
 ## 13. Memory model
 
-A `pdf_file` owns its `pdfio_file_t`, its temporary file and its text caches in one external pointer; `pdfioFileClose()` runs in the finalizer if `pdf_close()` did not, and a closed handle is refused by every function. A `pdf_writer` owns the file or the output buffer; an open `pdf_page` holds a stream pointer that `pdf_page_end()` closes and that the writer's finalizer closes if the page was abandoned, in the right order (streams before the file). Nothing pdfio allocates is ever held outside an external pointer, and no R allocation happens while a pdfio stream is open: a stream is read into a `malloc()` buffer the `pdf_file` owns (`scratch`), the stream is closed, and only then does R allocate the result and copy (*Stage 2*). The buffer is freed after the copy, by the next read, or by the finalizer, so an R allocation failure cannot leak it. User code never runs inside pdfio: the password callback answers from a string the handle holds (a function `password` is called in R between two attempts to open, §5).
+A `pdf_file` owns its `pdfio_file_t`, its temporary file and its text caches in one external pointer; `pdfioFileClose()` runs in the finalizer if `pdf_close()` did not, and a closed handle is refused by every function. A `pdf_writer` owns the pdfio file, the output buffer and its font and image objects; a `pdf_page` is an R environment of recorded operations and holds nothing of pdfio's, so an abandoned page leaks nothing and the writer's finalizer only closes the file (*Stage 4*). Nothing pdfio allocates is ever held outside an external pointer, and no R allocation happens while a pdfio stream is open: a stream is read into a `malloc()` buffer the `pdf_file` owns (`scratch`), the stream is closed, and only then does R allocate the result and copy (*Stage 2*). The buffer is freed after the copy, by the next read, or by the finalizer, so an R allocation failure cannot leak it. User code never runs inside pdfio: the password callback answers from a string the handle holds (a function `password` is called in R between two attempts to open, §5).
 
 ---
 
@@ -369,7 +373,7 @@ Measured by `tools/run-benchmarks` against `pdftools` and `qpdf` where installed
 | D1 | Libraries | pdfio vendored, not linked, with its ttf library, which ships in the same release tarball and tree from 1.6.0 |
 | D2 | Rendering | never, from this package; the API has no `render` slot to fill |
 | D3 | Raw and connection input | spilled to a temporary file, not a patch adding memory input; an upstream input callback is requested and would replace it |
-| D4 | Vendor tree | byte-identical plus a recorded patch set, applied by the update script, verified in CI, offered upstream. At 1.6.5: 0001 makes the visibility macros overridable, 0002 adds `PDFIO_NO_STDIO`, 0003 enlarges two date buffers gcc's `-Wformat-truncation` flagged, 0004 removes the undefined behaviour UBSan found (calls through mistyped function pointers, `memcpy()` from NULL, pointer arithmetic on NULL); none changes behaviour |
+| D4 | Vendor tree | byte-identical plus a recorded patch set, applied by the update script, verified in CI, offered upstream. At 1.6.5: 0001 makes the visibility macros overridable, 0002 adds `PDFIO_NO_STDIO`, 0003 enlarges two date buffers gcc's `-Wformat-truncation` flagged, 0004 removes the undefined behaviour UBSan found (calls through mistyped function pointers, `memcpy()` from NULL, pointer arithmetic on NULL), 0005 the signed overflow in big-endian byte reads (Stage 4, reading a TrueType font), 0010 the ttf callbacks' mistyped function pointers (Stage 4); none changes behaviour |
 | D5 | Error callback | records and returns; never raises inside pdfio |
 | D6 | JPEG | no decoder; DCT streams come back as JPEG bytes for `jpeg::readJPEG()` |
 | D7 | Fonts | base-14 names or a file path; no system font lookup |
@@ -380,6 +384,7 @@ Measured by `tools/run-benchmarks` against `pdftools` and `qpdf` where installed
 | D12 | The pin | 1.6.5 at Stage 0 (*verified 2026-10-08*: still the latest release); move to 1.7.0 when it is tagged, at which point the 1.7.0-only features of §9 switch on and `zupdf_info()` stops listing them as absent |
 | D13 | Font table | The native table, with object numbers, is `pdf_font_table()`. `pdf_fonts()` is the pdftools-compatible view in §5.1. (This was §18 Q9.) |
 | D14 | Writer text | `pdf_draw_text()`, alongside `pdf_draw()` and `pdf_draw_image()`. The RFC's `pdf_text()` is pdftools's extractor and belongs to §5.1. |
+| D16 | Writing pages | A `pdf_page` records operations in R; `pdf_page_end()` creates the page and replays them through pdfio's content API in one call, so no content stream is open between calls (*Stage 4*: pdfio refuses to create objects while one is open) |
 | D15 | Licence | `License: MIT + file LICENSE` with `Copyright: file inst/COPYRIGHTS`, Michael R Sweet as `cph`, pdfio's `NOTICE` reproduced (the zuhtml and data.sketches precedent; was §18 Q7, decided at Stage 0) |
 
 Reasons where they are not in the section cited:
@@ -417,7 +422,7 @@ Each stays the maintainer's until recorded above; the recommendation is the RFC'
 1. Installs from source on Linux, macOS (x86-64, arm64) and Windows with no system package beyond R's own zlib, under `R CMD check --as-cran` with no NOTE beyond the new-submission one.
 2. Every `afl-input` case opens and reads or is refused with a classed condition, with no output on stderr and no leak under ASan.
 3. Every fixture's text matches `pdftools` after normalisation in the conformance job; every written fixture opens in `qpdf` and `pdftools`.
-4. Written bytes are identical across runners under `deterministic = TRUE`.
+4. Written bytes are identical across runs and across runners with the same zlib under `deterministic = TRUE`, for unencrypted files (§7).
 5. Every §11 class has a test; every §12 guard survives the mutation check.
 6. No crash, leak, hang or stderr output in 30 minutes of nightly fuzzing; the canary has been seen to crash.
 7. `tools/verify-vendor` passes against both pins plus the patches, and `tools/check-symbols` finds only the init symbol.
@@ -428,6 +433,5 @@ Each stays the maintainer's until recorded above; the recommendation is the RFC'
 ## 20. What this design does not decide
 
 - Whether people who do not render will switch from pdftools for a smaller install. The Stage 0 survey (§3) shows that most reverse dependencies do not render; it cannot show whether they will switch.
-- The drawing API's final shape (data frame paths versus a `grid`-like grammar), which Stage 4 settles by porting `md2pdf.c` and seeing what an R author needs.
 - Whether upstream takes the patch set (D4).
 - When 1.7.0 is tagged and the pin moves (D12).

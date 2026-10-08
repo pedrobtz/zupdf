@@ -13,6 +13,8 @@ Vendored dependency: pdfio, with its ttf library
                  0002-no-stdio.patch
                  0003-date-buffer.patch
                  0004-undefined-behaviour.patch
+                 0005-unsigned-shifts.patch
+                 0010-ttf-callbacks.patch
 
 src/vendor/pdfio/ is the files listed in tools/pdfio-files.txt, copied from
 the release tarball, with exactly the patches above applied.
@@ -47,7 +49,20 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             pdfioStreamPeek() and pointer arithmetic on
                             NULL in the MD5 alignment test are guarded.
 
-0001 and 0002 are proposed upstream as build options and 0003 and 0004 as
+  0005-unsigned-shifts      Big-endian reads in ttf.c and pdfio's PNG reader
+                            shifted a byte promoted to int left by 24, which
+                            overflows when its high bit is set; UBSan
+                            reported it reading a TrueType font. The bytes
+                            are cast to unsigned first.
+  0010-ttf-callbacks        pdfio called its ttf error relay and ttfDelete()
+                            through function pointers of another type; ASan
+                            and UBSan in CI reported both at Stage 4. They
+                            get signatures and an adapter of the right type.
+                            (Numbered 0010 because 0006 to 0009 were already
+                            taken by later stages' patches; patches apply in
+                            numeric order and touch separate code.)
+
+0001 and 0002 are proposed upstream as build options and 0003 to 0005 as
 fixes; none changes behaviour.
 
 Only the library is imported: the sixteen pdfio-*.c translation units and
