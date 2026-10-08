@@ -2,17 +2,20 @@
 
 ## Authors
 
-- **First Last**. Author, maintainer.
+- **Pedro Baltazar**. Author, maintainer, copyright holder.
 
 ## Citation
 
-Last F (2026). *zupdf: What the Package Does (One Line, Title Case)*. R
-package version 0.0.0.9000, <https://pedrobtz.github.io/zupdf/>.
+Source:
+[`DESCRIPTION`](https://github.com/pedrobtz/zupdf/blob/main/DESCRIPTION)
+
+Baltazar P (2026). *zupdf: Read, Assemble and Write 'PDF' Files*. R
+package version 0.0.0.9000, <https://github.com/pedrobtz/zupdf>.
 
     @Manual{,
-      title = {zupdf: What the Package Does (One Line, Title Case)},
-      author = {First Last},
+      title = {zupdf: Read, Assemble and Write 'PDF' Files},
+      author = {Pedro Baltazar},
       year = {2026},
       note = {R package version 0.0.0.9000},
-      url = {https://pedrobtz.github.io/zupdf/},
+      url = {https://github.com/pedrobtz/zupdf},
     }
