@@ -1,9 +1,11 @@
 Package: zupdf
 Title: Read, Assemble and Write 'PDF' Files
 Version: 0.0.0.9000
-Authors@R:
+Authors@R: c(
     person("Pedro", "Baltazar", , "pedrobtz@gmail.com",
-           role = c("aut", "cre", "cph"))
+           role = c("aut", "cre", "cph")),
+    person("Michael R", "Sweet", role = "cph",
+           comment = "pdfio and ttf, bundled in src/vendor/pdfio"))
 Description: Opens 'PDF' files and reads their metadata, pages, objects,
     streams, fonts, images and text in reading order; copies pages
     between files to split, merge, rotate and reorder them, and sets
@@ -14,14 +16,19 @@ Description: Opens 'PDF' files and reads their metadata, pages, objects,
     limits on size, object count, stream size and nesting depth. Pages
     are never rendered to images.
 License: MIT + file LICENSE
+Copyright: file inst/COPYRIGHTS
 URL: https://github.com/pedrobtz/zupdf, https://pedrobtz.github.io/zupdf/
 BugReports: https://github.com/pedrobtz/zupdf/issues
 Depends:
     R (>= 4.1)
+LinkingTo:
+    zufast (>= 0.1.0)
 Suggests:
     pdftools,
     testthat (>= 3.0.0),
     withr
+Remotes:
+    pedrobtz/zufast@main
 Config/testthat/edition: 3
 Encoding: UTF-8
 Language: en-GB
