@@ -51,7 +51,6 @@ jobs:
     uses: pedrobtz/r-actions/.github/workflows/valgrind.yml@v1
     with:
       suppressions: tools/valgrind.supp
-    with:
       profile: ${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-ci') && 'quick' || 'full' }}
 
   lto:
