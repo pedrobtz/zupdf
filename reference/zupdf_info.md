@@ -25,7 +25,8 @@ A list of class `zupdf_info` with elements:
   `"lzw"` decoding.
 
 - `limits`: the default `max_size`, `max_objects`, `max_stream`,
-  `max_depth` and `max_pages` of `pdf_open()`.
+  `max_depth` and `max_pages` of
+  [`pdf_open()`](https://pedrobtz.github.io/zupdf/reference/pdf_open.md).
 
 - `smoke_ok`: `TRUE` if the bundled pdfio wrote a one-page file in
   memory.
@@ -36,7 +37,7 @@ A list of class `zupdf_info` with elements:
 zupdf_info()
 #> <zupdf_info>
 #> pdfio:       1.6.5
-#> patches:     0001-visibility-override, 0002-no-stdio, 0003-date-buffer
+#> patches:     0001-visibility-override, 0002-no-stdio, 0003-date-buffer, 0004-undefined-behaviour
 #> zlib:        1.3
 #> absent:      lzw, gif, object_streams, page_accessors, windows_unicode_paths
 #> max_size:    1073741824 bytes
