@@ -28,7 +28,7 @@
 #'
 #' @seealso [zupdf-conditions] for the errors zupdf raises; [zupdf_info()]
 #'   for the bundled library.
-#' @keywords internal
+#' @keywords package
 "_PACKAGE"
 
 ## usethis namespace: start
