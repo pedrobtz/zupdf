@@ -66,7 +66,9 @@ Where the results differ from pdftools's (design section 5.1):
   one second before 1970.
 
 `pdf_render_page()`, `pdf_convert()` and the OCR functions need a
-renderer and are not provided; `pdf_data()` is not provided yet.
+renderer and are not provided;
+[`pdf_data()`](https://pedrobtz.github.io/zupdf/reference/pdf_data.md)
+is not provided yet.
 
 ## Examples
 

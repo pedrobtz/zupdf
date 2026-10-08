@@ -6,6 +6,8 @@
   : Close a PDF file
 - [`pdf_copy_pages()`](https://pedrobtz.github.io/zupdf/reference/pdf_copy_pages.md)
   : Copy pages between files
+- [`pdf_data()`](https://pedrobtz.github.io/zupdf/reference/pdf_data.md)
+  : Words and their positions
 - [`pdf_draw()`](https://pedrobtz.github.io/zupdf/reference/pdf_draw.md)
   : Draw paths
 - [`pdf_draw_image()`](https://pedrobtz.github.io/zupdf/reference/pdf_draw_image.md)

@@ -11,6 +11,7 @@
   [`pdf_pagesize()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md),
   [`pdf_toc()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md),
   [`pdf_attachments()`](https://pedrobtz.github.io/zupdf/reference/pdftools-compat.md),
+  [`pdf_data()`](https://pedrobtz.github.io/zupdf/reference/pdf_data.md),
   [`pdf_length()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md),
   [`pdf_split()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md),
   [`pdf_subset()`](https://pedrobtz.github.io/zupdf/reference/qpdf-compat.md),
