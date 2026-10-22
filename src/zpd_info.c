@@ -28,6 +28,7 @@ static const char *zpd_patches[] = {
     "0011-object-value-leak",
     "0012-trailer-value-leak",
     "0013-objstm-value-leak",
+    "0014-date-utc",
 };
 
 /* Features pdfio 1.7.0 adds that the 1.6.5 pin lacks (design section 9).

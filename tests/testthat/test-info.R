@@ -22,7 +22,8 @@ test_that("the patch series is the one in tools/patches", {
       "0010-ttf-callbacks",
       "0011-object-value-leak",
       "0012-trailer-value-leak",
-      "0013-objstm-value-leak"
+      "0013-objstm-value-leak",
+      "0014-date-utc"
     )
   )
 })

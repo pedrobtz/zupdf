@@ -10,6 +10,8 @@
 //
 // Modified for the zupdf R package: the date buffers hold any int the format can print (gcc -Wformat-truncation). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: without timegm(), a date is converted to UTC by counting days, not with mktime(), which reads the local time zone. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -912,20 +914,25 @@ get_date_time(const char *s)		// I - PDF date/time value
     return (0);
 
 #else
-  if ((t = mktime(&dateval)) <= 0)
-    return (0);
+  // Count the days since 1970-01-01 in the proleptic Gregorian calendar, so
+  // the local time zone never enters: mktime() reads it, and the "timezone"
+  // correction that followed had the wrong sign...
+  {
+    int	year  = dateval.tm_year + 1900 - (dateval.tm_mon < 2);
+					// Year, starting in March
+    int	month = dateval.tm_mon < 2 ? dateval.tm_mon + 10 : dateval.tm_mon - 2;
+					// Month, 0 = March
+    int	era   = (year >= 0 ? year : year - 399) / 400;
+					// 400-year era
+    int	yoe   = year - era * 400;	// Year of era
+    int	doe   = yoe * 365 + yoe / 4 - yoe / 100 + (153 * month + 2) / 5 + dateval.tm_mday - 1;
+					// Day of era
 
-#  if defined(HAVE_TM_GMTOFF)
-  // Adjust the time value using the "tm_gmtoff" and "tm_isdst" members.  As
-  // noted by M-HT on Github, this DST hack will fail in timezones where the
-  // DST offset is not one hour, such as Australia/Lord_Howe.  Fortunately,
-  // this is unusual and most systems support the "timegm" function...
-  t += dateval.tm_gmtoff - 3600 * dateval.tm_isdst;
-#  else
-  // Adjust the time value using the even more legacy "timezone" variable,
-  // which also reflects any DST offset...
-  t += timezone;
-#  endif // HAVE_TM_GMTOFF
+    t = ((time_t)era * 146097 + doe - 719468) * 86400 + dateval.tm_hour * 3600 + dateval.tm_min * 60 + dateval.tm_sec;
+
+    if (t <= 0)
+      return (0);
+  }
 #endif // _WIN32
 
   return (t - offset);

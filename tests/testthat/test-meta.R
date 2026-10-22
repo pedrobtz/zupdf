@@ -67,6 +67,29 @@ test_that("dates are POSIXct in UTC", {
   )
 })
 
+test_that("dates do not depend on the local time zone", {
+  info <- c(
+    CreationDate = "D:20240102030405Z",
+    ModDate = "D:20240702030405+02'00"
+  )
+  for (tz in c("UTC", "Europe/Vienna", "America/New_York", "Asia/Kolkata")) {
+    withr::local_timezone(tz)
+    pdf <- pdf_open(minimal_pdf(info = info))
+    m <- pdf_meta(pdf)
+    pdf_close(pdf)
+    expect_identical(
+      format(m$created, "%Y-%m-%d %H:%M:%S"),
+      "2024-01-02 03:04:05",
+      label = tz
+    )
+    expect_identical(
+      format(m$modified, "%Y-%m-%d %H:%M:%S"),
+      "2024-07-02 01:04:05",
+      label = tz
+    )
+  }
+})
+
 test_that("PDFDocEncoding strings become UTF-8", {
   # 0x80 is a bullet and 0xA0 the euro sign in PDFDocEncoding; 0xE9 is
   # Latin-1's e-acute in both.
