@@ -27,7 +27,7 @@ pdfio is Apache-2.0 with exceptions; zupdf's own code is MIT. `LICENSE.note`
 explains how the two apply, and `inst/COPYRIGHTS` reproduces pdfio's notice.
 Michael R Sweet, pdfio's author, is listed as `cph` in `Authors@R`.
 
-The vendored tree carries twelve small patches, listed with their reasons in
+The vendored tree carries thirteen small patches, listed with their reasons in
 `src/vendor/PROVENANCE`: stdio writes and exported symbols removed, and
 compiler warnings, undefined behaviour, a loop and two leaks found by
 sanitizers and fuzzing fixed. Each patched file carries a notice saying so,
