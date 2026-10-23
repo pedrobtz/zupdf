@@ -16,6 +16,7 @@
  * identifier, which becomes a hash of the bytes written before the trailer.
  * Encryption keys stay random, so encrypted output is never byte-stable. */
 
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -172,7 +173,9 @@ SEXP zupdf_writer_font(SEXP ptr, SEXP kind, SEXP name)
     return zpd_result("ok", Rf_ScalarInteger(k), &w->rec);
 }
 
-/* zupdf_writer_image_file(ptr, path, interpolate): a PNG or JPEG file. */
+/* zupdf_writer_image_file(ptr, path, interpolate): a PNG or JPEG file.
+   Returns c(handle, width, height), the size as pdfio read it from the
+   file's header. */
 SEXP zupdf_writer_image_file(SEXP ptr, SEXP path, SEXP interpolate)
 {
     zpd_writer *w = zpd_writer_get(ptr);
@@ -188,7 +191,13 @@ SEXP zupdf_writer_image_file(SEXP ptr, SEXP path, SEXP interpolate)
     int k = zpd_writer_add(w, obj, ZPD_IMAGE);
     if (!k)
         return zpd_status("memory");
-    return zpd_result("ok", Rf_ScalarInteger(k), &w->rec);
+    SEXP v = PROTECT(Rf_allocVector(INTSXP, 3));
+    INTEGER(v)[0] = k;
+    INTEGER(v)[1] = zpd_clamp_int(pdfioImageGetWidth(obj), 0, INT_MAX);
+    INTEGER(v)[2] = zpd_clamp_int(pdfioImageGetHeight(obj), 0, INT_MAX);
+    SEXP out = zpd_result("ok", v, &w->rec);
+    UNPROTECT(1);
+    return out;
 }
 
 /* zupdf_writer_image_data(ptr, bytes, width, height, colors, alpha,

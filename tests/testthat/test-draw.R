@@ -279,6 +279,20 @@ test_that("PNG and JPEG files are embedded", {
   expect_true("DCTDecode" %in% im$filter)
 })
 
+test_that("an image from a file reports its size in pixels", {
+  w <- pdf_new()
+  png <- pdf_image_new(w, fixture("pdfio-color.png"))
+  jpg <- pdf_image_new(w, fixture("color.jpg"))
+  page <- pdf_page_new(w)
+  pdf_draw_image(page, png, 72, 500, 100, 100)
+  pdf_draw_image(page, jpg, 200, 500, 100, 100)
+  pdf_page_end(page)
+  im <- reread(pdf_save(w), function(p) pdf_page_images(p, 1))
+  expect_identical(c(png$width, png$height), c(im$width[1], im$height[1]))
+  expect_identical(c(jpg$width, jpg$height), c(im$width[2], im$height[2]))
+  expect_output(print(png), sprintf("%d x %d", im$width[1], im$height[1]))
+})
+
 test_that("bad images are refused by class", {
   w <- pdf_new()
   expect_zupdf_error(pdf_image_new(w, "no-such.png"), "zupdf_io_error")

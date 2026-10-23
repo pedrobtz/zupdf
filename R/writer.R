@@ -348,12 +348,13 @@ pdf_image_new <- function(w, x, interpolate = TRUE) {
         call = call
       )
     }
-    k <- zpd_unwrap(
+    v <- zpd_unwrap(
       .Call(zupdf_writer_image_file, w, path.expand(x), interpolate),
       "Cannot read the image",
       call
     )
-    dims <- c(NA_integer_, NA_integer_)
+    k <- v[[1]]
+    dims <- v[2:3]
   } else {
     img <- zpd_image_bytes(x, call = call)
     k <- zpd_unwrap(
