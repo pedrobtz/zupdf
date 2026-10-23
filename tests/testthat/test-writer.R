@@ -37,6 +37,38 @@ test_that("deterministic = TRUE gives the same bytes every time", {
   expect_false(identical(reread(c2, pdf_meta)$id, m$id))
 })
 
+test_that("writing does not depend on the local time zone", {
+  # CI runs under TZ=UTC, which would hide a date formatted in local time.
+  write_in <- function(tz) {
+    withr::local_timezone(tz)
+    w <- pdf_new(
+      created = as.POSIXct("2024-01-02 03:04:05", tz = "UTC"),
+      deterministic = TRUE
+    )
+    pdf_set_meta(
+      w,
+      title = "Zones",
+      modified = as.POSIXct("2024-07-02 23:30:00", tz = "UTC")
+    )
+    page <- pdf_page_new(w)
+    pdf_draw_text(page, 72, 700, "Same everywhere")
+    pdf_page_end(page)
+    pdf_save(w)
+  }
+  utc <- write_in("UTC")
+  kolkata <- write_in("Asia/Kolkata")
+  expect_identical(kolkata, utc)
+  m <- reread(kolkata, pdf_meta)
+  expect_identical(
+    format(m$modified, "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+    "2024-07-02 23:30:00"
+  )
+  expect_identical(
+    format(m$created, "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+    "2024-01-02 03:04:05"
+  )
+})
+
 test_that("without deterministic, the identifier is random", {
   a <- written(deterministic = FALSE)
   b <- written(deterministic = FALSE)
