@@ -249,6 +249,31 @@ test_that("pdf_combine() concatenates files, named after the first", {
   expect_identical(pdf_text(out), c("a1\n", "a2\n", "b1\n"))
 })
 
+test_that("pdf_combine() takes one pdf_file or a list, and not nothing", {
+  dir <- withr::local_tempdir()
+  a <- pdf_open(minimal_pdf(
+    text = c("a1", "a2"),
+    path = file.path(dir, "a.pdf")
+  ))
+  withr::defer(pdf_close(a))
+  b <- pdf_open(minimal_pdf(text = "b1"))
+  withr::defer(pdf_close(b))
+  out <- pdf_combine(a, file.path(dir, "one.pdf"))
+  expect_identical(pdf_length(out), 2L)
+  out <- pdf_combine(list(a, b), file.path(dir, "two.pdf"))
+  expect_identical(pdf_text(out), c("a1\n", "a2\n", "b1\n"))
+  expect_zupdf_error(
+    pdf_combine(character()),
+    "zupdf_invalid_argument",
+    arg = "input"
+  )
+  expect_zupdf_error(
+    pdf_combine(list()),
+    "zupdf_invalid_argument",
+    arg = "input"
+  )
+})
+
 test_that("pdf_rotate_pages() sets or adds rotation on the pages chosen", {
   dir <- withr::local_tempdir()
   path <- minimal_pdf(pages = 3L, rotate = 90, path = file.path(dir, "doc.pdf"))

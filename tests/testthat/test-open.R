@@ -269,6 +269,20 @@ test_that("a password function must return a string", {
 
 # ---- closing and temporary files ---------------------------------------------
 
+test_that("what is not a pdf_file is refused, naming `pdf`", {
+  for (f in list(pdf_meta, pdf_pages, pdf_objects, pdf_close)) {
+    expect_zupdf_error(f(1), "zupdf_invalid_argument", arg = "pdf")
+  }
+})
+
+test_that("an empty connection is read as an empty input and refused", {
+  path <- withr::local_tempfile()
+  file.create(path)
+  con <- file(path, "rb")
+  withr::defer(close(con))
+  expect_zupdf_error(pdf_open(con), "zupdf_parse_error")
+})
+
 test_that("a closed handle is refused everywhere and closing twice is fine", {
   pdf <- pdf_open(minimal_pdf())
   pdf_close(pdf)
