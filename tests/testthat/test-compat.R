@@ -649,6 +649,8 @@ test_that("pdf_toc() stops at the file's max_depth", {
 })
 
 test_that("a deep outline under a large max_depth does not overflow R", {
+  # 5 000 objects: the recursive walk this replaced overflowed R's stack.
+  skip_heavy()
   n <- 5000L
   items <- sprintf(
     "<< /Title (%d)%s >>",
