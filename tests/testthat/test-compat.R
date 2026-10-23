@@ -349,6 +349,10 @@ test_that("pdf_data() leaves out a glyph placed by non-finite numbers", {
 })
 
 # ---- values per case, pinned from pdftools 3.9.0 -------------------------------
+# Taken from pdftools 3.9.0 with the poppler of CRAN's macOS binary and
+# hard-coded: other popplers (Ubuntu's) report some of these fonts
+# differently, and poppler leaks under valgrind, so these tests do not call
+# pdftools.
 
 test_that("pdf_fonts() reports poppler's type for each font and font file", {
   objs <- list()
@@ -482,11 +486,6 @@ test_that("pdf_fonts() reports poppler's type for each font and font file", {
   expect_identical(f$type, expected$type)
   expect_identical(f$embedded, expected$embedded)
   expect_identical(f$file, ifelse(expected$embedded, "", NA_character_))
-  skip_if_not_installed("pdftools")
-  p <- suppressMessages(pdftools::pdf_fonts(path))
-  p <- p[match(f$name, p$name), ]
-  expect_identical(p$type, f$type)
-  expect_identical(p$embedded, f$embedded)
 })
 
 test_that("pdf_fonts() reports a font it cannot read as unknown", {
@@ -553,17 +552,6 @@ test_that("pdf_attachments() walks /Kids and reads names, types and dates", {
   )
   expect_true(is.na(att[[2]]$created))
   expect_true(pdf_info(path)$attachments)
-  skip_if_not_installed("pdftools")
-  # pdftools gives the third, whose specification is invalid, no name or
-  # data, and an absent date one second before 1970.
-  p <- suppressMessages(pdftools::pdf_attachments(path))
-  for (k in 1:2) {
-    for (f in c("name", "mime", "description", "data")) {
-      expect_identical(att[[k]][[f]], p[[k]][[f]], label = f)
-    }
-  }
-  expect_equal(as.numeric(att[[1]]$created), as.numeric(p[[1]]$created))
-  expect_equal(as.numeric(att[[1]]$modified), as.numeric(p[[1]]$modified))
 })
 
 test_that("an empty or odd /Names array lists no attachment", {
