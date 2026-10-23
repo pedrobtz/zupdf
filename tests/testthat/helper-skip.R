@@ -8,11 +8,3 @@ skip_heavy <- function() {
   skip_on_cran()
   skip_if(nzchar(Sys.getenv("ZUPDF_SKIP_HEAVY")), "ZUPDF_SKIP_HEAVY is set")
 }
-
-# Runs a slow test only when ZUPDF_SLOW_TESTS is set.
-skip_if_no_slow_tests <- function() {
-  skip_if_not(
-    nzchar(Sys.getenv("ZUPDF_SLOW_TESTS")),
-    "ZUPDF_SLOW_TESTS is not set"
-  )
-}
