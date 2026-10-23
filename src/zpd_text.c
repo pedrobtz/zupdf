@@ -311,6 +311,13 @@ static void zpd_emit(zpd_text_ctx *c, const zpd_font *f, const uint32_t *cps, si
         c->g = grown;
         c->capg = cap;
     }
+    /* Matrices can overflow to Inf and then NaN; a position that is not
+       finite is placed at 0, so the layout's sort and pdf_data() see
+       numbers. */
+    double pos[5] = {x0, y0, x1, y1, size};
+    for (int k = 0; k < 5; k++)
+        if (!isfinite(pos[k]))
+            pos[k] = 0.0;
     size_t off = c->pool.n;
     for (size_t i = 0; i < n; i++) {
         uint32_t cp = cps[i];
@@ -320,7 +327,7 @@ static void zpd_emit(zpd_text_ctx *c, const zpd_font *f, const uint32_t *cps, si
         zpd_buf_utf8(&c->raw, cp);
     }
     c->raw_text = 1;
-    c->g[c->ng++] = (zpd_glyph){x0, y0, x1, y1, size, off, c->pool.n - off, f};
+    c->g[c->ng++] = (zpd_glyph){pos[0], pos[1], pos[2], pos[3], pos[4], off, c->pool.n - off, f};
 }
 
 /* ---- the walk -------------------------------------------------------------------------- */
@@ -709,20 +716,38 @@ typedef struct {
     double ex, ey;   /* where the last glyph ends */
     double size;
     size_t off, len; /* in the span pool */
+    size_t seq;      /* stream order, which breaks ties */
 } zpd_span;
+
+/* Ascending, with NaN last: a total order, as qsort() needs. Glyph
+   positions are finite (zpd_emit()), but nothing here relies on it. */
+static int zpd_cmp_num(double x, double y)
+{
+    int nx = isnan(x) != 0, ny = isnan(y) != 0;
+    if (nx || ny)
+        return nx - ny;
+    return x < y ? -1 : x > y;
+}
+
+static int zpd_cmp_seq(const zpd_span *s, const zpd_span *t)
+{
+    return (s->seq > t->seq) - (s->seq < t->seq);
+}
 
 static int zpd_span_cmp_y(const void *a, const void *b)
 {
     const zpd_span *s = a, *t = b;
-    if (s->oy != t->oy)
-        return s->oy > t->oy ? -1 : 1; /* top first: larger y */
-    return s->ox < t->ox ? -1 : s->ox > t->ox;
+    int k = zpd_cmp_num(-s->oy, -t->oy); /* top first: larger y */
+    if (!k)
+        k = zpd_cmp_num(s->ox, t->ox);
+    return k ? k : zpd_cmp_seq(s, t);
 }
 
 static int zpd_span_cmp_x(const void *a, const void *b)
 {
     const zpd_span *s = a, *t = b;
-    return s->ox < t->ox ? -1 : s->ox > t->ox;
+    int k = zpd_cmp_num(s->ox, t->ox);
+    return k ? k : zpd_cmp_seq(s, t);
 }
 
 static int zpd_ends_space(const zpd_buf *b)
@@ -772,7 +797,7 @@ static int zpd_reading_layout(zpd_text_ctx *c)
         }
         if (!join) {
             cur = &sp[ns++];
-            *cur = (zpd_span){g->x0, g->y0, ux, uy, g->x0, g->y0, size, spool.n, 0};
+            *cur = (zpd_span){g->x0, g->y0, ux, uy, g->x0, g->y0, size, spool.n, 0, ns - 1};
         }
         zpd_buf_add(&spool, text, g->len);
         cur->len += g->len;

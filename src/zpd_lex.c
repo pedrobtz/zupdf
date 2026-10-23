@@ -1,5 +1,6 @@
 /* The content-stream lexer of zpd_lex.h (PDF 2.0, 7.2 and 7.3). */
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -151,7 +152,8 @@ static zpd_tok_type zpd_lex_name(zpd_lex *lx)
     return lx->type = ZPD_TOK_NAME;
 }
 
-/* A number, if the bytes are one: [+-]? digits [. digits] | [+-]? . digits */
+/* A number, if the bytes are one: [+-]? digits [. digits] | [+-]? . digits.
+   One too large for a double reads as 0, so no Inf leaves the lexer. */
 static int zpd_parse_number(const unsigned char *s, size_t n, double *out)
 {
     size_t i = 0;
@@ -169,6 +171,8 @@ static int zpd_parse_number(const unsigned char *s, size_t n, double *out)
     }
     if (i != n || digits == 0)
         return 0;
+    if (!isfinite(v))
+        v = 0.0;
     *out = neg ? -v : v;
     return 1;
 }
