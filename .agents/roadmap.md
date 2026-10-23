@@ -2,7 +2,7 @@
 
 Companion to [design.md](design.md). Section references (§) point there.
 
-**Status:** adopted 2026-10-08 from [RFC 0008](https://github.com/pedrobtz/packages/blob/main/rfcs/0008-zupdf-pdf-files.md). Nothing below is implemented; the repository is the `usethis` skeleton (created 2026-10-08 with `create-pkg.sh -c`) plus these documents.
+**Status:** adopted 2026-10-08 from [RFC 0008](https://github.com/pedrobtz/packages/blob/main/rfcs/0008-zupdf-pdf-files.md). Stages 0–7 are done; Stage 8 is in progress (each stage's **Status:** line says where it stands).
 
 ## Sequencing principles
 
@@ -323,7 +323,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 8 — pkgdown site, vignettes, CRAN · S
 
-**Status:** in progress, 2026-10-08. Done: every export documented with `@return` and runnable examples; the package help page; four vignettes (*Inspecting a PDF*, *Assembling PDFs*, *Writing a report from R*, *Switching from pdftools and qpdf*); `_pkgdown.yml` with a reference index; README; `inst/WORDLIST`; `cran-comments.md`; `R CMD check --as-cran --run-donttest` 0/0/0; the `cran-extrachecks` and `review-cran-submission` skills run on 2026-10-08 and every finding not tied to zufast fixed (README install line, NEWS, `cran-comments.md`, WORDLIST, the package help keyword). Waiting for zufast on CRAN (not there on 2026-10-08): `Remotes:` removal, `Version: 0.1.0` with its NEWS heading, a last `--as-cran` run against CRAN's zufast, and the submission.
+**Status:** in progress, 2026-10-22. Done on 2026-10-08: every export documented with `@return` and runnable examples; the package help page; four vignettes (*Inspecting a PDF*, *Assembling PDFs*, *Writing a report from R*, *Switching from pdftools and qpdf*); `_pkgdown.yml` with a reference index; README; `inst/WORDLIST`; `cran-comments.md`; `R CMD check --as-cran --run-donttest` 0/0/0; the `cran-extrachecks` and `review-cran-submission` skills, with every finding not tied to zufast fixed. zufast 0.1.0 reached CRAN on 2026-10-21. Pre-flight on 2026-10-22: the nightly fuzz run had found a leak from 2026-10-14 (a repaired object read again from an object stream; patch `0013-objstm-value-leak`, the input a regression fixture, #26), and a local run outside UTC showed every date read off by twice the zone's offset (pdfio's `mktime()` fallback without `HAVE_TIMEGM`; CI runs in UTC, CRAN in Europe/Vienna; patch `0014-date-utc` and a test that switches zones, #27). `Remotes:` removed, `Version: 0.1.0` with its NEWS heading, built against CRAN's zufast; pdfio 1.7.0 is not tagged, so the pin stays at 1.6.5 (D12). Left: a clean 30-minute nightly fuzz run with 0013, a last `--as-cran` run, and the submission.
 
 **Do**
 
@@ -336,6 +336,19 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 **Exit:** on CRAN.
 
 ---
+
+**§19 verification**, 2026-10-22:
+
+| § 19 | Criterion | Verified by |
+|---|---|---|
+| 1 | installs everywhere with only R's zlib; clean `--as-cran` | `R-CMD-check.yaml` full legs (Linux, macOS x86-64 and arm64, Windows) and the R-hub containers; 0/0/1, the new-submission note |
+| 2 | every `afl-input` case read or refused cleanly | `test-afl.R` (all 23 open, nothing on stderr); `native-checks.yaml` ASan leg |
+| 3 | text matches `pdftools`; written files open elsewhere | `conformance.yaml` (`tools/run-conformance`, word recall and `qpdf --check`) |
+| 4 | deterministic bytes across runners | `fixtures/hashes.tsv` in `test-writer.R`; `conformance.yaml` prints MD5 and zlib per runner (Stage 7 deviation) |
+| 5 | every class tested; every guard mutation-checked | `test-conditions.R`; `tools/run-mutation-check` in `hardening.yaml` |
+| 6 | 30 minutes of nightly fuzzing clean; canary seen | `hardening.yaml` nightly (`tools/run-fuzz 1800`), canary first; pending the first nightly with 0013 |
+| 7 | vendor trees verified; only the init symbol exported | `vendor.yaml` (`tools/verify-vendor`, `tools/check-symbols`) |
+| 8 | compatibility wrappers match their originals' formals and shapes | `test-compat.R` (`formals()` against pdftools and qpdf); `conformance.yaml` |
 
 ## Acceptance criteria against stages
 

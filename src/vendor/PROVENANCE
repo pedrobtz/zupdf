@@ -21,6 +21,8 @@ Vendored dependency: pdfio, with its ttf library
                  0010-ttf-callbacks.patch
                  0011-object-value-leak.patch
                  0012-trailer-value-leak.patch
+                 0013-objstm-value-leak.patch
+                 0014-date-utc.patch
 
 src/vendor/pdfio/ is the files listed in tools/pdfio-files.txt, copied from
 the release tarball, with exactly the patches above applied.
@@ -114,10 +116,25 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             in load_xref() twice and repair_xref() once;
                             LeakSanitizer reported it fuzzing at Stage 7.
                             Reported upstream: michaelrsweet/pdfio#193.
+  0013-objstm-value-leak    An object the repair scan had already read (a
+                            hex string, say) was read again from an object
+                            stream without its first value being freed;
+                            LeakSanitizer reported it in the nightly fuzz
+                            run. Upstream master keeps the first value but
+                            leaks the copy it discards; to be reported with
+                            the next group of fixes.
+  0014-date-utc             Without HAVE_TIMEGM, which pdfio's configure
+                            sets and zupdf's portable Makevars cannot, a
+                            date was converted with mktime(), in the local
+                            time zone, and corrected by adding "timezone",
+                            whose sign is the opposite: every date read was
+                            off by twice the zone's offset outside UTC.
+                            The fallback now counts days in the Gregorian
+                            calendar. To be reported upstream with 0013.
 
-0001 and 0002 are proposed upstream as build options and 0003 to 0012 as
-fixes; none but 0006 changes behaviour on well-formed input, and 0006 only
-what is written.
+0001 and 0002 are proposed upstream as build options and 0003 to 0014 as
+fixes; none but 0006 and 0014 changes behaviour on well-formed input, 0006
+only what is written and 0014 dates read outside UTC.
 
 Only the library is imported: the sixteen pdfio-*.c translation units and
 ttf.c, the headers they include, LICENSE and NOTICE. The examples (pdf2text.c

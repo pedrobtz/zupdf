@@ -18,6 +18,8 @@
 //
 // Modified for the zupdf R package: a trailer that is not a dictionary is freed before it is refused (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: an object already read by the repair scan has its value freed before an object stream reads it again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #include "pdfio-content.h"
@@ -1904,6 +1906,9 @@ load_obj_stream(pdfio_obj_t *obj)	// I - Object to load
   // Read the objects themselves...
   for (cur_obj = 0; cur_obj < num_objs; cur_obj ++)
   {
+    _pdfioValueDelete(&(objs[cur_obj]->value));
+    memset(&(objs[cur_obj]->value), 0, sizeof(objs[cur_obj]->value));
+
     if (!_pdfioValueRead(obj->pdf, obj, &tb, &(objs[cur_obj]->value), 0))
     {
       _pdfioFileError(obj->pdf, "Unable to read compressed object.");
