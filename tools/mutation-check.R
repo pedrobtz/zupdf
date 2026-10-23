@@ -57,6 +57,11 @@ cases <- list(
     'pdf_page_text(pdf_open(minimal_pdf(text = strrep("x", 200)), max_stream = 100))'
   ),
   list(
+    "max_stream_forms",
+    "src/zpd_text.c",
+    'pdf_page_text(pdf_open(shared_forms_pdf(10, 3), max_stream = 2000))'
+  ),
+  list(
     "form_cycle",
     "src/zpd_text.c",
     'pdf_page_text(pdf_open(cycle_pdf(), max_depth = 8))'
@@ -81,13 +86,15 @@ expected <- c(
   max_depth_write = "max_depth",
   max_stream = "zupdf_limit_error",
   max_stream_content = "zupdf_limit_error",
+  max_stream_forms = "zupdf_limit_error",
   form_cycle = "zupdf_limit_error: a form XObject draws itself",
   max_depth_form = "zupdf_limit_error",
   copy_depth = "zupdf_write_error"
 )
 
-# Forms for the two form guards: one that draws itself, and a chain of
-# `n` forms of which the last shows text.
+# Forms for the form guards: one that draws itself, a chain of `n` forms of
+# which the last shows text, and `levels` forms each drawing the next `k`
+# times, each read once but walked k^level times.
 probe_helpers <- '
 cycle_pdf <- function() {
   form <- list(
@@ -105,6 +112,18 @@ deep_forms_pdf <- function(n) {
         helv, k + 1L
       ),
       data = if (i < n) "/X1 Do" else "BT /F1 12 Tf 72 700 Td (deep) Tj ET"
+    )
+  })
+  page_pdf("/X1 Do", "<< /XObject << /X1 5 0 R >> >>", extra = forms)
+}
+shared_forms_pdf <- function(k, levels) {
+  forms <- lapply(seq_len(levels), function(i) {
+    list(
+      dict = sprintf(
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 600 800] /Resources << /Font << /F1 %s >> /XObject << /X1 %d 0 R >> >> >>",
+        helv, 5L + i
+      ),
+      data = if (i < levels) strrep("/X1 Do ", k) else "BT /F1 12 Tf 72 700 Td (x) Tj ET"
     )
   })
   page_pdf("/X1 Do", "<< /XObject << /X1 5 0 R >> >>", extra = forms)

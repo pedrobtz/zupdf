@@ -33,7 +33,11 @@ a new line and a space at a large gap in a \code{TJ} array.
 A character the font cannot map becomes U+FFFD, and the count per page
 is the \code{unmapped} attribute. Text in Form XObjects is included; their
 nesting is bounded by the \code{max_depth} of \code{\link[=pdf_open]{pdf_open()}}, and a form drawn
-inside itself is a \code{zupdf_limit_error}.
+inside itself is a \code{zupdf_limit_error}. The
+\code{max_stream} of \code{\link[=pdf_open]{pdf_open()}} bounds all one page reads: its content
+streams, each form each time it is drawn (at least 256 bytes a time), and
+its fonts' ToUnicode maps. So a page that draws one form from many levels
+or lists one stream many times is refused, not walked for ever.
 }
 \examples{
 pdf <- pdf_open(system.file("examples", "hello.pdf", package = "zupdf"))

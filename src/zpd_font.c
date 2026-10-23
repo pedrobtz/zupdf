@@ -457,17 +457,18 @@ static pdfio_obj_t *zpd_dict_obj(pdfio_dict_t *dict, const char *key)
     return pdfioDictGetType(dict, key) == PDFIO_VALTYPE_INDIRECT ? pdfioDictGetObj(dict, key) : NULL;
 }
 
-static void zpd_load_tounicode(zpd_font *f, pdfio_dict_t *dict, int type0, double max_stream)
+static void zpd_load_tounicode(zpd_font *f, pdfio_dict_t *dict, int type0,
+                               double max_stream, double *used, int *over)
 {
     pdfio_obj_t *obj = zpd_dict_obj(dict, "ToUnicode");
     pdfio_stream_t *st = obj ? pdfioObjOpenStream(obj, true) : NULL;
     if (!st)
         return;
     size_t len = 0;
-    int over = 0;
-    unsigned char *data = zpd_slurp(st, max_stream, &len, &over);
+    unsigned char *data = zpd_slurp(st, max_stream - *used, &len, over);
     pdfioStreamClose(st);
     if (data) {
+        *used += (double) len;
         zpd_parse_cmap(f, data, len, type0);
         free(data);
     }
@@ -536,12 +537,19 @@ static void zpd_load_type0(zpd_font *f, pdfio_dict_t *dict)
 }
 
 zpd_font *zpd_font_get(zpd_font_cache *cache, zpd_font_cache *local,
-                       pdfio_obj_t *obj, pdfio_dict_t *dict, double max_stream)
+                       pdfio_obj_t *obj, pdfio_dict_t *dict,
+                       double max_stream, double *used, int *over)
 {
     size_t objnum = obj ? pdfioObjGetNumber(obj) : 0;
     if (objnum)
         for (zpd_font *f = cache->head; f; f = f->next)
             if (f->objnum == objnum)
+                return f;
+    /* A direct dictionary is the same font each time a Tf names it: loading
+       it again would read its ToUnicode map again. */
+    if (!obj && dict)
+        for (zpd_font *f = local->head; f; f = f->next)
+            if (f->dict == dict)
                 return f;
     if (obj)
         dict = pdfioObjGetDict(obj);
@@ -550,6 +558,7 @@ zpd_font *zpd_font_get(zpd_font_cache *cache, zpd_font_cache *local,
     if (!f)
         return NULL;
     f->objnum = objnum;
+    f->dict = objnum ? NULL : dict;
     f->code_bytes = 1;
     f->scale = 0.001;
     f->default_width = 500.0;
@@ -585,7 +594,13 @@ zpd_font *zpd_font_get(zpd_font_cache *cache, zpd_font_cache *local,
                 }
             }
         }
-        zpd_load_tounicode(f, dict, type0, max_stream);
+        zpd_load_tounicode(f, dict, type0, max_stream, used, over);
+        if (*over) {
+            /* Not cached: the next call, with a budget of its own, may
+               read the map. */
+            zpd_font_free(f);
+            return NULL;
+        }
     }
 
     zpd_font_cache *into = objnum ? cache : local;

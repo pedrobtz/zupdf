@@ -32,7 +32,9 @@ PDFDocEncoding, since writers differ.}
 
 \item{max_objects}{Most objects in the cross-reference table.}
 
-\item{max_stream}{Largest decoded stream, in bytes.}
+\item{max_stream}{Largest decoded stream, in bytes. For text, the most
+one page's walk may read: its content streams, each Form XObject each
+time it is drawn, and its fonts' ToUnicode maps.}
 
 \item{max_depth}{Deepest nesting of values, Form XObjects and the page
 tree.}

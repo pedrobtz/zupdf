@@ -208,6 +208,16 @@ zpd_unwrap <- function(
       ),
       call = call
     ),
+    max_stream_page = zpd_limit_error(
+      "max_stream",
+      limits$max_stream,
+      sprintf(
+        "%s: the page's streams, forms and fonts come to more than `max_stream` (%s bytes).",
+        what,
+        format(limits$max_stream, scientific = FALSE, big.mark = "")
+      ),
+      call = call
+    ),
     unknown_object = zpd_invalid_argument(
       "n",
       sprintf("%s: there is no such object in the file.", what),

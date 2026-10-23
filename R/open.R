@@ -23,7 +23,9 @@
 #' @param ... Must be empty.
 #' @param max_size Largest input, in bytes.
 #' @param max_objects Most objects in the cross-reference table.
-#' @param max_stream Largest decoded stream, in bytes.
+#' @param max_stream Largest decoded stream, in bytes. For text, the most
+#'   one page's walk may read: its content streams, each Form XObject each
+#'   time it is drawn, and its fonts' ToUnicode maps.
 #' @param max_depth Deepest nesting of values, Form XObjects and the page
 #'   tree.
 #' @param max_pages Most pages.

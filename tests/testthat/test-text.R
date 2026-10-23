@@ -289,6 +289,133 @@ test_that("a content stream larger than max_stream is a limit error", {
   )
 })
 
+test_that("max_stream bounds everything one page reads, forms counted each time", {
+  # Form 5 draws form 6 ten times, which draws form 7 ten times: each
+  # stream is small, but the walk reads 111 of them.
+  forms <- lapply(5:7, function(k) {
+    list(
+      dict = sprintf(
+        paste(
+          "<< /Type /XObject /Subtype /Form /BBox [0 0 600 800]",
+          "/Resources << /Font << /F1 %s >> /XObject << /X1 %d 0 R >> >> >>"
+        ),
+        helv,
+        k + 1L
+      ),
+      data = if (k < 7) {
+        strrep("/X1 Do ", 10)
+      } else {
+        "BT /F1 12 Tf 72 700 Td (x) Tj ET"
+      }
+    )
+  })
+  bytes <- page_pdf("/X1 Do", "<< /XObject << /X1 5 0 R >> >>", extra = forms)
+  expect_identical(as.vector(text_of(bytes)), strrep("x", 100))
+  expect_zupdf_error(
+    text_of(bytes, max_stream = 2000),
+    "zupdf_limit_error",
+    limit = "max_stream",
+    limit_value = 2000
+  )
+})
+
+test_that("max_stream bounds a page that lists one content stream many times", {
+  repeated <- function(times) {
+    build_pdf(list(
+      "<< /Type /Catalog /Pages 2 0 R >>",
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      sprintf(
+        paste(
+          "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]",
+          "/Resources << /Font << /F1 %s >> >> /Contents [%s] >>"
+        ),
+        helv,
+        paste(rep("4 0 R", times), collapse = " ")
+      ),
+      list(dict = "<< >>", data = "BT /F1 12 Tf 72 700 Td (abc) Tj ET")
+    ))
+  }
+  expect_identical(
+    as.vector(text_of(repeated(2), max_stream = 1000)),
+    "abc abc"
+  )
+  expect_zupdf_error(
+    text_of(repeated(40), max_stream = 1000),
+    "zupdf_limit_error",
+    limit = "max_stream"
+  )
+  pdf <- pdf_open(repeated(40), max_stream = 1000)
+  withr::defer(pdf_close(pdf))
+  expect_zupdf_error(
+    pdf_page_tokens(pdf, 1),
+    "zupdf_limit_error",
+    limit = "max_stream"
+  )
+})
+
+test_that("max_stream counts the ToUnicode maps a page's fonts read", {
+  # Twenty fonts share one ToUnicode map of about 600 bytes; each font
+  # reads it once.
+  cmap <- paste(
+    "begincmap 1 begincodespacerange <00> <FF> endcodespacerange",
+    "1 beginbfchar <61> <0062> endbfchar",
+    strrep("% padding to make the map larger ", 18),
+    "endcmap"
+  )
+  fonts <- lapply(1:20, function(i) {
+    paste(
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica",
+      "/ToUnicode 25 0 R >>"
+    )
+  })
+  names <- sprintf("/F%d %d 0 R", 1:20, 4L + 1:20)
+  content <- paste(
+    "BT 72 700 Td",
+    paste(sprintf("/F%d 12 Tf (a) Tj", 1:20), collapse = " "),
+    "ET"
+  )
+  bytes <- page_pdf(
+    content,
+    sprintf("<< /Font << %s >> >>", paste(names, collapse = " ")),
+    extra = c(fonts, list(list(dict = "<< >>", data = cmap)))
+  )
+  expect_identical(as.vector(text_of(bytes)), strrep("b", 20))
+  expect_zupdf_error(
+    text_of(bytes, max_stream = 5000),
+    "zupdf_limit_error",
+    limit = "max_stream"
+  )
+})
+
+test_that("a font given as a direct dictionary is loaded once per page", {
+  # Each Tf of a direct dictionary used to load the font, and its ToUnicode
+  # map, again; now it is read once, so the page fits in max_stream.
+  cmap <- paste(
+    "begincmap 1 begincodespacerange <00> <FF> endcodespacerange",
+    "1 beginbfchar <61> <0062> endbfchar",
+    strrep("% padding ", 20),
+    "endcmap"
+  )
+  font <- paste(
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica",
+    "/ToUnicode 5 0 R >>"
+  )
+  content <- paste(
+    "BT 72 700 Td",
+    strrep("/F1 12 Tf (a) Tj ", 100),
+    "ET"
+  )
+  bytes <- page_pdf(
+    content,
+    sprintf("<< /Font << /F1 %s >> >>", font),
+    extra = list(list(dict = "<< >>", data = cmap))
+  )
+  expect_identical(
+    as.vector(text_of(bytes, max_stream = 3000)),
+    strrep("b", 100)
+  )
+})
+
 test_that("pdfio's own test document reads in full", {
   pdf <- pdf_open(fixture("testpdfio.pdf"))
   withr::defer(pdf_close(pdf))

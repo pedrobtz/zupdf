@@ -1,9 +1,14 @@
 /* Text extraction (design section 8, D10): project code in the spirit of
  * pdfio's examples/pdf2text.c, extended with what real files need.
  *
- * Each page's content streams are read whole (bounded by max_stream) and
- * closed before the walk, so no pdfio stream is open while it runs; the
- * walk tokenizes them with zpd_lex. It tracks the graphics and text state
+ * Each page's content streams are read whole and closed before the walk,
+ * so no pdfio stream is open while it runs; the walk tokenizes them with
+ * zpd_lex. One budget, max_stream, bounds the bytes a page's walk handles:
+ * its content streams, every Form XObject each time it is drawn (read once
+ * per page and kept, but walked again, and at least ZPD_FORM_COST a time),
+ * and the ToUnicode maps of the fonts it loads. So the walk's time and
+ * memory grow with the budget, however the forms are shared or the
+ * streams repeated. It tracks the graphics and text state
  * (CTM, text and line matrices, font, size, spacing, scaling, leading,
  * rise, q/Q), maps each code through the font (zpd_font.c), positions each
  * glyph, and descends into Form XObjects under max_depth with cycle
@@ -13,8 +18,10 @@
  *
  * Everything the walk allocates hangs off one context the handle owns
  * (h->text), freed at the end of the call, at the start of the next, or by
- * the finalizer. Interrupts are polled between pages, when nothing but
- * that context is in flight. */
+ * the finalizer: the content, the page's forms, each nesting level's lexer,
+ * glyphs, operands and fonts from direct dictionaries. So an interrupt,
+ * polled every 4 096 tokens when no pdfio stream is open, leaks nothing
+ * when it jumps out of the walk. */
 
 #include <math.h>
 #include <stdio.h>
@@ -27,6 +34,17 @@
 #define ZPD_MAX_OPS 64      /* operands kept per operator */
 #define ZPD_MAX_GSTACK 64   /* q nesting */
 #define ZPD_MAX_XOBJ 256    /* Form XObject nesting, whatever max_depth says */
+#define ZPD_POLL_MASK 4095  /* poll for an interrupt every 4 096 tokens */
+#define ZPD_FORM_COST 256   /* the least a form drawn costs the budget, in bytes */
+
+/* The interrupt poll. R_CheckUserInterrupt() may jump out of the walk,
+   which is safe only because no pdfio stream is open and every buffer
+   belongs to the context. The fuzz target has no R. */
+#ifdef ZPD_STANDALONE
+#define ZPD_POLL() ((void) 0)
+#else
+#define ZPD_POLL() R_CheckUserInterrupt()
+#endif
 
 /* ---- growable buffers -------------------------------------------------------- */
 
@@ -162,17 +180,34 @@ typedef struct {
     size_t astart, alen; /* an array, in the array list */
 } zpd_operand;
 
+typedef struct zpd_form {
+    size_t num;
+    unsigned char *p;
+    size_t n;
+} zpd_form;
+
 typedef struct zpd_text_ctx {
     pdfio_file_t *pdf;
     zpd_font_cache *fonts; /* the handle's cache */
     zpd_font_cache local;  /* fonts from direct dictionaries */
     zpd_font *fallback;
     int max_depth;
-    double max_stream;
-    const char *status; /* NULL, or "max_depth", "max_stream", "memory" */
+    double max_stream;  /* the budget of one page's walk, in bytes */
+    double used;        /* what this page has spent of it */
+    const char *status; /* NULL, or "max_depth", "form_cycle", "max_stream_page", "memory" */
     int unmapped;
+    unsigned long ticks; /* tokens walked, for the interrupt poll */
 
     zpd_buf content;  /* the page's content streams */
+    /* The page's forms, read once and walked each time they are drawn:
+       entries, and a hash of object numbers to entry + 1. */
+    struct zpd_form *forms;
+    size_t nforms, capforms;
+    size_t *fslot;
+    size_t capslot;
+    /* Each nesting level's lexer (level 0 is the content), kept here so
+       that an interrupt leaks none. */
+    zpd_lex lex[ZPD_MAX_XOBJ + 1];
     zpd_glyph *g;
     size_t ng, capg;
     zpd_buf pool;     /* glyph text, UTF-8 */
@@ -202,6 +237,12 @@ static void zpd_text_ctx_free(zpd_text_ctx *c)
         return;
     zpd_font_cache_free(&c->local);
     free(c->content.p);
+    for (size_t i = 0; i < c->nforms; i++)
+        free(c->forms[i].p);
+    free(c->forms);
+    free(c->fslot);
+    for (int i = 0; i <= ZPD_MAX_XOBJ; i++)
+        zpd_lex_free(&c->lex[i]);
     free(c->g);
     free(c->pool.p);
     free(c->raw.p);
@@ -255,20 +296,22 @@ static void zpd_fail(zpd_text_ctx *c, const char *status)
 /* ---- reading the content streams ------------------------------------------------ */
 
 /* Appends a decoded stream to `into`, with a space between streams, which
-   PDF treats as one sequence of tokens (PDF 2.0, 7.8.2). */
+   PDF treats as one sequence of tokens (PDF 2.0, 7.8.2). It reads at most
+   what is left of the page's budget. */
 static int zpd_read_obj_stream(zpd_text_ctx *c, pdfio_stream_t *st, zpd_buf *into)
 {
     if (!st)
         return 0;
     size_t len = 0;
     int over = 0;
-    unsigned char *data = zpd_slurp(st, c->max_stream, &len, &over);
+    unsigned char *data = zpd_slurp(st, c->max_stream - c->used, &len, &over);
     pdfioStreamClose(st);
     if (!data) {
         if (over)
-            zpd_fail(c, "max_stream");
+            zpd_fail(c, "max_stream_page");
         return 0;
     }
+    c->used += (double) len;
     int ok = zpd_buf_add(into, data, len) && zpd_buf_add(into, " ", 1);
     free(data);
     if (!ok)
@@ -282,6 +325,66 @@ static void zpd_read_page(zpd_text_ctx *c, pdfio_obj_t *page)
     size_t n = pdfioPageGetNumStreams(page);
     for (size_t i = 0; i < n && !c->status; i++)
         zpd_read_obj_stream(c, pdfioPageOpenStream(page, i, true), &c->content);
+}
+
+/* ---- the page's forms ------------------------------------------------------------ */
+
+static size_t zpd_form_hash(size_t num, size_t cap)
+{
+    return (size_t) (((unsigned long long) num * 0x9E3779B97F4A7C15ULL) >> 32) & (cap - 1);
+}
+
+static zpd_form *zpd_form_find(zpd_text_ctx *c, size_t num)
+{
+    if (!c->capslot)
+        return NULL;
+    for (size_t h = zpd_form_hash(num, c->capslot); c->fslot[h]; h = (h + 1) & (c->capslot - 1))
+        if (c->forms[c->fslot[h] - 1].num == num)
+            return &c->forms[c->fslot[h] - 1];
+    return NULL;
+}
+
+/* Keeps a form's data (taking the buffer); 0 when memory runs out. */
+static int zpd_form_add(zpd_text_ctx *c, size_t num, unsigned char *p, size_t n)
+{
+    if (c->nforms == c->capforms) {
+        size_t cap = c->capforms ? c->capforms * 2 : 16;
+        zpd_form *grown = realloc(c->forms, cap * sizeof(zpd_form));
+        if (!grown)
+            return 0;
+        c->forms = grown;
+        c->capforms = cap;
+    }
+    if (2 * (c->nforms + 1) > c->capslot) {
+        size_t cap = c->capslot ? c->capslot * 2 : 64;
+        size_t *slot = calloc(cap, sizeof(size_t));
+        if (!slot)
+            return 0;
+        for (size_t i = 0; i < c->nforms; i++) {
+            size_t h = zpd_form_hash(c->forms[i].num, cap);
+            while (slot[h])
+                h = (h + 1) & (cap - 1);
+            slot[h] = i + 1;
+        }
+        free(c->fslot);
+        c->fslot = slot;
+        c->capslot = cap;
+    }
+    size_t h = zpd_form_hash(num, c->capslot);
+    while (c->fslot[h])
+        h = (h + 1) & (c->capslot - 1);
+    c->forms[c->nforms] = (zpd_form){num, p, n};
+    c->fslot[h] = ++c->nforms;
+    return 1;
+}
+
+static void zpd_forms_clear(zpd_text_ctx *c)
+{
+    for (size_t i = 0; i < c->nforms; i++)
+        free(c->forms[i].p);
+    c->nforms = 0;
+    if (c->fslot)
+        memset(c->fslot, 0, c->capslot * sizeof(size_t));
 }
 
 /* ---- output -------------------------------------------------------------------------- */
@@ -360,8 +463,10 @@ static void zpd_show(zpd_text_ctx *c, zpd_run *r, const unsigned char *s, size_t
     zpd_gstate *gs = &r->gs;
     zpd_font *f = gs->font;
     if (!f) {
-        if (!c->fallback)
-            c->fallback = zpd_font_get(c->fonts, &c->local, NULL, NULL, c->max_stream);
+        if (!c->fallback) {
+            int over = 0;
+            c->fallback = zpd_font_get(c->fonts, &c->local, NULL, NULL, c->max_stream, &c->used, &over);
+        }
         f = c->fallback;
         if (!f) {
             zpd_fail(c, "memory");
@@ -424,10 +529,15 @@ static void zpd_set_font(zpd_text_ctx *c, zpd_run *r)
     if (!fonts)
         return;
     pdfio_valtype_t t = pdfioDictGetType(fonts, key);
+    int over = 0;
     if (t == PDFIO_VALTYPE_INDIRECT)
-        r->gs.font = zpd_font_get(c->fonts, &c->local, pdfioDictGetObj(fonts, key), NULL, c->max_stream);
+        r->gs.font = zpd_font_get(c->fonts, &c->local, pdfioDictGetObj(fonts, key), NULL,
+                                  c->max_stream, &c->used, &over);
     else if (t == PDFIO_VALTYPE_DICT)
-        r->gs.font = zpd_font_get(c->fonts, &c->local, NULL, pdfioDictGetDict(fonts, key), c->max_stream);
+        r->gs.font = zpd_font_get(c->fonts, &c->local, NULL, pdfioDictGetDict(fonts, key),
+                                  c->max_stream, &c->used, &over);
+    if (over)
+        zpd_fail(c, "max_stream_page");
 }
 
 static void zpd_do(zpd_text_ctx *c, zpd_run *r, int depth)
@@ -457,11 +567,36 @@ static void zpd_do(zpd_text_ctx *c, zpd_run *r, int depth)
         return;
     }
 
-    zpd_buf form = {0};
-    if (!zpd_read_obj_stream(c, pdfioObjOpenStream(obj, true), &form)) {
-        free(form.p);
+    /* The form is read the first time it is drawn on the page, and walked
+       each time: every walk costs the budget its length, and at least
+       ZPD_FORM_COST, so a form drawn many times from many levels is
+       bounded like content that long. */
+    zpd_form *form = zpd_form_find(c, num);
+    double cost = ZPD_FORM_COST;
+    if (!form) {
+        zpd_buf data = {0};
+        if (!zpd_read_obj_stream(c, pdfioObjOpenStream(obj, true), &data)) {
+            free(data.p);
+            c->used += cost; /* an unreadable form is tried again */
+            return;
+        }
+        if (!zpd_form_add(c, num, data.p, data.n)) {
+            free(data.p);
+            zpd_fail(c, "memory");
+            return;
+        }
+        form = &c->forms[c->nforms - 1];
+    } else {
+        cost += (double) form->n; /* the first read was charged as it was read */
+    }
+    c->used += cost;
+    if (c->used > c->max_stream) { /* GUARD: max_stream_forms */
+        zpd_fail(c, "max_stream_page");
         return;
     }
+    /* Taken now: a walk below may add forms and move the entries. */
+    const unsigned char *data = form->p;
+    size_t len = form->n;
     zpd_run sub = {0};
     sub.gs = r->gs;
     pdfio_array_t *m = zpd_dict_array(dict, "Matrix");
@@ -480,9 +615,8 @@ static void zpd_do(zpd_text_ctx *c, zpd_run *r, int depth)
     c->nops = 0;
     c->opstr.n = 0;
     c->narr = 0;
-    zpd_walk(c, form.p, form.n, &sub, depth + 1);
+    zpd_walk(c, data, len, &sub, depth + 1);
     c->nxobj--;
-    free(form.p);
 }
 
 static void zpd_tj_array(zpd_text_ctx *c, zpd_run *r, const zpd_operand *a)
@@ -625,12 +759,15 @@ static int zpd_push_bytes(zpd_text_ctx *c, zpd_operand *o, const zpd_lex *lx)
 
 static void zpd_walk(zpd_text_ctx *c, const unsigned char *data, size_t n, zpd_run *r, int depth)
 {
-    zpd_lex lx;
-    zpd_lex_init(&lx, data, n);
+    /* This level's lexer: c->nxobj is the nesting, at most ZPD_MAX_XOBJ. */
+    zpd_lex *lx = &c->lex[c->nxobj];
+    zpd_lex_reset(lx, data, n);
     int in_array = 0, dict_depth = 0;
     size_t astart = 0;
 
-    for (zpd_tok_type t = zpd_lex_next(&lx); t != ZPD_TOK_EOF && !c->status; t = zpd_lex_next(&lx)) {
+    for (zpd_tok_type t = zpd_lex_next(lx); t != ZPD_TOK_EOF && !c->status; t = zpd_lex_next(lx)) {
+        if ((++c->ticks & ZPD_POLL_MASK) == 0)
+            ZPD_POLL();
         if (t == ZPD_TOK_ERROR) {
             zpd_fail(c, "memory");
             break;
@@ -663,15 +800,15 @@ static void zpd_walk(zpd_text_ctx *c, const unsigned char *data, size_t n, zpd_r
         if (t == ZPD_TOK_OPERATOR) {
             if (in_array) /* an operator inside an array: malformed, dropped */
                 continue;
-            if (zpd_lex_is(&lx, "BI")) {
+            if (zpd_lex_is(lx, "BI")) {
                 /* Inline image: skip the dictionary's tokens to ID, then its data. */
-                while ((t = zpd_lex_next(&lx)) != ZPD_TOK_EOF && t != ZPD_TOK_ERROR &&
-                       !zpd_lex_is(&lx, "ID"))
+                while ((t = zpd_lex_next(lx)) != ZPD_TOK_EOF && t != ZPD_TOK_ERROR &&
+                       !zpd_lex_is(lx, "ID"))
                     ;
                 if (t == ZPD_TOK_OPERATOR)
-                    zpd_lex_inline_image(&lx);
+                    zpd_lex_inline_image(lx);
             } else {
-                zpd_operator(c, r, (const char *) lx.buf, depth);
+                zpd_operator(c, r, (const char *) lx->buf, depth);
             }
             c->nops = 0;
             c->opstr.n = 0;
@@ -679,9 +816,9 @@ static void zpd_walk(zpd_text_ctx *c, const unsigned char *data, size_t n, zpd_r
             continue;
         }
         /* An operand: a number, name or string, on the stack or in an array. */
-        zpd_operand o = {t, lx.num, 0, 0, 0, 0};
+        zpd_operand o = {t, lx->num, 0, 0, 0, 0};
         if ((t == ZPD_TOK_NAME || t == ZPD_TOK_STRING || t == ZPD_TOK_HEXSTRING) &&
-            !zpd_push_bytes(c, &o, &lx))
+            !zpd_push_bytes(c, &o, lx))
             break;
         if (in_array) {
             if (in_array == 1) {
@@ -705,7 +842,6 @@ static void zpd_walk(zpd_text_ctx *c, const unsigned char *data, size_t n, zpd_r
             c->ops[ZPD_MAX_OPS - 1] = o;
         }
     }
-    zpd_lex_free(&lx);
 }
 
 /* ---- the reading layout --------------------------------------------------------- */
@@ -848,6 +984,8 @@ const char *zpd_text_extract(zpd_text_ctx *c, pdfio_obj_t *page, int raw,
     c->pool.n = c->raw.n = c->out.n = 0;
     c->raw_text = 0;
     c->unmapped = 0;
+    c->used = 0.0; /* each page has the whole budget */
+    zpd_forms_clear(c);
     if (page) {
         int deep = 0;
         zpd_run r = {0};
@@ -1033,27 +1171,29 @@ SEXP zupdf_page_tokens(SEXP ptr, SEXP page_, SEXP max_stream)
     if (page)
         zpd_read_page(c, page);
 
-    zpd_lex lx;
-    zpd_lex_init(&lx, c->content.p, c->content.n);
-    for (zpd_tok_type t = zpd_lex_next(&lx); t != ZPD_TOK_EOF && !c->status; t = zpd_lex_next(&lx)) {
+    /* The context's lexer, so that an interrupt leaks nothing. */
+    zpd_lex *lx = &c->lex[0];
+    zpd_lex_reset(lx, c->content.p, c->content.n);
+    for (zpd_tok_type t = zpd_lex_next(lx); t != ZPD_TOK_EOF && !c->status; t = zpd_lex_next(lx)) {
         int ok;
+        if ((++c->ticks & ZPD_POLL_MASK) == 0)
+            R_CheckUserInterrupt();
         if (t == ZPD_TOK_ERROR) {
             zpd_fail(c, "memory");
             break;
         }
-        if (t == ZPD_TOK_OPERATOR && zpd_lex_is(&lx, "ID")) {
-            ok = zpd_add_token(c, t, lx.buf, lx.len);
-            zpd_lex_inline_image(&lx);
+        if (t == ZPD_TOK_OPERATOR && zpd_lex_is(lx, "ID")) {
+            ok = zpd_add_token(c, t, lx->buf, lx->len);
+            zpd_lex_inline_image(lx);
             char desc[64];
-            snprintf(desc, sizeof(desc), "%lu bytes", (unsigned long) lx.len);
+            snprintf(desc, sizeof(desc), "%lu bytes", (unsigned long) lx->len);
             ok = ok && zpd_add_token(c, ZPD_TOK_INLINE_IMAGE, desc, strlen(desc));
         } else {
-            ok = zpd_add_token(c, t, lx.buf, lx.len);
+            ok = zpd_add_token(c, t, lx->buf, lx->len);
         }
         if (!ok)
             zpd_fail(c, "memory");
     }
-    zpd_lex_free(&lx);
     const char *status = c->status;
 
     SEXP out;
