@@ -1,5 +1,7 @@
-# Default limits, design section 12. Every reader takes its defaults from
-# here, so zupdf_info() reports what pdf_open() enforces.
+# Default limits, design section 12, as zupdf_info() reports them and the
+# writer and the compatibility layer use them. pdf_open() spells the same
+# values out in its formals, so its help page shows them; test-info.R
+# checks that the two agree.
 zpd_default_limits <- function() {
   list(
     max_size = 1024^3,

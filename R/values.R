@@ -111,7 +111,7 @@ zpd_check_value <- function(x, arg, max_depth, call = NULL) {
 
 # Writes a list as an object of a one-page PDF in memory and returns
 # list(bytes, number); the tests read it back with pdf_object().
-zpd_value_roundtrip <- function(x, max_depth = 64L) {
+zpd_value_roundtrip <- function(x, max_depth = zpd_default_limits()$max_depth) {
   zpd_check_value(x, "x", max_depth)
   zpd_unwrap(
     .Call(zupdf_value_roundtrip, x, as.integer(max_depth)),
