@@ -113,6 +113,15 @@ test_that("a filter array is reported in order", {
   expect_false(attr(s, "decoded"))
 })
 
+test_that("filter names that are not UTF-8 are read as PDFDocEncoding", {
+  for (dict in c("/Filter /#82#A0", "/Filter [/#82#A0]")) {
+    pdf <- pdf_open(stream_pdf(as.raw(1:4), dict))
+    s <- pdf_stream(pdf, 4)
+    pdf_close(pdf)
+    expect_identical(attr(s, "filter"), "\u2021\u20ac", label = dict)
+  }
+})
+
 test_that("an object without a stream is refused", {
   pdf <- pdf_open(minimal_pdf())
   withr::defer(pdf_close(pdf))

@@ -976,7 +976,9 @@ SEXP zupdf_page_glyphs(SEXP ptr, SEXP page_, SEXP max_depth, SEXP max_stream)
         SET_STRING_ELT(VECTOR_ELT(v, 5), i,
                        Rf_mkCharLenCE((const char *) c->pool.p + g->off, (int) g->len, CE_UTF8));
         SET_STRING_ELT(VECTOR_ELT(v, 6), i,
-                       g->font && g->font->name[0] ? Rf_mkChar(g->font->name) : NA_STRING);
+                       g->font && g->font->name[0]
+                           ? zpd_mkchar_pdf(g->font->name, strlen(g->font->name))
+                           : NA_STRING);
         REAL(VECTOR_ELT(v, 7))[i] = g->font ? g->font->ascent : 0.8;
         REAL(VECTOR_ELT(v, 8))[i] = g->font ? g->font->descent : -0.2;
     }

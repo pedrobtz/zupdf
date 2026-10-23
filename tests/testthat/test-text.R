@@ -76,6 +76,22 @@ test_that("Differences and glyph names map simple-font codes", {
   expect_identical(attr(t, "unmapped"), 1L)
 })
 
+test_that("pdf_data() reads a font name that is not UTF-8 as pdf_font_table()", {
+  font <- "<< /Type /Font /Subtype /Type1 /BaseFont /#82#A0 >>"
+  bytes <- page_pdf(
+    "BT /F1 12 Tf 72 700 Td (ab) Tj ET",
+    "<< /Font << /F1 5 0 R >> >>",
+    extra = list(font)
+  )
+  pdf <- pdf_open(bytes)
+  withr::defer(pdf_close(pdf))
+  expect_identical(pdf_font_table(pdf)$name, "\u2021\u20ac")
+  expect_identical(
+    pdf_data(bytes, font_info = TRUE)[[1]]$font_name,
+    "\u2021\u20ac"
+  )
+})
+
 test_that("StandardEncoding is the default for a Type 1 font", {
   font <- "<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>"
   bytes <- page_pdf(

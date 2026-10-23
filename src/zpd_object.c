@@ -110,13 +110,13 @@ static SEXP zpd_filters(pdfio_obj_t *obj)
         return Rf_allocVector(STRSXP, 0);
     pdfio_valtype_t t = pdfioDictGetType(dict, "Filter");
     if (t == PDFIO_VALTYPE_NAME)
-        return Rf_mkString(pdfioDictGetName(dict, "Filter"));
+        return zpd_string_or_na(pdfioDictGetName(dict, "Filter"));
     pdfio_array_t *a = t == PDFIO_VALTYPE_ARRAY ? pdfioDictGetArray(dict, "Filter") : NULL;
     size_t n = a ? pdfioArrayGetSize(a) : 0;
     SEXP out = PROTECT(Rf_allocVector(STRSXP, (R_xlen_t) n));
     for (size_t i = 0; i < n; i++) {
         const char *nm = pdfioArrayGetName(a, i);
-        SET_STRING_ELT(out, (R_xlen_t) i, nm ? Rf_mkChar(nm) : NA_STRING);
+        SET_STRING_ELT(out, (R_xlen_t) i, zpd_chr_or_na(nm));
     }
     UNPROTECT(1);
     return out;
