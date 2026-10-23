@@ -19,7 +19,9 @@ Carries \code{object}, the object number, when pdfio named one.}
 \item{\code{zupdf_password_error}}{The file is encrypted and no password
 given opened it.}
 \item{\code{zupdf_limit_error}}{A limit was reached. Carries \code{limit}, the
-argument's name, such as \code{"max_stream"}, and \code{limit_value}.}
+argument's name, such as \code{"max_stream"}, and \code{limit_value}. A form
+XObject drawn inside itself is refused on \code{"max_depth"} and also
+carries \code{cycle = TRUE}.}
 \item{\code{zupdf_unsupported_input}}{The input uses something zupdf does
 not support, such as a WebP image or AES-256 writing.}
 \item{\code{zupdf_write_error}}{pdfio refused to write, or a closed writer

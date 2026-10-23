@@ -185,10 +185,12 @@ test_that("a form drawn inside itself is a limit error", {
   )
   pdf <- pdf_open(bytes)
   withr::defer(pdf_close(pdf))
+  # A cycle, not the depth: refused at once, whatever max_depth allows.
   expect_zupdf_error(
     pdf_page_text(pdf),
     "zupdf_limit_error",
-    limit = "max_depth"
+    limit = "max_depth",
+    cycle = TRUE
   )
 })
 
@@ -213,7 +215,8 @@ test_that("forms nested deeper than max_depth are a limit error", {
     text_of(bytes, max_depth = 3),
     "zupdf_limit_error",
     limit = "max_depth",
-    limit_value = 3
+    limit_value = 3,
+    cycle = NULL
   )
 })
 

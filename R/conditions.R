@@ -17,7 +17,9 @@
 #'   \item{`zupdf_password_error`}{The file is encrypted and no password
 #'     given opened it.}
 #'   \item{`zupdf_limit_error`}{A limit was reached. Carries `limit`, the
-#'     argument's name, such as `"max_stream"`, and `limit_value`.}
+#'     argument's name, such as `"max_stream"`, and `limit_value`. A form
+#'     XObject drawn inside itself is refused on `"max_depth"` and also
+#'     carries `cycle = TRUE`.}
 #'   \item{`zupdf_unsupported_input`}{The input uses something zupdf does
 #'     not support, such as a WebP image or AES-256 writing.}
 #'   \item{`zupdf_write_error`}{pdfio refused to write, or a closed writer
@@ -71,12 +73,13 @@ zpd_invalid_argument <- function(arg, message, call = NULL) {
   zpd_abort("zupdf_invalid_argument", message, arg = arg, call = call)
 }
 
-zpd_limit_error <- function(limit, limit_value, message, call = NULL) {
+zpd_limit_error <- function(limit, limit_value, message, ..., call = NULL) {
   zpd_abort(
     "zupdf_limit_error",
     message,
     limit = limit,
     limit_value = limit_value,
+    ...,
     call = call
   )
 }
@@ -186,6 +189,7 @@ zpd_unwrap <- function(
       "max_depth",
       limits$max_depth,
       sprintf("%s: a form XObject draws itself.", what),
+      cycle = TRUE,
       call = call
     ),
     max_objects = zpd_limit_error(

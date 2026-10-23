@@ -14,7 +14,7 @@
 #' A character the font cannot map becomes U+FFFD, and the count per page
 #' is the `unmapped` attribute. Text in Form XObjects is included; their
 #' nesting is bounded by the `max_depth` of [pdf_open()], and a form drawn
-#' inside itself is a `zupdf_limit_error`. The
+#' inside itself is a `zupdf_limit_error` with `cycle = TRUE`. The
 #' `max_stream` of [pdf_open()] bounds all one page reads: its content
 #' streams, each form each time it is drawn (at least 256 bytes a time), and
 #' its fonts' ToUnicode maps. So a page that draws one form from many levels

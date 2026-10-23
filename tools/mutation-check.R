@@ -87,7 +87,7 @@ expected <- c(
   max_stream = "zupdf_limit_error",
   max_stream_content = "zupdf_limit_error",
   max_stream_forms = "zupdf_limit_error",
-  form_cycle = "zupdf_limit_error: a form XObject draws itself",
+  form_cycle = "zupdf_limit_error: cycle",
   max_depth_form = "zupdf_limit_error",
   copy_depth = "zupdf_write_error"
 )
@@ -131,7 +131,7 @@ shared_forms_pdf <- function(k, levels) {
 '
 
 # Runs a probe against the package installed in `lib`: one line, the
-# condition's class (with the message for form_cycle) or the value's.
+# condition's class (with its cycle field for form_cycle) or the value's.
 probe <- function(lib, guard, code) {
   script <- file.path(work, paste0("probe-", guard, ".R"))
   writeLines(
@@ -146,7 +146,7 @@ probe <- function(lib, guard, code) {
       "  if (is.character(x) && length(x) == 1L) x else class(x)[[1L]]",
       "}, error = function(e) {",
       sprintf(
-        "  if (%s == 'form_cycle') paste0(class(e)[[1L]], ': ', sub('.*: ', '', conditionMessage(e))) else class(e)[[1L]]",
+        "  if (%s == 'form_cycle') paste0(class(e)[[1L]], if (isTRUE(e$cycle)) ': cycle' else ': no cycle') else class(e)[[1L]]",
         deparse(guard)
       ),
       "})",
