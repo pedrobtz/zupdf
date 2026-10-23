@@ -28,6 +28,7 @@ LinkingTo:
 Suggests:
     knitr,
     pdftools,
+    png,
     qpdf,
     rmarkdown,
     testthat (>= 3.0.0),

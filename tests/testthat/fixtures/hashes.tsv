@@ -5,7 +5,8 @@
 # 1.2.12: macOS (Apple), computed locally. 1.3: Ubuntu 24.04 (CI's
 # ubuntu-latest legs), computed in rocker/r-ver:4.5.1. 1.3.1: Rtools (CI's
 # windows-latest leg), computed in Debian trixie's r-base:4.5.1, not on
-# Windows itself. All three zlibs give the same bytes.
+# Windows itself. All three zlibs give the same bytes. On Windows itself,
+# font_file differs with the same zlib and is skipped there (#89).
 case	zlib	md5
 hello	1.2.12	34d499c6a1797c1531716895961ee1b4
 text	1.2.12	959a34085250b788c3cdf55b2c61da44
