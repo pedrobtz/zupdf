@@ -328,3 +328,403 @@ test_that("pdf_data() keeps a rotated word whole, and an empty page is empty", {
   expect_identical(nrow(empty), 0L)
   expect_named(empty, c("width", "height", "x", "y", "space", "text"))
 })
+
+test_that("pdf_data() leaves out a glyph placed by non-finite numbers", {
+  g <- list(
+    text = c("A", "B"),
+    x0 = c(NaN, 72),
+    y0 = c(720, 720),
+    x1 = c(80, 80),
+    y1 = c(720, 720),
+    size = c(12, 12),
+    ascent = c(0.7, 0.7),
+    descent = c(-0.2, -0.2),
+    font = c("Helvetica", "Helvetica")
+  )
+  d <- zpd_words(g, 792, FALSE)
+  expect_identical(d$text, "B")
+  g$x0[[1]] <- 72
+  g$size[[1]] <- Inf
+  expect_identical(zpd_words(g, 792, TRUE)$text, "B")
+})
+
+# ---- values per case, pinned from pdftools 3.9.0 -------------------------------
+
+test_that("pdf_fonts() reports poppler's type for each font and font file", {
+  objs <- list()
+  add <- function(x) {
+    objs[[length(objs) + 1L]] <<- x
+    4L + length(objs)
+  }
+  # A font descriptor with a font file under `key`, of subtype `sub`.
+  desc <- function(key, sub = "") {
+    f <- add(list(dict = sprintf("<< %s >>", sub), data = as.raw(0:3)))
+    add(sprintf(
+      "<< /Type /FontDescriptor /FontName /X /%s %d 0 R >>",
+      key,
+      f
+    ))
+  }
+  fd <- function(d) {
+    if (is.null(d)) "" else sprintf(" /FontDescriptor %d 0 R", d)
+  }
+  simple <- function(name, subtype, d = NULL) {
+    add(sprintf(
+      "<< /Type /Font /Subtype /%s /BaseFont /%s%s >>",
+      subtype,
+      name,
+      fd(d)
+    ))
+  }
+  type0 <- function(name, cid, d = NULL) {
+    k <- add(sprintf(
+      "<< /Type /Font /Subtype /CIDFontType%d /BaseFont /%s%s >>",
+      cid,
+      name,
+      fd(d)
+    ))
+    add(sprintf(
+      "<< /Type /Font /Subtype /Type0 /BaseFont /%s /Encoding /Identity-H /DescendantFonts [%d 0 R] >>",
+      name,
+      k
+    ))
+  }
+  fonts <- c(
+    simple("T1", "Type1"),
+    simple("T1File", "Type1", desc("FontFile")),
+    simple("T1File3", "Type1", desc("FontFile3")),
+    simple("T1C", "Type1", desc("FontFile3", "/Subtype /Type1C")),
+    simple("T1OT", "Type1", desc("FontFile3", "/Subtype /OpenType")),
+    simple("MM", "MMType1"),
+    simple("TT", "TrueType"),
+    simple("TTFile2", "TrueType", desc("FontFile2")),
+    simple("TTCFF", "TrueType", desc("FontFile3", "/Subtype /Type1C")),
+    simple("TTOT", "TrueType", desc("FontFile3", "/Subtype /OpenType")),
+    simple("Odd", "Foo"),
+    type0("CID2", 2L),
+    type0("CID0", 0L),
+    type0("CID0File2", 0L, desc("FontFile2")),
+    type0("CID0File3", 0L, desc("FontFile3")),
+    type0("CID0C", 0L, desc("FontFile3", "/Subtype /CIDFontType0C")),
+    type0("CID2CFF", 2L, desc("FontFile3", "/Subtype /Type1C")),
+    type0("CID2OT", 2L, desc("FontFile3", "/Subtype /OpenType"))
+  )
+  res <- sprintf(
+    "<< /Font << %s >> >>",
+    paste(sprintf("/F%d %d 0 R", fonts, fonts), collapse = " ")
+  )
+  path <- withr::local_tempfile(fileext = ".pdf")
+  writeBin(page_pdf("", res, extra = objs), path)
+  f <- pdf_fonts(path)
+  expected <- data.frame(
+    name = c(
+      "T1",
+      "T1File",
+      "T1File3",
+      "T1C",
+      "T1OT",
+      "MM",
+      "TT",
+      "TTFile2",
+      "TTCFF",
+      "TTOT",
+      "Odd",
+      "CID2",
+      "CID0",
+      "CID0File2",
+      "CID0File3",
+      "CID0C",
+      "CID2CFF",
+      "CID2OT"
+    ),
+    type = c(
+      "type1",
+      "type1",
+      "type1",
+      "type1c",
+      "type1c_ot",
+      "type1",
+      "truetype",
+      "truetype",
+      "type1c",
+      "truetype_ot",
+      "unknown",
+      "cid_truetype",
+      "cid_type0",
+      "cid_truetype",
+      "cid_type0",
+      "cid_type0c",
+      "cid_type0c",
+      "cid_truetype_ot"
+    ),
+    embedded = c(
+      FALSE,
+      TRUE,
+      TRUE,
+      TRUE,
+      TRUE,
+      FALSE,
+      FALSE,
+      TRUE,
+      TRUE,
+      TRUE,
+      FALSE,
+      FALSE,
+      FALSE,
+      TRUE,
+      TRUE,
+      TRUE,
+      TRUE,
+      TRUE
+    )
+  )
+  expect_identical(f$name, expected$name)
+  expect_identical(f$type, expected$type)
+  expect_identical(f$embedded, expected$embedded)
+  expect_identical(f$file, ifelse(expected$embedded, "", NA_character_))
+  skip_if_not_installed("pdftools")
+  p <- suppressMessages(pdftools::pdf_fonts(path))
+  p <- p[match(f$name, p$name), ]
+  expect_identical(p$type, f$type)
+  expect_identical(p$embedded, f$embedded)
+})
+
+test_that("pdf_fonts() reports a font it cannot read as unknown", {
+  deep <- sprintf(
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Deep /X %s >>",
+    nested_array(6L)
+  )
+  bytes <- page_pdf(
+    "",
+    "<< /Font << /F1 5 0 R /F2 6 0 R >> >>",
+    extra = list(deep, helv)
+  )
+  pdf <- pdf_open(bytes, max_depth = 4)
+  withr::defer(pdf_close(pdf))
+  expect_warning(f <- pdf_fonts(pdf), class = "zupdf_warning")
+  expect_identical(f$name, c("", "Helvetica"))
+  expect_identical(f$type, c("unknown", "type1"))
+})
+
+test_that("pdf_attachments() walks /Kids and reads names, types and dates", {
+  objs <- list(
+    "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 5 0 R >> >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+    list(dict = "<< >>", data = ""),
+    "<< /Kids [6 0 R null 7 0 R] >>",
+    "<< /Limits [(a.txt) (a.txt)] /Names [(a.txt) 8 0 R] >>",
+    "<< /Limits [(b.csv) (c.bin)] /Names [(b.csv) 9 0 R (c.bin) 12 0 R] >>",
+    "<< /Type /Filespec /F (a.txt) /UF (a-unicode.txt) /Desc (First) /EF << /F 10 0 R >> >>",
+    "<< /Type /Filespec /F (b.csv) /EF << /F 11 0 R >> >>",
+    list(
+      dict = "<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /CreationDate (D:20240102030405Z) /ModDate (D:20240203040506+01'00') >> >>",
+      data = "aaa"
+    ),
+    list(dict = "<< /Type /EmbeddedFile >>", data = "x,y\n1,2\n"),
+    # No /F: /FS must not stand in for it.
+    "<< /Type /Filespec /FS /URL /EF << /F 13 0 R >> >>",
+    list(
+      dict = "<< /Type /EmbeddedFile /Subtype /application#2Foctet-stream >>",
+      data = as.raw(0:5)
+    )
+  )
+  path <- withr::local_tempfile(fileext = ".pdf")
+  writeBin(build_pdf(objs), path)
+  att <- pdf_attachments(path)
+  expect_identical(
+    vapply(att, `[[`, "", "name"),
+    c("a-unicode.txt", "b.csv", "c.bin")
+  )
+  expect_identical(
+    vapply(att, `[[`, "", "mime"),
+    c("text/plain", "", "application/octet-stream")
+  )
+  expect_identical(vapply(att, `[[`, "", "description"), c("First", "", ""))
+  expect_identical(rawToChar(att[[2]]$data), "x,y\n1,2\n")
+  expect_identical(att[[3]]$data, as.raw(0:5))
+  expect_equal(
+    as.numeric(att[[1]]$created),
+    as.numeric(as.POSIXct("2024-01-02 03:04:05", tz = "UTC"))
+  )
+  expect_equal(
+    as.numeric(att[[1]]$modified),
+    as.numeric(as.POSIXct("2024-02-03 03:05:06", tz = "UTC"))
+  )
+  expect_true(is.na(att[[2]]$created))
+  expect_true(pdf_info(path)$attachments)
+  skip_if_not_installed("pdftools")
+  # pdftools gives the third, whose specification is invalid, no name or
+  # data, and an absent date one second before 1970.
+  p <- suppressMessages(pdftools::pdf_attachments(path))
+  for (k in 1:2) {
+    for (f in c("name", "mime", "description", "data")) {
+      expect_identical(att[[k]][[f]], p[[k]][[f]], label = f)
+    }
+  }
+  expect_equal(as.numeric(att[[1]]$created), as.numeric(p[[1]]$created))
+  expect_equal(as.numeric(att[[1]]$modified), as.numeric(p[[1]]$modified))
+})
+
+test_that("an empty or odd /Names array lists no attachment", {
+  for (names in c("[]", "[(a.txt)]")) {
+    objs <- list(
+      sprintf(
+        "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names %s >> >> >>",
+        names
+      ),
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+      list(dict = "<< >>", data = "")
+    )
+    bytes <- build_pdf(objs)
+    expect_identical(pdf_attachments(bytes), list(), label = names)
+    expect_false(pdf_info(bytes)$attachments, label = names)
+  }
+})
+
+test_that("pdf_info()$layout names each /PageLayout as pdftools does", {
+  layouts <- c(
+    SinglePage = "single_page",
+    OneColumn = "one_column",
+    TwoColumnLeft = "two_column_left",
+    TwoColumnRight = "two_column_right",
+    TwoPageLeft = "two_page_left",
+    TwoPageRight = "two_page_right",
+    Bogus = "no_layout"
+  )
+  for (l in names(layouts)) {
+    objs <- list(
+      sprintf("<< /Type /Catalog /Pages 2 0 R /PageLayout /%s >>", l),
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+      list(dict = "<< >>", data = "")
+    )
+    expect_identical(pdf_info(build_pdf(objs))$layout, layouts[[l]], label = l)
+  }
+})
+
+# ---- passwords, limits and outputs ----------------------------------------------
+
+test_that("the owner password is tried when the user password is refused", {
+  f <- fixture("encrypted-aes-128-pw.pdf")
+  text <- "Encrypted with AES-128 and passwords\n"
+  expect_identical(pdf_text(f, opw = "owner", upw = "wrong"), text)
+  expect_identical(pdf_text(f, opw = "wrong", upw = "user"), text)
+  bytes <- readBin(f, "raw", file.size(f))
+  expect_identical(pdf_info(bytes, opw = "owner", upw = "wrong")$pages, 1L)
+  expect_zupdf_error(
+    pdf_text(f, opw = "bad", upw = "wrong"),
+    "zupdf_password_error"
+  )
+  expect_zupdf_error(
+    pdf_text(f, opw = NA_character_),
+    "zupdf_invalid_argument",
+    arg = "opw"
+  )
+})
+
+test_that("pdf_toc() stops at the file's max_depth", {
+  objs <- list(
+    "<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+    list(dict = "<< >>", data = ""),
+    "<< /Type /Outlines /First 6 0 R >>",
+    "<< /Title (1) /First 7 0 R >>",
+    "<< /Title (1.1) /First 8 0 R >>",
+    "<< /Title (1.1.1) >>"
+  )
+  bytes <- build_pdf(objs)
+  deep <- pdf_toc(bytes)
+  expect_identical(
+    deep$children[[1]]$children[[1]]$children[[1]]$title,
+    "1.1.1"
+  )
+  pdf <- pdf_open(bytes, max_depth = 1)
+  withr::defer(pdf_close(pdf))
+  shallow <- pdf_toc(pdf)
+  expect_identical(shallow$children[[1]]$children[[1]]$title, "1.1")
+  expect_identical(shallow$children[[1]]$children[[1]]$children, list())
+})
+
+test_that("a deep outline under a large max_depth does not overflow R", {
+  n <- 5000L
+  items <- sprintf(
+    "<< /Title (%d)%s >>",
+    seq_len(n),
+    ifelse(seq_len(n) < n, sprintf(" /First %d 0 R", 6L + seq_len(n)), "")
+  )
+  bytes <- build_pdf(c(
+    list(
+      "<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R >>",
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+      list(dict = "<< >>", data = ""),
+      "<< /Type /Outlines /First 6 0 R >>"
+    ),
+    as.list(items)
+  ))
+  pdf <- pdf_open(bytes, max_depth = 1e6)
+  withr::defer(pdf_close(pdf))
+  item <- pdf_toc(pdf)
+  depth <- 0L
+  while (length(item$children)) {
+    item <- item$children[[1]]
+    depth <- depth + 1L
+  }
+  expect_identical(depth, n)
+  expect_identical(item$title, as.character(n))
+})
+
+test_that("a limit reached reading the XMP metadata is raised", {
+  w <- pdf_new(version = "2.0")
+  pdf_set_meta(w, title = "Meta")
+  pdf_page_end(pdf_page_new(w))
+  pdf <- pdf_open(pdf_save(w), max_stream = 100)
+  withr::defer(pdf_close(pdf))
+  expect_zupdf_error(pdf_info(pdf), "zupdf_limit_error", limit = "max_stream")
+})
+
+test_that("default outputs drop .pdf in any case and never overwrite an input", {
+  dir <- withr::local_tempdir()
+  upper <- minimal_pdf(text = "a", path = file.path(dir, "doc.PDF"))
+  bare <- minimal_pdf(text = "b", path = file.path(dir, "bare"))
+  before <- bytes_md5(upper)
+  expect_identical(basename(pdf_subset(upper)), "doc_output.pdf")
+  expect_identical(basename(pdf_rotate_pages(upper, 1)), "doc_output.pdf")
+  expect_identical(basename(pdf_combine(c(upper, bare))), "doc_combined.pdf")
+  expect_identical(basename(pdf_subset(bare)), "bare_output.pdf")
+  expect_identical(bytes_md5(upper), before)
+  expect_zupdf_error(
+    pdf_subset(upper, output = upper),
+    "zupdf_invalid_argument",
+    arg = "output"
+  )
+  expect_zupdf_error(
+    pdf_combine(c(upper, bare), output = bare),
+    "zupdf_invalid_argument",
+    arg = "output"
+  )
+  # The second page of "x" would be x_2.pdf, the input itself.
+  two <- minimal_pdf(text = c("1", "2"), path = file.path(dir, "x_2.pdf"))
+  expect_zupdf_error(
+    pdf_split(two, output = file.path(dir, "x")),
+    "zupdf_invalid_argument",
+    arg = "output"
+  )
+  expect_identical(bytes_md5(upper), before)
+})
+
+test_that("a pdf_file read from memory needs an explicit output", {
+  pdf <- pdf_open(minimal_pdf(text = c("a", "b")))
+  withr::defer(pdf_close(pdf))
+  expect_zupdf_error(
+    pdf_subset(pdf, pages = 2),
+    "zupdf_invalid_argument",
+    arg = "output"
+  )
+  expect_zupdf_error(pdf_split(pdf), "zupdf_invalid_argument", arg = "output")
+  out <- withr::local_tempfile(fileext = ".pdf")
+  expect_identical(pdf_text(pdf_subset(pdf, pages = 2, output = out)), "b\n")
+})

@@ -25,7 +25,8 @@ pdf_attachments(pdf, opw = "", upw = "")
 \arguments{
 \item{pdf}{A path, a raw vector, or an open \code{pdf_file}.}
 
-\item{opw, upw}{The owner and user passwords; \code{""} for none.}
+\item{opw, upw}{The owner and user passwords; \code{""} for none. The user
+password is tried first, then the owner password.}
 
 \item{raw}{For \code{pdf_text()}: \code{TRUE} for the text in content-stream
 order.}
@@ -55,12 +56,14 @@ poppler's physical layout: the same pages and words, single spaces
 instead of padding to page positions, and no text from annotations.
 \item \code{pdf_fonts()} reports \code{file} as \code{""} for an embedded font and \code{NA}
 otherwise, since zupdf looks up no system fonts.
-\item \code{pdf_info()} reports an absent date as \code{NA}, where pdftools reports
-one second before 1970.
+\item \code{pdf_info()} and \code{pdf_attachments()} report an absent date as \code{NA},
+where pdftools reports one second before 1970.
+\item \code{pdf_attachments()} names an attachment whose file specification has
+no file name by its key in the name tree, where pdftools reports \code{""}.
 }
 
-\code{pdf_render_page()}, \code{pdf_convert()} and the OCR functions need a
-renderer and are not provided; \code{pdf_data()} is not provided yet.
+\code{\link[=pdf_data]{pdf_data()}} has its own page. \code{pdf_render_page()}, \code{pdf_convert()} and
+the OCR functions need a renderer and are not provided.
 }
 \examples{
 path <- system.file("examples", "hello.pdf", package = "zupdf")

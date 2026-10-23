@@ -32,8 +32,11 @@ pdf_rotate_pages(
 \item{password}{The password for the input, or \code{""}.}
 
 \item{output}{The output path, or \code{NULL} for qpdf's default next to the
-input: for \code{pdf_split()} a prefix, to which \verb{_1.pdf}, \verb{_2.pdf}, ... are
-added.}
+(first) input: its name without \code{.pdf}, in any case, followed by
+\verb{_output.pdf} (\code{pdf_combine()}: \verb{_combined.pdf}). For \code{pdf_split()} a
+prefix, to which \verb{_1.pdf}, \verb{_2.pdf}, ... are added. An output that
+would overwrite an input is refused, and a \code{pdf_file} read from a raw
+vector or a connection needs an explicit \code{output}.}
 
 \item{pages}{Page numbers to keep (\code{pdf_subset()}) or rotate
 (\code{pdf_rotate_pages()}); any R index into the pages, such as \code{-1}.}

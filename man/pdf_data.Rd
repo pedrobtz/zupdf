@@ -11,11 +11,12 @@ pdf_data(pdf, font_info = FALSE, opw = "", upw = "")
 
 \item{font_info}{\code{TRUE} to add each word's \code{font_name} and \code{font_size}.}
 
-\item{opw, upw}{The owner and user passwords; \code{""} for none.}
+\item{opw, upw}{The owner and user passwords; \code{""} for none. The user
+password is tried first, then the owner password.}
 }
 \value{
 A list with a data frame per page, with columns \code{width},
-\code{height}, \code{x}, \code{y}, \code{space} and \code{text}, and with \code{font_info},
+\code{height}, \code{x}, \code{y}, \code{space} and \code{text}; with \code{font_info = TRUE}, also
 \code{font_name} and \code{font_size}.
 }
 \description{

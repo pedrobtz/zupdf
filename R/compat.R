@@ -19,14 +19,17 @@
 #'   instead of padding to page positions, and no text from annotations.
 #' * `pdf_fonts()` reports `file` as `""` for an embedded font and `NA`
 #'   otherwise, since zupdf looks up no system fonts.
-#' * `pdf_info()` reports an absent date as `NA`, where pdftools reports
-#'   one second before 1970.
+#' * `pdf_info()` and `pdf_attachments()` report an absent date as `NA`,
+#'   where pdftools reports one second before 1970.
+#' * `pdf_attachments()` names an attachment whose file specification has
+#'   no file name by its key in the name tree, where pdftools reports `""`.
 #'
-#' `pdf_render_page()`, `pdf_convert()` and the OCR functions need a
-#' renderer and are not provided; `pdf_data()` is not provided yet.
+#' [pdf_data()] has its own page. `pdf_render_page()`, `pdf_convert()` and
+#' the OCR functions need a renderer and are not provided.
 #'
 #' @param pdf A path, a raw vector, or an open `pdf_file`.
-#' @param opw,upw The owner and user passwords; `""` for none.
+#' @param opw,upw The owner and user passwords; `""` for none. The user
+#'   password is tried first, then the owner password.
 #' @param raw For `pdf_text()`: `TRUE` for the text in content-stream
 #'   order.
 #' @return As pdftools: `pdf_info()` a list of `version`, `pages`,
@@ -74,7 +77,7 @@ pdf_info <- function(pdf, opw = "", upw = "") {
     metadata = zpd_xmp(p, cat),
     locked = FALSE,
     attachments = length(zpd_embedded_files(p, cat, limits)) > 0L,
-    layout = zpd_layout(cat$PageLayout)
+    layout = zpd_layout(zpd_key(cat, "PageLayout"))
   )
 }
 
@@ -98,7 +101,18 @@ pdf_fonts <- function(pdf, opw = "", upw = "") {
   on.exit(x$done())
   p <- x$pdf
   ft <- pdf_font_table(p)
-  type <- vapply(ft$object, function(n) zpd_poppler_font_type(p, n), "")
+  # A font pdf_font_table() could not read (embedded NA) has warned already.
+  type <- vapply(
+    seq_along(ft$object),
+    function(k) {
+      if (is.na(ft$embedded[[k]])) {
+        "unknown"
+      } else {
+        zpd_poppler_font_type(p, ft$object[[k]])
+      }
+    },
+    ""
+  )
   out <- data.frame(
     name = ifelse(is.na(ft$name), "", ft$name),
     type = type,
@@ -133,16 +147,15 @@ pdf_toc <- function(pdf, opw = "", upw = "") {
   on.exit(x$done())
   p <- x$pdf
   cat <- zpd_doc_dict(p, "catalog")
-  outlines <- zpd_deref(p, cat$Outlines)
-  if (!is.list(outlines) || is.null(outlines$First)) {
+  outlines <- zpd_deref(p, zpd_key(cat, "Outlines"))
+  first <- zpd_key(outlines, "First")
+  if (is.null(first)) {
     return(list())
   }
-  seen <- new.env(parent = emptyenv())
-  limit <- zpd_limits(p)$max_objects
   list(
     title = "",
     is_open = TRUE,
-    children = zpd_outline_items(p, outlines$First, seen, limit, 0L)
+    children = zpd_outline(p, first, zpd_limits(p))
   )
 }
 
@@ -169,8 +182,11 @@ pdf_attachments <- function(pdf, opw = "", upw = "") {
 #'
 #' @param input A path (for `pdf_combine()`, paths), or an open `pdf_file`.
 #' @param output The output path, or `NULL` for qpdf's default next to the
-#'   input: for `pdf_split()` a prefix, to which `_1.pdf`, `_2.pdf`, ... are
-#'   added.
+#'   (first) input: its name without `.pdf`, in any case, followed by
+#'   `_output.pdf` (`pdf_combine()`: `_combined.pdf`). For `pdf_split()` a
+#'   prefix, to which `_1.pdf`, `_2.pdf`, ... are added. An output that
+#'   would overwrite an input is refused, and a `pdf_file` read from a raw
+#'   vector or a connection needs an explicit `output`.
 #' @param password The password for the input, or `""`.
 #' @param pages Page numbers to keep (`pdf_subset()`) or rotate
 #'   (`pdf_rotate_pages()`); any R index into the pages, such as `-1`.
@@ -201,15 +217,17 @@ pdf_split <- function(input, output = NULL, password = "") {
   call <- sys.call()
   x <- zpd_compat_input(input, password, call)
   on.exit(x$done())
-  if (!length(output)) {
-    output <- sub("\\.pdf$", "", x$path)
-  }
+  output <- zpd_compat_output(output, list(x), "", call, normalise = FALSE)
   n <- length(x$pdf)
-  out <- sprintf("%s_%d.pdf", output, seq_len(n))
+  out <- normalizePath(
+    sprintf("%s_%d.pdf", output, seq_len(n)),
+    mustWork = FALSE
+  )
+  zpd_compat_not_input(out, list(x), call)
   for (i in seq_len(n)) {
     zpd_compat_write(x$pdf, i, out[[i]], call = call)
   }
-  normalizePath(out, mustWork = FALSE)
+  out
 }
 
 #' @rdname qpdf-compat
@@ -218,10 +236,7 @@ pdf_subset <- function(input, pages = 1, output = NULL, password = "") {
   call <- sys.call()
   x <- zpd_compat_input(input, password, call)
   on.exit(x$done())
-  if (!length(output)) {
-    output <- sub("\\.pdf$", "_output.pdf", x$path)
-  }
-  output <- normalizePath(output, mustWork = FALSE)
+  output <- zpd_compat_output(output, list(x), "_output.pdf", call)
   pages <- zpd_compat_pages(x$pdf, pages, call)
   zpd_compat_write(x$pdf, pages, output, call = call)
   output
@@ -243,10 +258,7 @@ pdf_combine <- function(input, output = NULL, password = "") {
       x$done()
     }
   )
-  if (!length(output)) {
-    output <- sub("\\.pdf$", "_combined.pdf", opened[[1]]$path)
-  }
-  output <- normalizePath(output, mustWork = FALSE)
+  output <- zpd_compat_output(output, opened, "_combined.pdf", call)
   w <- pdf_new()
   for (x in opened) {
     pdf_copy_pages(w, x$pdf)
@@ -268,10 +280,7 @@ pdf_rotate_pages <- function(
   call <- sys.call()
   x <- zpd_compat_input(input, password, call)
   on.exit(x$done())
-  if (!length(output)) {
-    output <- sub("\\.pdf$", "_output.pdf", x$path)
-  }
-  output <- normalizePath(output, mustWork = FALSE)
+  output <- zpd_compat_output(output, list(x), "_output.pdf", call)
   pages <- zpd_compat_pages(x$pdf, pages, call)
   if (
     !is.numeric(angle) ||
@@ -302,34 +311,43 @@ pdf_rotate_pages <- function(
 # ---- shared ------------------------------------------------------------------
 
 # Opens a pdftools-style `pdf` (path, raw vector or pdf_file) with the user
-# password, else the owner password. list(pdf, done), where done() closes
-# what was opened here and leaves a caller's pdf_file open.
+# password and, if that is refused, the owner password (design section
+# 5.1). list(pdf, done), where done() closes what was opened here and
+# leaves a caller's pdf_file open.
 zpd_compat_open <- function(pdf, opw, upw, call = NULL) {
   if (inherits(pdf, "pdf_file")) {
     zpd_check_open(pdf, call = call)
     return(list(pdf = pdf, done = function() NULL))
   }
-  pw <- if (nzchar(upw)) {
-    upw
-  } else if (nzchar(opw)) {
-    opw
-  } else {
-    NULL
+  zpd_check_string(opw, "opw", call = call)
+  zpd_check_string(upw, "upw", call = call)
+  pw <- unique(c(upw, opw)[nzchar(c(upw, opw))])
+  if (length(pw) > 1L && inherits(pdf, "connection")) {
+    # A second try needs the bytes again.
+    pdf <- zpd_read_connection(pdf, zpd_default_limits()$max_size, call)
   }
-  p <- pdf_open(pdf, password = pw)
+  p <- tryCatch(
+    pdf_open(pdf, password = if (length(pw)) pw[[1L]]),
+    zupdf_password_error = function(e) {
+      if (length(pw) < 2L) {
+        stop(e)
+      }
+      pdf_open(pdf, password = pw[[2L]])
+    }
+  )
   list(pdf = p, done = function() pdf_close(p))
 }
 
 # A qpdf-style `input`: a path, normalised as qpdf does, or a pdf_file.
-# list(pdf, path, done).
+# list(pdf, path, done); `path` is NULL for a pdf_file read from a raw
+# vector or a connection, which has no file of its own.
 zpd_compat_input <- function(input, password = "", call = NULL) {
   if (inherits(input, "pdf_file")) {
     zpd_check_open(input, call = call)
-    return(list(
-      pdf = input,
-      path = attr(input, "path", exact = TRUE),
-      done = function() NULL
-    ))
+    path <- if (identical(attr(input, "source", exact = TRUE), "path")) {
+      normalizePath(attr(input, "path", exact = TRUE), mustWork = FALSE)
+    }
+    return(list(pdf = input, path = path, done = function() NULL))
   }
   if (!is.character(input) || length(input) != 1L || is.na(input)) {
     zpd_invalid_argument("input", "input should contain exactly one file", call)
@@ -337,6 +355,43 @@ zpd_compat_input <- function(input, password = "", call = NULL) {
   path <- normalizePath(input, mustWork = FALSE)
   p <- pdf_open(path, password = if (nzchar(password)) password else NULL)
   list(pdf = p, path = path, done = function() pdf_close(p))
+}
+
+# The output path: `output` if given, else qpdf's default next to the first
+# input, its name without ".pdf" (in any case) and with `suffix` added. An
+# input with no file of its own has no default, and no output may be one
+# of the inputs, which are still being read.
+zpd_compat_output <- function(output, inputs, suffix, call, normalise = TRUE) {
+  if (length(output)) {
+    zpd_check_string(output, "output", call = call)
+  } else {
+    path <- inputs[[1L]]$path
+    if (is.null(path)) {
+      zpd_invalid_argument(
+        "output",
+        "`output` is needed for a PDF read from memory.",
+        call
+      )
+    }
+    output <- paste0(sub("\\.pdf$", "", path, ignore.case = TRUE), suffix)
+  }
+  if (!normalise) {
+    return(output)
+  }
+  output <- normalizePath(output, mustWork = FALSE)
+  zpd_compat_not_input(output, inputs, call)
+  output
+}
+
+zpd_compat_not_input <- function(output, inputs, call) {
+  paths <- unlist(lapply(inputs, `[[`, "path"))
+  if (any(output %in% paths)) {
+    zpd_invalid_argument(
+      "output",
+      "`output` must not overwrite an input.",
+      call
+    )
+  }
 }
 
 # qpdf's page selection: any R index into the pages.
@@ -375,14 +430,14 @@ zpd_layout <- function(x) {
   if (is.na(v) || !v %in% names(map)) "no_layout" else map[[v]]
 }
 
+# The XMP stream's text. A damaged or missing stream is "" (poppler's
+# answer), but a limit is the caller's and is raised, as everywhere else.
 zpd_xmp <- function(pdf, cat) {
-  ref <- cat$Metadata
+  ref <- zpd_key(cat, "Metadata")
   if (!inherits(ref, "pdf_ref")) {
     return("")
   }
-  s <- tryCatch(pdf_stream(pdf, unclass(ref)[[1L]]), zupdf_error = function(e) {
-    NULL
-  })
+  s <- zpd_or_null(pdf_stream(pdf, unclass(ref)[[1L]]))
   if (is.null(s) || !isTRUE(attr(s, "decoded"))) {
     return("")
   }
@@ -393,10 +448,24 @@ zpd_xmp <- function(pdf, cat) {
   out
 }
 
+# `expr`'s value, or NULL when it fails with a zupdf_error. A limit error
+# is raised all the same: the limit is the caller's, not a fault of the
+# file, and a value read past it would be wrong without a word.
+zpd_or_null <- function(expr) {
+  tryCatch(expr, zupdf_error = function(e) {
+    if (inherits(e, "zupdf_limit_error")) {
+      stop(e)
+    }
+    NULL
+  })
+}
+
+# Whether one of the first objects is a linearisation dictionary. An object
+# that cannot be read is not one, but a limit is raised, as in zpd_xmp().
 zpd_linearized <- function(pdf) {
   objs <- suppressWarnings(pdf_objects(pdf))
   for (n in utils::head(objs$number, 3L)) {
-    v <- tryCatch(pdf_object(pdf, n), zupdf_error = function(e) NULL)
+    v <- zpd_or_null(pdf_object(pdf, n))
     if (is.list(v) && "Linearized" %in% names(v)) {
       return(TRUE)
     }
@@ -404,148 +473,206 @@ zpd_linearized <- function(pdf) {
   FALSE
 }
 
-# poppler's font type names, as pdftools reports them.
+# poppler's font type names, as pdftools reports them: the font's subtype,
+# refined by its font file as poppler does. A FontFile2 makes a CID font
+# TrueType; a FontFile3 of subtype Type1C or CIDFontType0C makes it CFF,
+# and one of subtype OpenType adds "_ot". Checked against pdftools in
+# test-compat.R.
 zpd_poppler_font_type <- function(pdf, n) {
   d <- pdf_object(pdf, n)
-  sub <- zpd_chr(d$Subtype)
-  file_key <- function(d) {
-    fd <- zpd_deref(pdf, d$FontDescriptor)
-    if (!is.list(fd)) {
-      return(NA_character_)
-    }
-    k <- intersect(c("FontFile", "FontFile2", "FontFile3"), names(fd))
-    if (length(k)) k[[1]] else NA_character_
-  }
-  if (identical(sub, "Type0")) {
-    desc <- zpd_deref(pdf, d$DescendantFonts)
-    cid <- if (length(desc)) zpd_deref(pdf, desc[[1L]]) else list()
-    if (identical(zpd_chr(cid$Subtype), "CIDFontType2")) {
-      return("cid_truetype")
-    }
-    return(
-      if (identical(file_key(cid), "FontFile3")) "cid_type0c" else "cid_type0"
-    )
-  }
-  switch(
-    if (is.na(sub)) "" else sub,
-    Type1 = ,
-    MMType1 = if (identical(file_key(d), "FontFile3")) "type1c" else "type1",
-    TrueType = "truetype",
-    Type3 = "type3",
-    "unknown"
-  )
-}
-
-# The outline items from `first` along /Next, each with its children,
-# guarded against cycles and bounded by max_objects.
-zpd_outline_items <- function(pdf, first, seen, limit, depth) {
-  items <- list()
-  ref <- first
-  while (inherits(ref, "pdf_ref")) {
-    key <- as.character(unclass(ref)[[1L]])
-    if (!is.null(seen[[key]]) || length(ls(seen)) >= limit || depth > 64L) {
-      break
-    }
-    assign(key, TRUE, envir = seen)
-    item <- pdf_object(pdf, unclass(ref)[[1L]])
-    if (!is.list(item)) {
-      break
-    }
-    title <- if (is.character(item$Title)) item$Title[[1]] else ""
-    children <- if (inherits(item$First, "pdf_ref")) {
-      zpd_outline_items(pdf, item$First, seen, limit, depth + 1L)
-    } else {
-      list()
-    }
-    # A positive /Count marks an item shown open (PDF 2.0, 12.3.3).
-    is_open <- is.numeric(item$Count) && item$Count > 0
-    items[[length(items) + 1L]] <- list(
-      title = title,
-      is_open = is_open,
-      children = children
-    )
-    ref <- item$Next
-  }
-  items
-}
-
-# The /EmbeddedFiles name tree's entries: list(list(name, spec)).
-zpd_embedded_files <- function(pdf, cat, limits) {
-  names_dict <- zpd_deref(pdf, cat$Names)
-  root <- if (is.list(names_dict)) {
-    zpd_deref(pdf, names_dict$EmbeddedFiles)
+  sub <- zpd_chr(zpd_key(d, "Subtype"))
+  cid <- identical(sub, "Type0")
+  if (cid) {
+    desc <- zpd_deref(pdf, zpd_key(d, "DescendantFonts"))
+    d <- if (is.list(desc) && length(desc)) zpd_deref(pdf, desc[[1L]])
+    two <- identical(zpd_chr(zpd_key(d, "Subtype")), "CIDFontType2")
+    type <- if (two) "cid_truetype" else "cid_type0"
   } else {
-    NULL
+    type <- switch(
+      if (is.na(sub)) "" else sub,
+      Type1 = ,
+      MMType1 = "type1",
+      TrueType = "truetype",
+      Type3 = return("type3"),
+      return("unknown")
+    )
   }
-  out <- list()
+  fd <- zpd_deref(pdf, zpd_key(d, "FontDescriptor"))
+  key <- intersect(c("FontFile", "FontFile2", "FontFile3"), names(fd))
+  key <- if (is.list(fd) && length(key)) key[[1L]] else ""
+  if (key == "FontFile2" && cid) {
+    return("cid_truetype")
+  }
+  if (key != "FontFile3") {
+    return(type)
+  }
+  # A stream object's value is its dictionary.
+  ff <- zpd_deref(pdf, zpd_key(fd, "FontFile3"))
+  ff_sub <- zpd_chr(zpd_key(ff, "Subtype"))
+  if (ff_sub %in% c("Type1C", "CIDFontType0C")) {
+    if (cid) "cid_type0c" else "type1c"
+  } else if (ff_sub %in% "OpenType") {
+    c(
+      type1 = "type1c_ot",
+      truetype = "truetype_ot",
+      cid_type0 = "cid_type0c_ot",
+      cid_truetype = "cid_truetype_ot"
+    )[[type]]
+  } else {
+    type
+  }
+}
+
+# The outline items from `first` along /Next, each with its children. A
+# cycle ends a list, and the walk stops after max_objects items or below
+# max_depth levels. It keeps its own stack rather than recursing, so a
+# deep outline under a large max_depth cannot overflow R's.
+zpd_outline <- function(pdf, first, limits) {
   seen <- new.env(parent = emptyenv())
-  walk <- function(node, depth) {
-    if (!is.list(node) || depth > limits$max_depth) {
-      return()
-    }
-    nm <- zpd_deref(pdf, node$Names)
-    if (is.list(nm)) {
-      for (i in seq(1L, length(nm) - 1L, by = 2L)) {
-        out[[length(out) + 1L]] <<- list(
-          name = as.character(nm[[i]]),
-          spec = nm[[i + 1L]]
-        )
+  title <- character()
+  is_open <- logical()
+  parent <- integer()
+  n <- 0L
+  # Lists still to walk: each from `ref`, `depth` levels down, under item
+  # `under` (0 for the top level).
+  todo <- list(list(ref = first, depth = 0L, under = 0L))
+  top <- 1L
+  while (top > 0L) {
+    job <- todo[[top]]
+    top <- top - 1L
+    ref <- job$ref
+    while (inherits(ref, "pdf_ref")) {
+      key <- as.character(unclass(ref)[[1L]])
+      if (
+        !is.null(seen[[key]]) ||
+          n >= limits$max_objects ||
+          job$depth > limits$max_depth
+      ) {
+        break
       }
-    }
-    kids <- zpd_deref(pdf, node$Kids)
-    for (k in if (is.list(kids)) kids else list()) {
-      key <- as.character(unclass(k)[[1L]])
-      if (inherits(k, "pdf_ref") && is.null(seen[[key]])) {
-        assign(key, TRUE, envir = seen)
-        walk(zpd_deref(pdf, k), depth + 1L)
+      assign(key, TRUE, envir = seen)
+      item <- pdf_object(pdf, unclass(ref)[[1L]])
+      if (!is.list(item)) {
+        break
       }
+      n <- n + 1L
+      t <- zpd_key(item, "Title")
+      title[[n]] <- if (is.character(t) && length(t)) t[[1L]] else ""
+      # A positive /Count marks an item shown open (PDF 2.0, 12.3.3).
+      count <- zpd_key(item, "Count")
+      is_open[[n]] <- is.numeric(count) && isTRUE(count[[1L]] > 0)
+      parent[[n]] <- job$under
+      child <- zpd_key(item, "First")
+      if (inherits(child, "pdf_ref")) {
+        top <- top + 1L
+        todo[[top]] <- list(ref = child, depth = job$depth + 1L, under = n)
+      }
+      ref <- zpd_key(item, "Next")
     }
   }
-  walk(root, 0L)
+  # Children come after their parent and in order, so building from the
+  # last item back finds every item's children already built.
+  kids <- split(seq_len(n), factor(parent, levels = 0:n))
+  built <- vector("list", n)
+  for (i in rev(seq_len(n))) {
+    built[[i]] <- list(
+      title = title[[i]],
+      is_open = is_open[[i]],
+      children = built[kids[[i + 1L]]]
+    )
+  }
+  built[kids[[1L]]]
+}
+
+# The /EmbeddedFiles name tree's entries, in order: list(list(name, spec)).
+# Like zpd_outline(), it keeps its own stack.
+zpd_embedded_files <- function(pdf, cat, limits) {
+  names_dict <- zpd_deref(pdf, zpd_key(cat, "Names"))
+  root <- zpd_key(names_dict, "EmbeddedFiles")
+  out <- list()
+  k <- 0L
+  seen <- new.env(parent = emptyenv())
+  todo <- list(list(node = root, depth = 0L))
+  top <- 1L
+  while (top > 0L) {
+    job <- todo[[top]]
+    top <- top - 1L
+    node <- zpd_deref(pdf, job$node)
+    if (!is.list(node) || job$depth > limits$max_depth) {
+      next
+    }
+    nm <- zpd_deref(pdf, zpd_key(node, "Names"))
+    if (is.list(nm)) {
+      # Key and value pairs; an odd last key has no value and is dropped.
+      for (i in seq_len(length(nm) %/% 2L) * 2L - 1L) {
+        k <- k + 1L
+        out[[k]] <- list(name = zpd_chr(nm[[i]]), spec = nm[[i + 1L]])
+      }
+    }
+    kids <- zpd_deref(pdf, zpd_key(node, "Kids"))
+    fresh <- list()
+    for (kid in if (is.list(kids)) kids else list()) {
+      if (!inherits(kid, "pdf_ref")) {
+        next
+      }
+      key <- as.character(unclass(kid)[[1L]])
+      if (is.null(seen[[key]])) {
+        assign(key, TRUE, envir = seen)
+        fresh[[length(fresh) + 1L]] <- kid
+      }
+    }
+    # Pushed last first, so the first kid is walked next.
+    for (kid in rev(fresh)) {
+      top <- top + 1L
+      todo[[top]] <- list(node = kid, depth = job$depth + 1L)
+    }
+  }
   out
 }
 
+# One attachment as pdftools reports it: `name` is the name tree's key for
+# the file specification `spec`.
 zpd_attachment <- function(pdf, name, spec) {
+  # A text entry: a string, not a name or anything else.
+  text <- function(x) {
+    if (is.character(x) && length(x) == 1L && !inherits(x, "pdf_name")) x
+  }
+  date <- function(x) if (inherits(x, "POSIXct")) x else .POSIXct(NA_real_)
   spec <- zpd_deref(pdf, spec)
-  ef <- if (is.list(spec)) zpd_deref(pdf, spec$EF) else NULL
-  ref <- if (is.list(ef)) (if (!is.null(ef$UF)) ef$UF else ef$F) else NULL
+  ef <- zpd_deref(pdf, zpd_key(spec, "EF"))
+  ref <- zpd_key(ef, "UF")
+  if (is.null(ref)) {
+    ref <- zpd_key(ef, "F")
+  }
   data <- raw()
-  mime <- NA_character_
+  mime <- ""
   created <- modified <- .POSIXct(NA_real_)
   if (inherits(ref, "pdf_ref")) {
     n <- unclass(ref)[[1L]]
     sd <- pdf_object(pdf, n)
-    mime <- zpd_chr(sd$Subtype)
-    params <- zpd_deref(pdf, sd$Params)
-    if (is.list(params)) {
-      if (inherits(params$CreationDate, "POSIXct")) {
-        created <- params$CreationDate
-      }
-      if (inherits(params$ModDate, "POSIXct")) modified <- params$ModDate
+    sub <- zpd_key(sd, "Subtype")
+    if (is.character(sub) && length(sub) == 1L) {
+      mime <- as.character(sub)
     }
+    params <- zpd_deref(pdf, zpd_key(sd, "Params"))
+    created <- date(zpd_key(params, "CreationDate"))
+    modified <- date(zpd_key(params, "ModDate"))
     data <- as.vector(pdf_stream(pdf, n))
   }
-  fname <- if (is.list(spec)) {
-    if (is.character(spec$UF)) {
-      spec$UF
-    } else if (is.character(spec$F)) {
-      spec$F
-    } else {
-      name
-    }
-  } else {
-    name
+  fname <- text(zpd_key(spec, "UF"))
+  if (is.null(fname)) {
+    fname <- text(zpd_key(spec, "F"))
   }
+  if (is.null(fname)) {
+    fname <- if (is.na(name)) "" else name
+  }
+  desc <- text(zpd_key(spec, "Desc"))
   list(
     name = fname,
     mime = mime,
     created = created,
     modified = modified,
-    description = if (is.list(spec) && is.character(spec$Desc)) {
-      spec$Desc
-    } else {
-      ""
-    },
+    description = if (is.null(desc)) "" else desc,
     data = data
   )
 }
