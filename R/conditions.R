@@ -23,7 +23,9 @@
 #'   \item{`zupdf_write_error`}{pdfio refused to write, or a closed writer
 #'     was used.}
 #'   \item{`zupdf_font_error`}{A font file could not be read.}
-#'   \item{`zupdf_io_error`}{A file, temporary file or connection failed.}
+#'   \item{`zupdf_io_error`}{A file, temporary file or connection failed.
+#'     From [pdf_save()], after the file was finished, it carries `bytes`,
+#'     the file's bytes.}
 #'   \item{`zupdf_encoding_error`}{Extracted text is not valid UTF-8 after
 #'     mapping.}
 #' }

@@ -73,6 +73,35 @@ test_that("pdf_save() writes to a path and to a connection", {
   expect_identical(reread(path2, length), 1L)
 })
 
+test_that("pdf_save() keeps the document when it cannot write there", {
+  w <- pdf_new()
+  pdf_page_end(pdf_page_new(w))
+  dir <- withr::local_tempdir()
+  bad <- file.path(dir, "no-such-dir", "x.pdf")
+  expect_zupdf_error(pdf_save(w, bad), "zupdf_io_error")
+  # A text-mode connection cannot take bytes; it is refused first too.
+  text_con <- file(file.path(dir, "text.pdf"), "w")
+  withr::defer(close(text_con))
+  expect_zupdf_error(pdf_save(w, text_con), "zupdf_io_error")
+  # The writer is still open, so the document can go elsewhere.
+  path <- file.path(dir, "x.pdf")
+  expect_identical(pdf_save(w, path), path)
+  expect_identical(reread(path, length), 1L)
+})
+
+test_that("bytes that fail to write come with the error", {
+  w <- pdf_new()
+  pdf_page_end(pdf_page_new(w))
+  path <- withr::local_tempfile(fileext = ".pdf")
+  con <- file(path, "wb")
+  withr::defer(try(close(con), silent = TRUE))
+  # A failure once the file is finished, such as a full disk.
+  local_mocked_bindings(zpd_write_bytes = function(...) stop("disk full"))
+  err <- expect_zupdf_error(pdf_save(w, con), "zupdf_io_error")
+  expect_identical(rawToChar(err$bytes[1:5]), "%PDF-")
+  expect_identical(reread(err$bytes, length), 1L)
+})
+
 test_that("a saved writer, an ended page and an open page are refused", {
   w <- pdf_new()
   page <- pdf_page_new(w)

@@ -92,6 +92,11 @@ pdf_new <- function(
 #' file or connection. Every page must have been ended. The writer cannot
 #' be used afterwards.
 #'
+#' The path or connection is opened before the writer is closed, so one
+#' that cannot be written raises a `zupdf_io_error` and leaves the writer
+#' open to save elsewhere. If writing fails after that, the
+#' `zupdf_io_error` carries the file's bytes as its `bytes` field.
+#'
 #' @param w A `pdf_writer` from [pdf_new()].
 #' @param file `NULL` to return the bytes, a path, or a connection.
 #' @return The bytes as a raw vector when `file` is `NULL`, else `file`,
@@ -127,6 +132,14 @@ pdf_save <- function(w, file = NULL) {
       call
     )
   }
+  # The destination is opened before the writer closes, so a path or
+  # connection that cannot be written leaves the writer open.
+  if (!is.null(file)) {
+    dest <- zpd_save_open(file, call)
+    if (dest$opened) {
+      on.exit(close(dest$con), add = TRUE)
+    }
+  }
   bytes <- zpd_unwrap(
     .Call(
       zupdf_writer_save,
@@ -141,26 +154,71 @@ pdf_save <- function(w, file = NULL) {
   if (is.null(file)) {
     return(bytes)
   }
-  if (is.character(file)) {
-    tryCatch(
-      writeBin(bytes, file),
-      error = function(e) {
-        zpd_abort(
-          "zupdf_io_error",
-          sprintf("Cannot write '%s': %s", file, conditionMessage(e)),
-          call = call
-        )
-      }
-    )
-  } else {
-    if (!isOpen(file)) {
-      open(file, "wb")
-      on.exit(close(file), add = TRUE)
+  # The writer is closed now: if writing fails, the bytes go with the
+  # error so the document is not lost.
+  tryCatch(
+    zpd_write_bytes(bytes, dest$con),
+    error = function(e) {
+      zpd_abort(
+        "zupdf_io_error",
+        sprintf(
+          "Cannot write the PDF file to %s: %s; its bytes are in the condition's `bytes`.",
+          dest$what,
+          conditionMessage(e)
+        ),
+        detail = conditionMessage(e),
+        bytes = bytes,
+        call = call
+      )
     }
-    writeBin(bytes, file)
-  }
+  )
   invisible(file)
 }
+
+# Opens `file` (a path, or a connection not yet open) for binary writing,
+# or checks that an open connection can take bytes: list(con, opened,
+# what), or a zupdf_io_error.
+zpd_save_open <- function(file, call = NULL) {
+  what <- if (is.character(file)) sprintf("'%s'", file) else "the connection"
+  fail <- function(reason) {
+    zpd_abort(
+      "zupdf_io_error",
+      sprintf("Cannot write to %s: %s", what, reason),
+      detail = reason,
+      call = call
+    )
+  }
+  # file() and open() warn with the reason and then fail; the reason is
+  # kept and the warning not shown.
+  reason <- NULL
+  attempt <- function(expr) {
+    withCallingHandlers(
+      tryCatch(expr, error = function(e) {
+        fail(if (is.null(reason)) conditionMessage(e) else reason)
+      }),
+      warning = function(w) {
+        reason <<- conditionMessage(w)
+        invokeRestart("muffleWarning")
+      }
+    )
+  }
+  if (is.character(file)) {
+    con <- attempt(file(file, "wb"))
+    return(list(con = con, opened = TRUE, what = what))
+  }
+  if (!isOpen(file)) {
+    attempt(open(file, "wb"))
+    return(list(con = file, opened = TRUE, what = what))
+  }
+  s <- summary(file)
+  if (!identical(s[["can write"]], "yes") || !identical(s$text, "binary")) {
+    fail("the connection is not open for binary writing.")
+  }
+  list(con = file, opened = FALSE, what = what)
+}
+
+# writeBin(), apart so a test can make it fail.
+zpd_write_bytes <- function(bytes, con) writeBin(bytes, con)
 
 #' Fonts for the writer
 #'

@@ -25,7 +25,9 @@ not support, such as a WebP image or AES-256 writing.}
 \item{\code{zupdf_write_error}}{pdfio refused to write, or a closed writer
 was used.}
 \item{\code{zupdf_font_error}}{A font file could not be read.}
-\item{\code{zupdf_io_error}}{A file, temporary file or connection failed.}
+\item{\code{zupdf_io_error}}{A file, temporary file or connection failed.
+From \code{\link[=pdf_save]{pdf_save()}}, after the file was finished, it carries \code{bytes},
+the file's bytes.}
 \item{\code{zupdf_encoding_error}}{Extracted text is not valid UTF-8 after
 mapping.}
 }
