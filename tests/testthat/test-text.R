@@ -578,15 +578,47 @@ test_that("every afl-input case's text extracts as pinned", {
   }
 })
 
-test_that("a page of 2,000 is read without reading the others", {
-  # A timing: meaningless under valgrind or gctorture, so only on request.
-  skip_if_no_slow_tests()
-  bytes <- minimal_pdf(text = sprintf("page %d", 1:2000))
-  pdf <- pdf_open(bytes)
+test_that("a page is read without reading the others", {
+  # Structural, not a timing: page 2's content is a Flate bomb past
+  # max_stream and page 3's a reference to no object, so reading either
+  # page 1 or page 4 reads only that page.
+  bomb <- flate(charToRaw(strrep(" ", 1e5)))
+  page <- function(contents) {
+    sprintf(
+      paste(
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]",
+        "/Resources << /Font << /F1 %s >> >> /Contents %s >>"
+      ),
+      helv,
+      contents
+    )
+  }
+  bytes <- build_pdf(list(
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>",
+    page("7 0 R"),
+    page("8 0 R"),
+    page("99 0 R"),
+    page("7 0 R"),
+    list(dict = "<< >>", data = "BT /F1 12 Tf 72 700 Td (page) Tj ET"),
+    list(dict = "<< /Filter /FlateDecode >>", data = bomb)
+  ))
+  pdf <- pdf_open(bytes, max_stream = 1000)
   withr::defer(pdf_close(pdf))
-  t <- system.time(x <- pdf_page_text(pdf, pages = 1500))
-  expect_identical(as.vector(x), "page 1500")
-  expect_lt(t[["elapsed"]], 1)
+  expect_identical(
+    as.vector(pdf_page_text(pdf, pages = c(1, 4))),
+    c("page", "page")
+  )
+  expect_identical(nrow(pdf_page_tokens(pdf, 4)), 10L)
+  expect_zupdf_error(
+    pdf_page_text(pdf, pages = 2),
+    "zupdf_limit_error",
+    limit = "max_stream"
+  )
+  expect_identical(
+    as.vector(suppressWarnings(pdf_page_text(pdf, pages = 3))),
+    ""
+  )
 })
 
 # ---- tokens -----------------------------------------------------------------
