@@ -17,7 +17,9 @@ points, or \code{NULL} for the writer's default size.}
 
 \item{dict}{\code{NULL}, or a named list of further page dictionary entries
 as R values (see \code{\link[=pdf_object]{pdf_object()}} for the mapping), such as
-\code{list(Rotate = 90L)}.}
+\code{list(Rotate = 90L)}. A \code{pdf_ref} is an object number in the file
+being written: one read from another file names whatever object has
+its number here. Use \code{\link[=pdf_copy_pages]{pdf_copy_pages()}} to bring pages across.}
 
 \item{page}{A \code{pdf_page}.}
 }

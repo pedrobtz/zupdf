@@ -29,7 +29,9 @@ zpd_ops <- c(
 #'   points, or `NULL` for the writer's default size.
 #' @param dict `NULL`, or a named list of further page dictionary entries
 #'   as R values (see [pdf_object()] for the mapping), such as
-#'   `list(Rotate = 90L)`.
+#'   `list(Rotate = 90L)`. A `pdf_ref` is an object number in the file
+#'   being written: one read from another file names whatever object has
+#'   its number here. Use [pdf_copy_pages()] to bring pages across.
 #' @param page A `pdf_page`.
 #' @return `pdf_page_new()`: a `pdf_page`. `pdf_page_end()`: the page,
 #'   invisibly.

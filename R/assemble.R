@@ -68,7 +68,7 @@ pdf_copy_pages <- function(w, pdf, pages = NULL, rotate = 0) {
 #' @inheritParams pdf_save
 #' @param ... Named values: `title`, `author`, `subject`, `keywords`,
 #'   `creator` and `language` (such as `"en-GB"`) are strings; `modified` is
-#'   a `POSIXct`.
+#'   a `POSIXct` from 1970 to 3000.
 #' @return `w`, invisibly.
 #' @export
 #' @examples
@@ -108,10 +108,10 @@ pdf_set_meta <- function(w, ...) {
   modified <- NA_real_
   if (!is.null(args$modified)) {
     m <- args$modified
-    if (!inherits(m, "POSIXct") || length(m) != 1L || is.na(m)) {
+    if (!zpd_is_time(m)) {
       zpd_invalid_argument(
         "modified",
-        "`modified` must be one POSIXct time.",
+        "`modified` must be one POSIXct time from 1970 to 3000.",
         call
       )
     }

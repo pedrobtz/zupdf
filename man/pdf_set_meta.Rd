@@ -11,7 +11,7 @@ pdf_set_meta(w, ...)
 
 \item{...}{Named values: \code{title}, \code{author}, \code{subject}, \code{keywords},
 \code{creator} and \code{language} (such as \code{"en-GB"}) are strings; \code{modified} is
-a \code{POSIXct}.}
+a \code{POSIXct} from 1970 to 3000.}
 }
 \value{
 \code{w}, invisibly.

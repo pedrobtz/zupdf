@@ -412,7 +412,7 @@ SEXP zupdf_writer_save(SEXP ptr, SEXP created, SEXP deterministic)
     if (!w)
         return zpd_status("closed");
     zpd_record_reset(&w->rec);
-    pdfioFileSetCreationDate(w->pdf, (time_t) floor(Rf_asReal(created)));
+    pdfioFileSetCreationDate(w->pdf, zpd_clamp_time(Rf_asReal(created)));
     /* An encrypted file's key is derived from its identifier, so the
        identifier stays pdfio's (random) once encryption is on. */
     if (Rf_asLogical(deterministic) == TRUE && w->pdf->encryption == PDFIO_ENCRYPTION_NONE) {
@@ -688,7 +688,7 @@ SEXP zupdf_writer_set_meta(SEXP ptr, SEXP keys, SEXP values, SEXP modified)
     }
     double m = Rf_asReal(modified);
     if (!ISNAN(m))
-        pdfioFileSetModificationDate(w->pdf, (time_t) floor(m));
+        pdfioFileSetModificationDate(w->pdf, zpd_clamp_time(m));
     return zpd_result("ok", R_NilValue, &w->rec);
 }
 

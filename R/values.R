@@ -33,6 +33,20 @@ print.pdf_binary <- function(x, ...) {
   invisible(x)
 }
 
+# The times zupdf writes: from 1970 to the end of 3000, UTC. gmtime() on
+# Windows takes no other, pdfio reads none before 1970, and a double outside
+# time_t's range has no integer to become (design section 6).
+zpd_time_range <- c(0, 32535215999)
+
+# `x` is one POSIXct time zupdf can write.
+zpd_is_time <- function(x) {
+  if (!inherits(x, "POSIXct") || length(x) != 1L) {
+    return(FALSE)
+  }
+  t <- unclass(x)[[1L]]
+  is.finite(t) && t >= zpd_time_range[[1L]] && t <= zpd_time_range[[2L]]
+}
+
 # Checks that `x`, a list, can be written as a PDF dictionary (named) or
 # array (unnamed): every element a list of the same kind, NULL, a raw
 # vector, or a length-one logical, number or string that is not NA, with
@@ -71,7 +85,10 @@ zpd_check_value <- function(x, arg, max_depth, call = NULL) {
       }
       return(invisible())
     }
-    if (inherits(v, "POSIXct") && length(v) == 1L && !is.na(v)) {
+    if (inherits(v, "POSIXct")) {
+      if (!zpd_is_time(v)) {
+        fail(path, "must be one time from 1970 to 3000")
+      }
       return(invisible())
     }
     if (inherits(v, "pdf_ref") && length(v) == 1L && !is.na(v)) {

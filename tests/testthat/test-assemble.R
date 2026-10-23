@@ -216,6 +216,36 @@ test_that("pdf_set_meta() checks its arguments", {
   )
 })
 
+test_that("every time written is one from 1970 to 3000", {
+  # An infinite or huge time has no time_t to become, and gmtime() on
+  # Windows takes none before 1970 (#43).
+  w <- pdf_new()
+  for (t in c(Inf, -Inf, NaN, 1e300, -1, 32535216000)) {
+    expect_zupdf_error(
+      pdf_new(created = .POSIXct(t)),
+      "zupdf_invalid_argument",
+      arg = "created"
+    )
+    expect_zupdf_error(
+      pdf_set_meta(w, modified = .POSIXct(t)),
+      "zupdf_invalid_argument",
+      arg = "modified"
+    )
+    expect_zupdf_error(
+      pdf_page_new(w, dict = list(D = .POSIXct(t))),
+      "zupdf_invalid_argument",
+      arg = "dict"
+    )
+  }
+  last <- .POSIXct(32535215999, tz = "UTC")
+  w <- pdf_new(created = .POSIXct(0, tz = "UTC"))
+  pdf_set_meta(w, modified = last)
+  pdf_page_end(pdf_page_new(w))
+  out <- pdf_open(pdf_save(w))
+  withr::defer(pdf_close(out))
+  expect_identical(pdf_meta(out)$modified, last)
+})
+
 # ---- encryption ---------------------------------------------------------------
 
 test_that("each method encrypts with user and owner passwords", {
