@@ -70,7 +70,9 @@ test_that("Differences and glyph names map simple-font codes", {
     sprintf("<< /Font << /F1 %s >> >>", font)
   )
   t <- text_of(bytes)
-  expect_identical(as.vector(t), "Å☺\U0001f600é�F")
+  expect_identical(as.vector(t), "\u00c5\u263a\U0001f600\u00e9\ufffdF")
+  # Marked UTF-8, so it reads the same in any locale.
+  expect_identical(Encoding(t), "UTF-8")
   expect_identical(attr(t, "unmapped"), 1L)
 })
 
@@ -80,7 +82,7 @@ test_that("StandardEncoding is the default for a Type 1 font", {
     "BT /F1 12 Tf 72 700 Td (It\\047s \\256) Tj ET",
     sprintf("<< /Font << /F1 %s >> >>", font)
   )
-  expect_identical(as.vector(text_of(bytes)), "It’s ﬁ")
+  expect_identical(as.vector(text_of(bytes)), "It\u2019s \ufb01")
 })
 
 test_that("a Type0 font maps two-byte codes through its ToUnicode CMap", {
@@ -106,7 +108,8 @@ test_that("a Type0 font maps two-byte codes through its ToUnicode CMap", {
     extra = list(font, cid, list(dict = "<< >>", data = cmap))
   )
   t <- text_of(bytes)
-  expect_identical(as.vector(t), "Hfiabc☺\U0001f600�")
+  expect_identical(as.vector(t), "Hfiabc\u263a\U0001f600\ufffd")
+  expect_identical(Encoding(t), "UTF-8")
   expect_identical(attr(t, "unmapped"), 1L)
 })
 
