@@ -49,7 +49,8 @@ test_that("reading the corpus neither crashes nor writes to stderr", {
   # under devtools::test(); otherwise the installed copy the namespace came
   # from, not whichever zupdf is first on the library path.
   path <- getNamespaceInfo("zupdf", "path")
-  dev <- isNamespaceLoaded("pkgload") && pkgload::is_dev_package("zupdf")
+  # A source tree has src/; an installed package does not.
+  dev <- dir.exists(file.path(path, "src"))
   load <- if (dev) {
     sprintf(
       "pkgload::load_all(%s, compile = FALSE, quiet = TRUE)",
