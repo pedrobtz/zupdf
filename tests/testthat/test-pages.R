@@ -36,8 +36,8 @@ test_that("boxes and rotation are inherited from the page tree", {
 test_that("rotation is normalised to 0, 90, 180 or 270", {
   for (r in list(c(-90, 270), c(450, 90), c(180, 180), c(360, 0))) {
     pdf <- pdf_open(minimal_pdf(rotate = r[[1]]))
+    withr::defer(pdf_close(pdf))
     expect_identical(pdf_pages(pdf)$rotate, as.integer(r[[2]]))
-    pdf_close(pdf)
   }
 })
 

@@ -96,8 +96,8 @@ test_that("a filter pdfio cannot decode comes back as stored", {
   for (f in c("DCTDecode", "ASCIIHexDecode")) {
     data <- as.raw(c(0xff, 0xd8, 0xff, 0x00, 0x41))
     pdf <- pdf_open(stream_pdf(data, paste0("/Filter /", f)))
+    withr::defer(pdf_close(pdf))
     s <- pdf_stream(pdf, 4)
-    pdf_close(pdf)
     expect_identical(as.vector(s), data, label = f)
     expect_false(attr(s, "decoded"))
     expect_identical(attr(s, "filter"), f)

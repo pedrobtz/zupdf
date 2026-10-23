@@ -180,8 +180,8 @@ test_that("a password-protected file needs its user or owner password", {
     )
     for (pw in c("user", "owner")) {
       pdf <- pdf_open(fixture(f), password = pw)
+      withr::defer(pdf_close(pdf))
       expect_identical(length(pdf), 1L)
-      pdf_close(pdf)
     }
   }
 })
@@ -202,8 +202,8 @@ test_that("a non-ASCII password is written in PDFDocEncoding", {
     pdf_save(w, paths[[method]])
     for (p in c(pw, "øwner")) {
       pdf <- pdf_open(paths[[method]], password = p)
+      withr::defer(pdf_close(pdf))
       expect_identical(length(pdf), 1L, label = method)
-      pdf_close(pdf)
     }
     expect_zupdf_error(
       pdf_open(paths[[method]], password = "café"),
@@ -303,9 +303,12 @@ test_that("a spilled copy is removed by pdf_close() and by the finalizer", {
 
 test_that("a thousand unclosed handles leave no descriptors or files", {
   skip_heavy()
+  # The process's open descriptors: /proc/self/fd on Linux, /dev/fd on
+  # macOS and the BSDs; none on Windows, which checks files only.
   fds <- function() {
-    d <- "/proc/self/fd"
-    if (dir.exists(d)) length(list.files(d)) else NA_integer_
+    d <- c("/proc/self/fd", "/dev/fd")
+    d <- d[dir.exists(d)]
+    if (length(d)) length(list.files(d[[1L]])) else NA_integer_
   }
   gc() # other tests' unclosed handles
   before_fd <- fds()

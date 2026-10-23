@@ -16,12 +16,3 @@ skip_if_no_slow_tests <- function() {
     "ZUPDF_SLOW_TESTS is not set"
   )
 }
-
-# Skips until the roadmap stage that exports `fn` lands, so a test can be
-# written before the code it tests.
-skip_until_exported <- function(fn) {
-  skip_if_not(
-    fn %in% getNamespaceExports("zupdf"),
-    paste0(fn, "() is not implemented yet")
-  )
-}

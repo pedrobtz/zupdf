@@ -172,7 +172,14 @@ corpus_pins <- function() {
   utils::read.delim(
     fixture("corpus.tsv"),
     comment.char = "#",
-    colClasses = c("character", "integer", "integer", "character", "integer", "integer")
+    colClasses = c(
+      "character",
+      "integer",
+      "integer",
+      "character",
+      "integer",
+      "integer"
+    )
   )
 }
 
