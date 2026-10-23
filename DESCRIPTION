@@ -26,6 +26,7 @@ Depends:
 LinkingTo:
     zufast (>= 0.1.0)
 Suggests:
+    jpeg,
     knitr,
     pdftools,
     png,

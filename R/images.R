@@ -1,7 +1,10 @@
 #' Images on a page
 #'
 #' Lists the images in a page's resources: the image XObjects it can draw.
-#' Images inside Form XObjects and inline images are not listed.
+#' Images inside Form XObjects and inline images are not listed. An
+#' XObject whose dictionary cannot be read is listed with `NA` in every
+#' column but `object` and `name`, and the errors become one
+#' `zupdf_warning`, as in [pdf_objects()].
 #'
 #' @inheritParams pdf_page_tokens
 #' @return A data frame with columns `object` (for [pdf_image()]), `name`
@@ -25,17 +28,28 @@ pdf_page_images <- function(pdf, i) {
     call,
     limits = limits
   )
+  na_info <- list(
+    width = NA_integer_,
+    height = NA_integer_,
+    bits = NA_integer_,
+    color_space = NA_character_,
+    filter = NA_character_
+  )
+  info <- zpd_rows(xo$number, na_info, call, function(n) {
+    d <- pdf_object(pdf, n)
+    if (!identical(zpd_chr(zpd_key(d, "Subtype")), "Image")) {
+      return(NULL)
+    }
+    zpd_image_info(pdf, d)
+  })
   rows <- list()
   for (k in seq_along(xo$number)) {
-    d <- pdf_object(pdf, xo$number[[k]])
-    if (!identical(zpd_chr(d$Subtype), "Image")) {
-      next
+    if (!is.null(info[[k]])) {
+      rows[[length(rows) + 1L]] <- c(
+        list(object = zpd_counts(xo$number[[k]]), name = xo$name[[k]]),
+        info[[k]]
+      )
     }
-    info <- zpd_image_info(pdf, d)
-    rows[[length(rows) + 1L]] <- c(
-      list(object = zpd_counts(xo$number[[k]]), name = xo$name[[k]]),
-      info
-    )
   }
   if (length(rows) == 0L) {
     return(data.frame(
@@ -77,9 +91,15 @@ pdf_page_images <- function(pdf, i) {
 #'   `nativeRaster`.
 #' @export
 #' @examples
-#' pdf <- pdf_open(system.file("examples", "hello.pdf", package = "zupdf"))
-#' imgs <- pdf_page_images(pdf, 1)
-#' imgs
+#' w <- pdf_new()
+#' img <- pdf_image_new(w, as.raster(matrix(c("red", "blue"), 1)))
+#' page <- pdf_page_new(w)
+#' pdf_draw_image(page, img, 72, 600, 200, 100)
+#' pdf_page_end(page)
+#' pdf <- pdf_open(pdf_save(w))
+#' n <- pdf_page_images(pdf, 1)$object
+#' pdf_image(pdf, n, as = "raw")
+#' pdf_image(pdf, n, as = "native")
 #' pdf_close(pdf)
 pdf_image <- function(pdf, n, as = c("raw", "native")) {
   call <- sys.call()
@@ -87,22 +107,29 @@ pdf_image <- function(pdf, n, as = c("raw", "native")) {
   n <- zpd_check_number(n, "n", call = call)
   as <- zpd_match_arg(as, c("raw", "native"), "as", call)
   d <- pdf_object(pdf, n)
-  if (!is.list(d) || !identical(zpd_chr(d$Subtype), "Image")) {
+  if (!identical(zpd_chr(zpd_key(d, "Subtype")), "Image")) {
     zpd_invalid_argument("n", "The object is not an image.", call = call)
   }
   info <- zpd_image_info(pdf, d)
   stored <- info$filter %in% c("DCTDecode", "JPXDecode", "JBIG2Decode")
   bytes <- pdf_stream(pdf, n, decode = !stored)
   if (as == "native") {
-    channels <- c(DeviceRGB = 3L, DeviceGray = 1L)[info$color_space]
-    if (info$color_space == "ICCBased") {
-      channels <- zpd_icc_channels(pdf, d)
+    cs <- info$color_space
+    channels <- if (identical(cs, "ICCBased")) {
+      zpd_icc_channels(pdf, d)
+    } else if (identical(cs, "DeviceRGB")) {
+      3L
+    } else if (identical(cs, "DeviceGray")) {
+      1L
+    } else {
+      # An image mask has no colour space; Indexed, CMYK and others are
+      # not converted.
+      NA_integer_
     }
     if (
       !isTRUE(attr(bytes, "decoded")) ||
-        is.na(channels) ||
         !channels %in% c(1L, 3L) ||
-        info$bits != 8L
+        !identical(info$bits, 8L)
     ) {
       zpd_abort(
         "zupdf_unsupported_input",
@@ -141,29 +168,33 @@ pdf_image <- function(pdf, n, as = c("raw", "native")) {
 }
 
 zpd_image_info <- function(pdf, d) {
-  cs <- zpd_deref(pdf, d$ColorSpace)
-  cs <- if (is.list(cs)) zpd_chr(cs[[1L]]) else zpd_chr(cs)
-  filter <- zpd_deref(pdf, d$Filter)
+  cs <- zpd_deref(pdf, zpd_key(d, "ColorSpace"))
+  cs <- if (is.list(cs)) {
+    if (length(cs)) zpd_chr(cs[[1L]]) else NA_character_
+  } else {
+    zpd_chr(cs)
+  }
+  filter <- zpd_deref(pdf, zpd_key(d, "Filter"))
   filter <- if (is.list(filter)) {
-    zpd_chr(filter[[length(filter)]])
+    if (length(filter)) zpd_chr(filter[[length(filter)]]) else NA_character_
   } else {
     zpd_chr(filter)
   }
-  int <- function(x) if (is.null(x)) NA_integer_ else as.integer(x)
   list(
-    width = int(d$Width),
-    height = int(d$Height),
-    bits = int(d$BitsPerComponent),
+    width = zpd_int(pdf, zpd_key(d, "Width")),
+    height = zpd_int(pdf, zpd_key(d, "Height")),
+    bits = zpd_int(pdf, zpd_key(d, "BitsPerComponent")),
     color_space = cs,
     filter = filter
   )
 }
 
+# The number of components of an [/ICCBased stream] colour space, its /N.
 zpd_icc_channels <- function(pdf, d) {
-  cs <- zpd_deref(pdf, d$ColorSpace)
+  cs <- zpd_deref(pdf, zpd_key(d, "ColorSpace"))
   if (!is.list(cs) || length(cs) < 2L) {
     return(NA_integer_)
   }
   icc <- zpd_deref(pdf, cs[[2L]])
-  if (is.list(icc) && !is.null(icc$N)) as.integer(icc$N) else NA_integer_
+  zpd_int(pdf, zpd_key(icc, "N"))
 }

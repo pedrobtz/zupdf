@@ -28,8 +28,14 @@ components) that zupdf can decode comes back as a \code{nativeRaster}, for
 \code{\link[grid:grid.raster]{grid::grid.raster()}} or \code{\link[graphics:rasterImage]{graphics::rasterImage()}}.
 }
 \examples{
-pdf <- pdf_open(system.file("examples", "hello.pdf", package = "zupdf"))
-imgs <- pdf_page_images(pdf, 1)
-imgs
+w <- pdf_new()
+img <- pdf_image_new(w, as.raster(matrix(c("red", "blue"), 1)))
+page <- pdf_page_new(w)
+pdf_draw_image(page, img, 72, 600, 200, 100)
+pdf_page_end(page)
+pdf <- pdf_open(pdf_save(w))
+n <- pdf_page_images(pdf, 1)$object
+pdf_image(pdf, n, as = "raw")
+pdf_image(pdf, n, as = "native")
 pdf_close(pdf)
 }
