@@ -126,6 +126,41 @@ test_that("max_pages and max_objects are checked after the xref is read", {
   expect_no_error(pdf_close(pdf_open(bytes, max_objects = 9)))
 })
 
+test_that("max_objects stops a cross-reference stream as it is read", {
+  # A compressed cross-reference stream lists 1 000 objects in use, then one
+  # in an object stream that does not exist. pdfio allocated every object
+  # before zupdf counted them: 90 KB listing 1e7 took 1.2 GB (#57). Now the
+  # count stops the read, before the missing stream is noticed.
+  entries <- c(
+    rep(as.raw(c(1, 0, 0, 0, 9, 0)), 1000L),
+    as.raw(c(2, 0, 0x0f, 0x42, 0x3f, 0))
+  )
+  data <- memCompress(entries, "gzip")
+  obj1 <- "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+  xref <- sprintf(
+    paste0(
+      "2 0 obj\n<< /Type /XRef /Size 1001 /W [1 4 1] /Index [0 1001] ",
+      "/Root 1 0 R /Filter /FlateDecode /Length %d >>\nstream\n"
+    ),
+    length(data)
+  )
+  bytes <- c(
+    charToRaw(paste0("%PDF-1.7\n", obj1, xref)),
+    data,
+    charToRaw(sprintf(
+      "\nendstream\nendobj\nstartxref\n%d\n%%%%EOF\n",
+      9L + nchar(obj1)
+    ))
+  )
+  expect_zupdf_error(pdf_open(bytes), "zupdf_parse_error")
+  expect_zupdf_error(
+    pdf_open(bytes, max_objects = 999),
+    "zupdf_limit_error",
+    limit = "max_objects",
+    limit_value = 999
+  )
+})
+
 # ---- passwords --------------------------------------------------------------
 
 test_that("an encrypted file opens with no password when it has none", {

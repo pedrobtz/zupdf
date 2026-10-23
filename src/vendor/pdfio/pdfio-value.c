@@ -12,6 +12,8 @@
 //
 // Modified for the zupdf R package: without timegm(), a date is converted to UTC by counting days, not with mktime(), which reads the local time zone. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: copying values between files is bounded in depth, so a long chain of references cannot overflow the stack. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -20,11 +22,16 @@
 // Local functions...
 //
 
+static _pdfio_value_t *copy_value(pdfio_file_t *pdfdst, _pdfio_value_t *vdst, pdfio_file_t *pdfsrc, _pdfio_value_t *vsrc);
 static time_t	get_date_time(const char *s);
 
 
 //
 // '_pdfioValueCopy()' - Copy a value to a PDF file.
+//
+// Copying follows indirect references depth-first, through pdfioObjCopy(),
+// so the depth is bounded: a long chain of references would otherwise
+// overflow the stack.
 //
 
 _pdfio_value_t	*			// O - Destination value or `NULL` on error
@@ -32,6 +39,36 @@ _pdfioValueCopy(pdfio_file_t   *pdfdst,	// I - Destination PDF file
                 _pdfio_value_t *vdst,	// I - Destination value
                 pdfio_file_t   *pdfsrc,	// I - Source PDF file
                 _pdfio_value_t *vsrc)	// I - Source value
+{
+  _pdfio_value_t	*ret;		// Return value
+
+
+  if (!pdfdst)
+    return (NULL);
+
+  if (pdfdst->copy_depth >= PDFIO_MAX_COPY_DEPTH) /* GUARD: copy_depth */
+  {
+    _pdfioFileError(pdfdst, "Too many nested values to copy.");
+    return (NULL);
+  }
+
+  pdfdst->copy_depth ++;
+  ret = copy_value(pdfdst, vdst, pdfsrc, vsrc);
+  pdfdst->copy_depth --;
+
+  return (ret);
+}
+
+
+//
+// 'copy_value()' - Copy a value to a PDF file, one level.
+//
+
+static _pdfio_value_t *			// O - Destination value or `NULL` on error
+copy_value(pdfio_file_t   *pdfdst,	// I - Destination PDF file
+           _pdfio_value_t *vdst,	// I - Destination value
+           pdfio_file_t   *pdfsrc,	// I - Source PDF file
+           _pdfio_value_t *vsrc)	// I - Source value
 {
   pdfio_obj_t	*obj;			// Object reference
 #ifdef DEBUG

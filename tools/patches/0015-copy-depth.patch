@@ -1,0 +1,155 @@
+diff -ruN a/pdfio-object.c b/pdfio-object.c
+--- a/pdfio-object.c
++++ b/pdfio-object.c
+@@ -12,6 +12,8 @@
+ //
+ // Modified for the zupdf R package: an object's own binary value is freed when the object is, and before the object is read again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: copying values between files is bounded in depth, so a long chain of references cannot overflow the stack. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -71,7 +73,7 @@
+   pdfio_obj_t	*dstobj;		// Destination object
+   pdfio_stream_t *srcst,		// Source stream
+ 		*dstst;			// Destination stream
+-  char		buffer[32768];		// Copy buffer
++  char		*buffer;		// Copy buffer, on the heap since copies nest
+   ssize_t	bytes;			// Bytes read
+ 
+ 
+@@ -110,20 +112,29 @@
+   if (srcobj->stream_offset)
+   {
+     // Copy stream data...
++    if ((buffer = (char *)malloc(32768)) == NULL)
++    {
++      _pdfioFileError(pdf, "Unable to allocate memory for a copy buffer - %s", strerror(errno));
++      pdfioObjClose(dstobj);
++      return (NULL);
++    }
++
+     if ((srcst = pdfioObjOpenStream(srcobj, false)) == NULL)
+     {
++      free(buffer);
+       pdfioObjClose(dstobj);
+       return (NULL);
+     }
+ 
+     if ((dstst = pdfioObjCreateStream(dstobj, PDFIO_FILTER_NONE)) == NULL)
+     {
++      free(buffer);
+       pdfioStreamClose(srcst);
+       pdfioObjClose(dstobj);
+       return (NULL);
+     }
+ 
+-    while ((bytes = pdfioStreamRead(srcst, buffer, sizeof(buffer))) > 0)
++    while ((bytes = pdfioStreamRead(srcst, buffer, 32768)) > 0)
+     {
+       if (!pdfioStreamWrite(dstst, buffer, (size_t)bytes))
+       {
+@@ -132,6 +143,7 @@
+       }
+     }
+ 
++    free(buffer);
+     pdfioStreamClose(srcst);
+     pdfioStreamClose(dstst);
+ 
+diff -ruN a/pdfio-private.h b/pdfio-private.h
+--- a/pdfio-private.h
++++ b/pdfio-private.h
+@@ -12,6 +12,8 @@
+ //
+ // Modified for the zupdf R package: numbers read from a file are converted to integers with clamping, never out of range (UBSan, fuzzing). See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: copying values between files is bounded in depth, so a long chain of references cannot overflow the stack. See tools/patches/ in zupdf.
++//
+ 
+ #ifndef PDFIO_PRIVATE_H
+ #  define PDFIO_PRIVATE_H
+@@ -129,6 +131,8 @@
+ 
+ #  define PDFIO_BUF_SIZE	8192	// File buffer size
+ #  define PDFIO_MAX_DEPTH	32	// Maximum nesting depth for values
++#  define PDFIO_MAX_COPY_DEPTH	(64 * PDFIO_MAX_DEPTH)
++					// Maximum nesting depth for copied values
+ #  define PDFIO_MAX_STRING	131072	// Maximum length of string
+ 
+ typedef void (*_pdfio_extfree_t)(void *);
+@@ -342,6 +346,7 @@
+   size_t	num_objmaps,		// Number of object maps
+ 		alloc_objmaps;		// Allocated object maps
+   _pdfio_objmap_t *objmaps;		// Object maps
++  size_t	copy_depth;		// Current depth of _pdfioValueCopy()
+   size_t	num_pages,		// Number of pages
+ 		alloc_pages;		// Allocated pages
+   pdfio_obj_t	**pages;		// Pages
+diff -ruN a/pdfio-value.c b/pdfio-value.c
+--- a/pdfio-value.c
++++ b/pdfio-value.c
+@@ -12,6 +12,8 @@
+ //
+ // Modified for the zupdf R package: without timegm(), a date is converted to UTC by counting days, not with mktime(), which reads the local time zone. See tools/patches/ in zupdf.
+ //
++// Modified for the zupdf R package: copying values between files is bounded in depth, so a long chain of references cannot overflow the stack. See tools/patches/ in zupdf.
++//
+ 
+ #include "pdfio-private.h"
+ 
+@@ -20,18 +22,53 @@
+ // Local functions...
+ //
+ 
++static _pdfio_value_t *copy_value(pdfio_file_t *pdfdst, _pdfio_value_t *vdst, pdfio_file_t *pdfsrc, _pdfio_value_t *vsrc);
+ static time_t	get_date_time(const char *s);
+ 
+ 
+ //
+ // '_pdfioValueCopy()' - Copy a value to a PDF file.
+ //
++// Copying follows indirect references depth-first, through pdfioObjCopy(),
++// so the depth is bounded: a long chain of references would otherwise
++// overflow the stack.
++//
+ 
+ _pdfio_value_t	*			// O - Destination value or `NULL` on error
+ _pdfioValueCopy(pdfio_file_t   *pdfdst,	// I - Destination PDF file
+                 _pdfio_value_t *vdst,	// I - Destination value
+                 pdfio_file_t   *pdfsrc,	// I - Source PDF file
+                 _pdfio_value_t *vsrc)	// I - Source value
++{
++  _pdfio_value_t	*ret;		// Return value
++
++
++  if (!pdfdst)
++    return (NULL);
++
++  if (pdfdst->copy_depth >= PDFIO_MAX_COPY_DEPTH) /* GUARD: copy_depth */
++  {
++    _pdfioFileError(pdfdst, "Too many nested values to copy.");
++    return (NULL);
++  }
++
++  pdfdst->copy_depth ++;
++  ret = copy_value(pdfdst, vdst, pdfsrc, vsrc);
++  pdfdst->copy_depth --;
++
++  return (ret);
++}
++
++
++//
++// 'copy_value()' - Copy a value to a PDF file, one level.
++//
++
++static _pdfio_value_t *			// O - Destination value or `NULL` on error
++copy_value(pdfio_file_t   *pdfdst,	// I - Destination PDF file
++           _pdfio_value_t *vdst,	// I - Destination value
++           pdfio_file_t   *pdfsrc,	// I - Source PDF file
++           _pdfio_value_t *vsrc)	// I - Source value
+ {
+   pdfio_obj_t	*obj;			// Object reference
+ #ifdef DEBUG

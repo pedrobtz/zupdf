@@ -12,6 +12,10 @@
 //
 // Modified for the zupdf R package: numbers read from a file are converted to integers with clamping, never out of range (UBSan, fuzzing). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: copying values between files is bounded in depth, so a long chain of references cannot overflow the stack. See tools/patches/ in zupdf.
+//
+// Modified for the zupdf R package: a file can be opened with a limit on its objects, refused before they are all allocated (a small cross-reference stream can list millions). See tools/patches/ in zupdf.
+//
 
 #ifndef PDFIO_PRIVATE_H
 #  define PDFIO_PRIVATE_H
@@ -129,6 +133,8 @@ static inline off_t _pdfioToOff(double d)
 
 #  define PDFIO_BUF_SIZE	8192	// File buffer size
 #  define PDFIO_MAX_DEPTH	32	// Maximum nesting depth for values
+#  define PDFIO_MAX_COPY_DEPTH	(64 * PDFIO_MAX_DEPTH)
+					// Maximum nesting depth for copied values
 #  define PDFIO_MAX_STRING	131072	// Maximum length of string
 
 typedef void (*_pdfio_extfree_t)(void *);
@@ -336,12 +342,14 @@ struct _pdfio_file_s			// PDF file structure
   pdfio_dict_t	**dicts;		// Dictionaries
   size_t	num_objs,		// Number of objects
 		alloc_objs,		// Allocated objects
-		last_obj;		// Last object added
+		last_obj,		// Last object added
+		max_objs;		// Most objects to read, 0 for no limit
   pdfio_obj_t	**objs,			// Objects
 		*current_obj;		// Current object being written/read
   size_t	num_objmaps,		// Number of object maps
 		alloc_objmaps;		// Allocated object maps
   _pdfio_objmap_t *objmaps;		// Object maps
+  size_t	copy_depth;		// Current depth of _pdfioValueCopy()
   size_t	num_pages,		// Number of pages
 		alloc_pages;		// Allocated pages
   pdfio_obj_t	**pages;		// Pages
@@ -437,6 +445,7 @@ extern pdfio_obj_t	*_pdfioFileCreateObj(pdfio_file_t *pdf, pdfio_file_t *srcpdf,
 extern bool		_pdfioFileDefaultError(pdfio_file_t *pdf, const char *message, void *data) _PDFIO_INTERNAL;
 extern bool		_pdfioFileError(pdfio_file_t *pdf, const char *format, ...) _PDFIO_INTERNAL;
 extern pdfio_obj_t	*_pdfioFileFindMappedObj(pdfio_file_t *pdf, pdfio_file_t *src_pdf, size_t src_number) _PDFIO_INTERNAL;
+extern pdfio_file_t	*_pdfioFileOpenMax(const char *filename, size_t max_objs, pdfio_password_cb_t password_cb, void *password_cbdata, pdfio_error_cb_t error_cb, void *error_cbdata) _PDFIO_INTERNAL;
 extern bool		_pdfioFileFlush(pdfio_file_t *pdf) _PDFIO_INTERNAL;
 extern int		_pdfioFileGetChar(pdfio_file_t *pdf) _PDFIO_INTERNAL;
 extern bool		_pdfioFileGets(pdfio_file_t *pdf, char *buffer, size_t bufsize, bool discard) _PDFIO_INTERNAL;

@@ -49,10 +49,11 @@ is garbage collected.
 }
 \details{
 A PDF is a common carrier of hostile input, so opening is bounded by
-limits. \code{max_size} is checked before anything is read; \code{max_objects} and
-\code{max_pages} right after the cross-reference table is read; \code{max_stream}
-and \code{max_depth} by the functions that decode streams and walk nested
-values. Each limit is a positive whole number or \code{Inf}.
+limits. \code{max_size} is checked before anything is read; \code{max_objects} as
+the cross-reference table is read, before the objects it lists are all
+allocated; \code{max_pages} once the page tree is read; \code{max_stream} and
+\code{max_depth} by the functions that decode streams and walk nested values.
+Each limit is a positive whole number or \code{Inf}.
 }
 \examples{
 path <- system.file("examples", "hello.pdf", package = "zupdf")

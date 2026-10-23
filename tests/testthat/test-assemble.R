@@ -42,6 +42,23 @@ test_that("inherited boxes are carried onto the copy", {
   expect_identical(pdf_pages(out)$media_box[[1]], c(0, 0, 300, 400))
 })
 
+test_that("a long chain of references is copied, and one too deep refused", {
+  # Each pdfio copy of an object nests on the C stack: 1 100 objects (a 60 KB
+  # file) overflowed it before patch 0015 bounded the depth (#30).
+  long <- pdf_open(chain_pdf(1000L))
+  deep <- pdf_open(chain_pdf(1100L))
+  withr::defer({
+    pdf_close(long)
+    pdf_close(deep)
+  })
+  w <- pdf_new()
+  pdf_copy_pages(w, long)
+  out <- pdf_open(pdf_save(w))
+  withr::defer(pdf_close(out))
+  expect_gte(nrow(pdf_objects(out)), 1000L)
+  expect_zupdf_error(pdf_copy_pages(pdf_new(), deep), "zupdf_write_error")
+})
+
 test_that("pages copied from an encrypted file are readable", {
   src <- pdf_open(fixture("encrypted-aes-128-pw.pdf"), password = "user")
   withr::defer(pdf_close(src))

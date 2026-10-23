@@ -20,6 +20,8 @@
 //
 // Modified for the zupdf R package: an object already read by the repair scan has its value freed before an object stream reads it again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: a file can be opened with a limit on its objects, refused before they are all allocated (a small cross-reference stream can list millions). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #include "pdfio-content.h"
@@ -1132,6 +1134,29 @@ pdfioFileOpen(
     pdfio_error_cb_t    error_cb,	// I - Error callback or `NULL` for default
     void                *error_cbdata)	// I - Error callback data, if any
 {
+  return (_pdfioFileOpenMax(filename, 0, password_cb, password_cbdata, error_cb, error_cbdata));
+}
+
+
+//
+// '_pdfioFileOpenMax()' - Open a PDF file for reading, with at most
+//                         "max_objs" objects.
+//
+// A cross-reference stream is compressed, so a small file can list millions
+// of objects, each allocated as it is read; "max_objs" (0 for no limit)
+// refuses such a file with "Too many objects." before that.
+//
+
+pdfio_file_t *				// O - PDF file
+_pdfioFileOpenMax(
+    const char          *filename,	// I - Filename
+    size_t              max_objs,	// I - Most objects, 0 for no limit
+    pdfio_password_cb_t password_cb,	// I - Password callback or `NULL` for none
+    void                *password_cbdata,
+					// I - Password callback data, if any
+    pdfio_error_cb_t    error_cb,	// I - Error callback or `NULL` for default
+    void                *error_cbdata)	// I - Error callback data, if any
+{
   pdfio_file_t	*pdf;			// PDF file
   char		line[1025],		// Line from file
 		*ptr,			// Pointer into line
@@ -1172,6 +1197,7 @@ pdfioFileOpen(
   pdf->loc         = get_lconv();
   pdf->filename    = strdup(filename);
   pdf->mode        = _PDFIO_MODE_READ;
+  pdf->max_objs    = max_objs;
   pdf->error_cb    = error_cb;
   pdf->error_data  = error_cbdata;
   pdf->permissions = PDFIO_PERMISSION_ALL;
@@ -1440,6 +1466,13 @@ add_obj(pdfio_file_t   *pdf,		// I - PDF file
 		right,			// Right object
 		current;		// Current object (center)
 
+
+  // Refuse more objects than the caller allows...
+  if (pdf->max_objs && pdf->num_objs >= pdf->max_objs) /* GUARD: max_objects */
+  {
+    _pdfioFileError(pdf, "Too many objects.");
+    return (NULL);
+  }
 
   // Allocate memory for the object...
   if ((obj = (pdfio_obj_t *)calloc(1, sizeof(pdfio_obj_t))) == NULL)
@@ -1889,7 +1922,13 @@ load_obj_stream(pdfio_obj_t *obj)	// I - Object to load
     number = (size_t)strtoimax(buffer, NULL, 10);
 
     if ((objs[num_objs] = pdfioFileFindObj(obj->pdf, number)) == NULL)
-      objs[num_objs] = add_obj(obj->pdf, number, 0, 0);
+    {
+      if ((objs[num_objs] = add_obj(obj->pdf, number, 0, 0)) == NULL)
+      {
+        pdfioStreamClose(st);
+        return (false);
+      }
+    }
 
     num_objs ++;
 
