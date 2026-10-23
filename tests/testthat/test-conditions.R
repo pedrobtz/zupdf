@@ -55,7 +55,8 @@ test_that("every known pdfio message prefix maps to its class", {
     "Unable to open file - No such file or directory" = "zupdf_io_error",
     "Unable to open image file 'x.png': No such file or directory" = "zupdf_io_error",
     "Unable to open font file 'x.ttf': No such file or directory" = "zupdf_io_error",
-    "Unsupported image file 'x.gif'." = "zupdf_unsupported_input"
+    "Unsupported image file 'x.gif'." = "zupdf_unsupported_input",
+    "Unsupported PNG color type 6." = "zupdf_unsupported_input"
   )
   for (msg in names(expected)) {
     expect_identical(zpd_pdfio_class(msg), expected[[msg]], label = msg)

@@ -146,28 +146,40 @@ test_that("paths draw: points, operations, curves, rectangles", {
       fill = "#00ff00",
       rule = "evenodd"
     )
+    tri <- list(x = c(10, 20, 30), y = c(10, 20, 10))
+    pdf_draw(page, tri, fill = "red", stroke = "blue", close = TRUE)
+    pdf_draw(
+      page,
+      data.frame(op = "rect", x = 1, y = 2, w = 3, h = 4),
+      fill = "red",
+      stroke = "blue",
+      rule = "evenodd"
+    )
+    pdf_draw(page, list(x = c(1, 2), y = c(3, 4)))
   })
-  ops <- reread(bytes, function(p) {
-    t <- pdf_page_tokens(p, 1)
-    t$value[t$type == "operator"]
-  })
-  for (op in c(
-    "m",
-    "l",
-    "c",
-    "h",
-    "re",
-    "f",
-    "S",
-    "f*",
-    "rg",
-    "RG",
-    "w",
-    "q",
-    "Q"
-  )) {
-    expect_true(op %in% ops, label = op)
-  }
+  tokens <- reread(bytes, function(p) pdf_page_tokens(p, 1))
+  ops <- tokens$value[tokens$type == "operator"]
+  # One q ... Q group per pdf_draw() call, operators in order.
+  calls <- split(ops, cumsum(ops == "q"))
+  expect_identical(
+    unname(calls),
+    list(
+      c("q", "rg", "w", "m", "l", "l", "h", "f", "Q"),
+      c("q", "RG", "w", "m", "c", "l", "h", "S", "Q"),
+      c("q", "rg", "w", "re", "f*", "Q"),
+      c("q", "rg", "RG", "w", "m", "l", "l", "h", "B", "Q"),
+      c("q", "rg", "RG", "w", "re", "B*", "Q"),
+      c("q", "RG", "w", "m", "l", "S", "Q")
+    )
+  )
+  # The operands of the fill-and-stroke call: red fill, blue stroke.
+  v <- tokens$value
+  q <- which(v == "q")[[4]]
+  expect_identical(
+    v[q + 1:8],
+    c("1", "0", "0", "rg", "0", "0", "1", "RG")
+  )
+  expect_identical(v[which(v == "re")[2] - 4:1], c("1", "2", "3", "4"))
 })
 
 test_that("bad paths are refused", {
@@ -247,6 +259,92 @@ test_that("images from R round-trip their samples", {
   g <- pdf_image(pdf, im$object[im$color_space == "DeviceGray"][[1]])
   expect_identical(as.vector(g), as.raw(c(0, 128, 255, 255)))
   expect_identical(c(attr(g, "width"), attr(g, "height")), c(2L, 2L))
+})
+
+test_that("RGB arrays, rasters and their alpha are written sample for sample", {
+  # 2 rows by 3 columns, every sample different, so a transposed or
+  # reordered array cannot match.
+  h <- 2L
+  wd <- 3L
+  v <- array((1:(h * wd * 4)) * 10 / 255, c(h, wd, 4))
+  # Expected: row by row from the top, pixel by pixel, channel fastest.
+  rows <- function(a, ch) {
+    as.raw(round(as.vector(aperm(a[,, ch, drop = FALSE], c(3, 2, 1))) * 255))
+  }
+  ras <- as.raster(matrix(
+    c("red", "#0000FF80", "#00FF00", "white", "black", "#12345678"),
+    h,
+    byrow = TRUE
+  ))
+  nr <- structure(
+    c(-16776961L, 2130771712L),
+    dim = c(1L, 2L),
+    class = "nativeRaster",
+    channels = 4L
+  )
+  w <- pdf_new(deterministic = TRUE)
+  imgs <- list(
+    rgb = pdf_image_new(w, v[,, 1:3]),
+    rgba = pdf_image_new(w, v),
+    ras = pdf_image_new(w, ras),
+    nr = pdf_image_new(w, nr)
+  )
+  page <- pdf_page_new(w)
+  for (img in imgs) {
+    pdf_draw_image(page, img, 10, 10, 10, 10)
+  }
+  pdf_page_end(page)
+  pdf <- pdf_open(pdf_save(w))
+  withr::defer(pdf_close(pdf))
+  im <- pdf_page_images(pdf, 1)
+  # Each image and its soft mask (NULL for none), by its handle's name.
+  read <- function(img) {
+    n <- im$object[im$name == paste0("Im", img$handle)]
+    mask <- pdf_object(pdf, n)$SMask
+    list(
+      rgb = as.vector(pdf_image(pdf, n)),
+      alpha = if (!is.null(mask)) as.vector(pdf_image(pdf, as.integer(mask)))
+    )
+  }
+  got <- read(imgs$rgb)
+  expect_identical(got$rgb, rows(v, 1:3))
+  expect_null(got$alpha)
+  got <- read(imgs$rgba)
+  expect_identical(got$rgb, rows(v, 1:3))
+  expect_identical(got$alpha, rows(v, 4))
+
+  cols <- grDevices::col2rgb(t(as.matrix(ras)), alpha = TRUE)
+  got <- read(imgs$ras)
+  expect_identical(got$rgb, as.raw(cols[1:3, ]))
+  expect_identical(got$alpha, as.raw(cols[4, ]))
+
+  # 0xFF0000FF is opaque red, 0x7F00FF00 half-transparent green.
+  got <- read(imgs$nr)
+  expect_identical(got$rgb, as.raw(c(255, 0, 0, 0, 255, 0)))
+  expect_identical(got$alpha, as.raw(c(255, 127)))
+})
+
+test_that("an RGBA PNG is drawn from png::readPNG(), not from the file", {
+  # pdfio reads PNG files without libpng and has no alpha (colour type 6).
+  w <- pdf_new()
+  expect_zupdf_error(
+    pdf_image_new(w, fixture("pdfio-rgba.png")),
+    "zupdf_unsupported_input"
+  )
+  skip_if_not_installed("png")
+  a <- png::readPNG(fixture("pdfio-rgba.png"))
+  img <- pdf_image_new(w, a)
+  expect_identical(c(img$width, img$height), dim(a)[2:1])
+  page <- pdf_page_new(w)
+  pdf_draw_image(page, img, 0, 0, 100, 100)
+  pdf_page_end(page)
+  pdf <- pdf_open(pdf_save(w))
+  withr::defer(pdf_close(pdf))
+  n <- pdf_page_images(pdf, 1)$object
+  px <- as.vector(pdf_image(pdf, n))
+  alpha <- as.vector(pdf_image(pdf, as.integer(pdf_object(pdf, n)$SMask)))
+  expect_identical(px, as.raw(round(as.vector(aperm(a[,, 1:3], 3:1)) * 255)))
+  expect_identical(alpha, as.raw(round(as.vector(t(a[,, 4])) * 255)))
 })
 
 test_that("a nativeRaster is drawn with its alpha", {

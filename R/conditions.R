@@ -101,7 +101,8 @@ zpd_pdfio_prefixes <- c(
   "Unable to open file" = "zupdf_io_error",
   "Unable to open image file" = "zupdf_io_error",
   "Unable to open font file" = "zupdf_io_error",
-  "Unsupported image file" = "zupdf_unsupported_input"
+  "Unsupported image file" = "zupdf_unsupported_input",
+  "Unsupported PNG" = "zupdf_unsupported_input"
 )
 
 zpd_pdfio_class <- function(detail, default = "zupdf_parse_error") {

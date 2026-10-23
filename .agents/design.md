@@ -312,6 +312,7 @@ Every condition inherits `zupdf_error` and carries pdfio's message verbatim as `
 | `Unable to unlock PDF file.` | `zupdf_password_error` |
 | `Unable to unlock AES-256` | `zupdf_unsupported_input` |
 | `Unable to open file` | `zupdf_io_error` |
+| `Unsupported PNG` (such as an RGBA PNG, which pdfio reads only with libpng) | `zupdf_unsupported_input` |
 
 ---
 
