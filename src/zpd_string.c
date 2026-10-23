@@ -82,7 +82,8 @@ SEXP zpd_string_or_na(const char *s)
 
 /* A UTF-16BE text string with its byte-order mark (PDF 2.0, 7.9.2.2):
    pdfio keeps hex strings as bytes, so one that begins FE FF is decoded
-   here. An unpaired surrogate becomes U+FFFD. */
+   here. An unpaired surrogate becomes U+FFFD, and so does U+0000, which
+   an R string cannot hold. */
 bool zpd_is_utf16be(const unsigned char *b, size_t n)
 {
     return n >= 2 && n % 2 == 0 && b[0] == 0xFE && b[1] == 0xFF;
@@ -108,7 +109,7 @@ SEXP zpd_mkchar_utf16be(const unsigned char *b, size_t n)
                 continue;
             }
         }
-        if (u >= 0xD800 && u <= 0xDFFF)
+        if (u == 0 || (u >= 0xD800 && u <= 0xDFFF))
             u = 0xFFFD;
         k += zpd_utf8_put(buf + k, u);
     }

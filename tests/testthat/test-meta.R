@@ -121,6 +121,24 @@ test_that("UTF-16 strings become UTF-8", {
   expect_identical(pdf_meta(pdf)$title, "é ☺")
 })
 
+test_that("a NUL in a UTF-16 Info string does not break the file", {
+  bytes <- minimal_pdf(info = c(Title = "XX"))
+  at <- grepRaw("(XX)", bytes, fixed = TRUE)
+  bytes <- c(
+    bytes[seq_len(at - 1L)],
+    charToRaw("<FEFF004100000042>"),
+    bytes[-seq_len(at + 3L)]
+  )
+  path <- withr::local_tempfile(fileext = ".pdf")
+  writeBin(bytes, path)
+  # The dictionary conversion maps U+0000 to U+FFFD; pdfio's own getter
+  # returns a C string, which ends at the NUL (design section 6).
+  expect_identical(suppressWarnings(pdf_info(path))$keys$Title, "A�B")
+  pdf <- suppressWarnings(pdf_open(bytes))
+  withr::defer(pdf_close(pdf))
+  expect_identical(pdf_meta(pdf)$title, "A")
+})
+
 test_that("encryption and permissions are reported", {
   cases <- list(
     list("encrypted-rc4-128.pdf", NULL, "rc4-128", TRUE),
