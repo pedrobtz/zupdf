@@ -129,6 +129,30 @@ test_that("a Type0 font maps two-byte codes through its ToUnicode CMap", {
   expect_identical(attr(t, "unmapped"), 1L)
 })
 
+test_that("a simple font reads one-byte codes whatever its CMap's code space", {
+  # A ToUnicode map may declare two-byte codes; a simple font's codes are
+  # one byte all the same (PDF 2.0, 9.6.1).
+  cmap <- paste(
+    "begincmap 1 begincodespacerange <0000> <FFFF> endcodespacerange",
+    "1 beginbfchar <0041> <0058> endbfchar endcmap"
+  )
+  font <- paste(
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica",
+    "/Encoding /WinAnsiEncoding /ToUnicode 6 0 R >>"
+  )
+  bytes <- page_pdf(
+    "BT /F1 12 Tf 72 700 Td (AB) Tj ET",
+    "<< /Font << /F1 5 0 R >> >>",
+    extra = list(font, list(dict = "<< >>", data = cmap))
+  )
+  t <- text_of(bytes)
+  expect_identical(as.vector(t), "XB")
+  expect_identical(attr(t, "unmapped"), 0L)
+  # Each code has its own Helvetica width: A is 667, B 667 units.
+  d <- pdf_data(bytes)[[1]]
+  expect_identical(d$width, 16L)
+})
+
 test_that("text in a Form XObject is found, under its matrix", {
   form <- list(
     dict = paste(
