@@ -1,6 +1,6 @@
 # Changelog
 
-## zupdf 0.0.0.9000
+## zupdf 0.1.0
 
 - First release: reads, assembles and writes PDF files through a bundled
   copy of pdfio, with no system library beyond zlib.
