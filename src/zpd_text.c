@@ -182,6 +182,7 @@ typedef struct {
 
 typedef struct zpd_form {
     size_t num;
+    int drawable;    /* 0 for an XObject that is not a form, or cannot be read */
     unsigned char *p;
     size_t n;
 } zpd_form;
@@ -199,8 +200,9 @@ typedef struct zpd_text_ctx {
     unsigned long ticks; /* tokens walked, for the interrupt poll */
 
     zpd_buf content;  /* the page's content streams */
-    /* The page's forms, read once and walked each time they are drawn:
-       entries, and a hash of object numbers to entry + 1. */
+    /* The page's XObjects, each loaded once: a form's data, walked each
+       time it is drawn, or a note that the object draws no text; and a
+       hash of object numbers to entry + 1. */
     struct zpd_form *forms;
     size_t nforms, capforms;
     size_t *fslot;
@@ -344,8 +346,8 @@ static zpd_form *zpd_form_find(zpd_text_ctx *c, size_t num)
     return NULL;
 }
 
-/* Keeps a form's data (taking the buffer); 0 when memory runs out. */
-static int zpd_form_add(zpd_text_ctx *c, size_t num, unsigned char *p, size_t n)
+/* Keeps an XObject's entry (taking the buffer); 0 when memory runs out. */
+static int zpd_form_add(zpd_text_ctx *c, size_t num, int drawable, unsigned char *p, size_t n)
 {
     if (c->nforms == c->capforms) {
         size_t cap = c->capforms ? c->capforms * 2 : 16;
@@ -373,7 +375,7 @@ static int zpd_form_add(zpd_text_ctx *c, size_t num, unsigned char *p, size_t n)
     size_t h = zpd_form_hash(num, c->capslot);
     while (c->fslot[h])
         h = (h + 1) & (c->capslot - 1);
-    c->forms[c->nforms] = (zpd_form){num, p, n};
+    c->forms[c->nforms] = (zpd_form){num, drawable, p, n};
     c->fslot[h] = ++c->nforms;
     return 1;
 }
@@ -549,14 +551,31 @@ static void zpd_do(zpd_text_ctx *c, zpd_run *r, int depth)
     const char *key = (const char *) c->opstr.p + name->off;
     pdfio_obj_t *obj = xobjects && pdfioDictGetType(xobjects, key) == PDFIO_VALTYPE_INDIRECT
                            ? pdfioDictGetObj(xobjects, key) : NULL;
-    pdfio_dict_t *dict = obj ? pdfioObjGetDict(obj) : NULL;
-    const char *subtype = dict ? pdfioDictGetName(dict, "Subtype") : NULL;
-    if (!subtype || strcmp(subtype, "Form") != 0)
+    if (!obj)
         return;
+    size_t num = pdfioObjGetNumber(obj);
+
+    /* Each XObject is loaded once per page: one that is not a form, or
+       that pdfio cannot load, would otherwise be parsed again at every
+       Do. A form's stream is read the first time it is drawn, and walked
+       each time: every walk costs the budget its length, and at least
+       ZPD_FORM_COST, so a form drawn many times from many levels is
+       bounded like content that long. */
+    zpd_form *form = zpd_form_find(c, num);
+    if (form && !form->drawable)
+        return;
+    pdfio_dict_t *dict = pdfioObjGetDict(obj);
+    if (!form) {
+        const char *subtype = dict ? pdfioDictGetName(dict, "Subtype") : NULL;
+        if (!subtype || strcmp(subtype, "Form") != 0) {
+            if (!zpd_form_add(c, num, 0, NULL, 0))
+                zpd_fail(c, "memory");
+            return;
+        }
+    }
 
     /* A form drawn inside itself, directly or not, is a cycle: refused
        as the depth limit, like nesting past max_depth. */
-    size_t num = pdfioObjGetNumber(obj);
     for (int i = 0; i < c->nxobj; i++)
         if (c->xobj[i] == num) { /* GUARD: form_cycle */
             zpd_fail(c, "form_cycle");
@@ -567,24 +586,22 @@ static void zpd_do(zpd_text_ctx *c, zpd_run *r, int depth)
         return;
     }
 
-    /* The form is read the first time it is drawn on the page, and walked
-       each time: every walk costs the budget its length, and at least
-       ZPD_FORM_COST, so a form drawn many times from many levels is
-       bounded like content that long. */
-    zpd_form *form = zpd_form_find(c, num);
     double cost = ZPD_FORM_COST;
     if (!form) {
         zpd_buf data = {0};
-        if (!zpd_read_obj_stream(c, pdfioObjOpenStream(obj, true), &data)) {
+        int ok = zpd_read_obj_stream(c, pdfioObjOpenStream(obj, true), &data);
+        if (!ok) {
             free(data.p);
-            c->used += cost; /* an unreadable form is tried again */
-            return;
+            data.p = NULL;
+            data.n = 0;
         }
-        if (!zpd_form_add(c, num, data.p, data.n)) {
+        if (!zpd_form_add(c, num, ok, data.p, data.n)) {
             free(data.p);
             zpd_fail(c, "memory");
             return;
         }
+        if (!ok)
+            return; /* unreadable, or past the budget (c->status says) */
         form = &c->forms[c->nforms - 1];
     } else {
         cost += (double) form->n; /* the first read was charged as it was read */
@@ -594,7 +611,7 @@ static void zpd_do(zpd_text_ctx *c, zpd_run *r, int depth)
         zpd_fail(c, "max_stream_page");
         return;
     }
-    /* Taken now: a walk below may add forms and move the entries. */
+    /* Taken now: a walk below may add entries and move them. */
     const unsigned char *data = form->p;
     size_t len = form->n;
     zpd_run sub = {0};
