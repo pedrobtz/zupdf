@@ -75,19 +75,28 @@ test_that("without deterministic, the identifier is random", {
   expect_false(identical(reread(a, pdf_meta)$id, reread(b, pdf_meta)$id))
 })
 
-test_that("pinned bytes match where this zlib has a recorded hash", {
+test_that("each writer function's bytes match the pin for this zlib", {
   # Flate output differs between zlib builds (zlib-ng, Apple's), so the
-  # pin is per zlib version (design section 7).
-  hashes <- utils::read.delim(
-    fixture("hashes.tsv"),
-    colClasses = "character",
-    comment.char = "#"
-  )
+  # pin is per zlib version (design section 7). A recorded zlib has a row
+  # for every case in helper-pins.R.
+  hashes <- pinned_hashes()
+  expect_setequal(unique(hashes$case), names(pinned_cases))
   zlib <- zupdf_info()$zlib_version
-  row <- hashes[hashes$case == "hello" & hashes$zlib == zlib, ]
-  skip_if(nrow(row) == 0L, paste("no pinned hash for zlib", zlib))
-  bytes <- written(function(page) pdf_draw_text(page, 72, 700, "Hello"))
-  expect_pdf_bytes(bytes, row$md5[[1]])
+  rows <- hashes[hashes$zlib == zlib, ]
+  skip_if(nrow(rows) == 0L, paste("no pinned hash for zlib", zlib))
+  for (case in names(pinned_cases)) {
+    md5 <- rows$md5[rows$case == case]
+    expect_length(md5, 1L)
+    expect_identical(bytes_md5(pinned_cases[[case]]()), md5, label = case)
+  }
+})
+
+test_that("every zlib in the table pins every case", {
+  hashes <- pinned_hashes()
+  for (zlib in unique(hashes$zlib)) {
+    expect_setequal(hashes$case[hashes$zlib == zlib], names(pinned_cases))
+  }
+  expect_false(anyDuplicated(hashes[c("case", "zlib")]) > 0L)
 })
 
 test_that("pdf_save() writes to a path and to a connection", {
