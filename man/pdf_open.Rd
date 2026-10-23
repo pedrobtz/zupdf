@@ -42,7 +42,8 @@ tree.}
 \item{max_pages}{Most pages.}
 }
 \value{
-A \code{pdf_file}. \code{length()} gives its page count.
+A \code{pdf_file}. \code{length()} gives its page count, and 0 once it is
+closed, so that \code{str()} and environment panes can show a closed handle.
 }
 \description{
 Opens a PDF for reading. pdfio reads the file lazily, through its

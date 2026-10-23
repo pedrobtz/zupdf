@@ -71,7 +71,8 @@ pdf_object <- function(pdf, n) {
 #' `FlateDecode`, with or without a PNG predictor. A stream with any other
 #' filter, such as `DCTDecode` (JPEG) or `ASCII85Decode`, is returned as
 #' stored even when `decode = TRUE`, with `decoded = FALSE`, so the caller
-#' can decode it, for example with `jpeg::readJPEG()`.
+#' can decode it, for example with `jpeg::readJPEG()`. Damaged `FlateDecode`
+#' data gives a `zupdf_warning` and the bytes decoded before the damage.
 #'
 #' The stream is bounded by the `max_stream` limit of [pdf_open()], which
 #' stops a small compressed stream that inflates to gigabytes.

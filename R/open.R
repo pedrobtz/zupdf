@@ -29,7 +29,8 @@
 #' @param max_depth Deepest nesting of values, Form XObjects and the page
 #'   tree.
 #' @param max_pages Most pages.
-#' @return A `pdf_file`. `length()` gives its page count.
+#' @return A `pdf_file`. `length()` gives its page count, and 0 once it is
+#'   closed, so that `str()` and environment panes can show a closed handle.
 #' @seealso [pdf_meta()], [pdf_pages()], [zupdf-conditions].
 #' @export
 #' @examples
@@ -256,9 +257,15 @@ zpd_limits <- function(pdf) attr(pdf, "limits", exact = TRUE)
 
 #' @export
 length.pdf_file <- function(x) {
-  zpd_check_open(x, call = sys.call())
-  pages <- zpd_unwrap(.Call(zupdf_counts, x), "Cannot read the PDF file")[[2L]]
-  as.integer(pages)
+  if (!.Call(zupdf_is_open, x)) {
+    return(0L)
+  }
+  counts <- zpd_unwrap(
+    .Call(zupdf_counts, x),
+    "Cannot read the PDF file",
+    call = sys.call()
+  )
+  as.integer(counts[[2L]])
 }
 
 #' @export

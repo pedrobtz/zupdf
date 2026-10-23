@@ -37,6 +37,25 @@ test_that("deterministic = TRUE gives the same bytes every time", {
   expect_false(identical(reread(c2, pdf_meta)$id, m$id))
 })
 
+test_that("the deterministic identifier hashes the metadata too", {
+  titled <- function(title) {
+    w <- pdf_new(
+      created = as.POSIXct("2024-01-02 03:04:05", tz = "UTC"),
+      deterministic = TRUE
+    )
+    pdf_set_meta(w, title = title)
+    pdf_page_end(pdf_page_new(w))
+    reread(pdf_save(w), pdf_meta)$id
+  }
+  a <- titled("One")
+  expect_identical(titled("One"), a)
+  expect_false(identical(titled("Two"), a))
+  # Both strings are the hash, and it replaced the zero placeholder.
+  expect_identical(a[[1]], a[[2]])
+  expect_false(identical(a[[1]], strrep("0", 32)))
+  expect_identical(nchar(a[[1]]), 32L)
+})
+
 test_that("writing does not depend on the local time zone", {
   # CI runs under TZ=UTC, which would hide a date formatted in local time.
   write_in <- function(tz) {

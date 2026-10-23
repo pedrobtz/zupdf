@@ -13,7 +13,7 @@
  *
  * deterministic = TRUE fixes the two things pdfio takes from the clock and
  * the random source: the creation date (from `created`) and the file
- * identifier, which becomes a hash of the bytes written before the trailer.
+ * identifier, which becomes a hash of the whole file.
  * Encryption keys stay random, so encrypted output is never byte-stable. */
 
 #include <limits.h>
@@ -156,7 +156,7 @@ SEXP zupdf_writer_font(SEXP ptr, SEXP kind, SEXP name)
 {
     zpd_writer *w = zpd_writer_get(ptr);
     if (!w)
-        return zpd_status("closed");
+        return zpd_status("closed_writer");
     zpd_record_reset(&w->rec);
     int file = strcmp(CHAR(STRING_ELT(kind, 0)), "file") == 0;
     const char *s = file ? R_ExpandFileName(Rf_translateChar(STRING_ELT(name, 0)))
@@ -180,7 +180,7 @@ SEXP zupdf_writer_image_file(SEXP ptr, SEXP path, SEXP interpolate)
 {
     zpd_writer *w = zpd_writer_get(ptr);
     if (!w)
-        return zpd_status("closed");
+        return zpd_status("closed_writer");
     zpd_record_reset(&w->rec);
     const char *s = R_ExpandFileName(Rf_translateChar(STRING_ELT(path, 0)));
     pdfio_obj_t *obj = pdfioFileCreateImageObjFromFile(w->pdf, s, Rf_asLogical(interpolate) == TRUE);
@@ -208,7 +208,7 @@ SEXP zupdf_writer_image_data(SEXP ptr, SEXP bytes, SEXP width, SEXP height,
 {
     zpd_writer *w = zpd_writer_get(ptr);
     if (!w)
-        return zpd_status("closed");
+        return zpd_status("closed_writer");
     zpd_record_reset(&w->rec);
     pdfio_obj_t *obj = pdfioFileCreateImageObjFromData(
         w->pdf, RAW(bytes), (size_t) Rf_asInteger(width), (size_t) Rf_asInteger(height),
@@ -358,7 +358,7 @@ SEXP zupdf_writer_page(SEXP ptr, SEXP media_box, SEXP crop_box, SEXP dict_,
 {
     zpd_writer *w = zpd_writer_get(ptr);
     if (!w)
-        return zpd_status("closed");
+        return zpd_status("closed_writer");
     zpd_record_reset(&w->rec);
 
     /* Everything R must do happens before the stream opens. */
@@ -413,32 +413,64 @@ SEXP zupdf_writer_page(SEXP ptr, SEXP media_box, SEXP crop_box, SEXP dict_,
 
 /* ---- saving ------------------------------------------------------------------- */
 
+/* The deterministic identifier is written as 16 zero bytes, so that pdfio
+   writes the whole file around it, and is then replaced by the first 16
+   bytes of the SHA-256 of that file: every page, font and image, the
+   information dictionary and the catalog. Both /ID strings are the hash.
+   The trailer is written last, so its /ID strings are the last two
+   placeholders in the file; they keep their length, so no offset moves.
+   False when they are not found. */
+#define ZPD_ID_HEX "<00000000000000000000000000000000>"
+
+static bool zpd_set_file_id(zpd_writer *w)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    const size_t len = sizeof(ZPD_ID_HEX) - 1;
+    if (w->n < len)
+        return false;
+    _pdfio_sha256_t ctx;
+    uint8_t digest[32];
+    _pdfioCryptoSHA256Init(&ctx);
+    _pdfioCryptoSHA256Append(&ctx, w->buf, w->n);
+    _pdfioCryptoSHA256Finish(&ctx, digest);
+    int found = 0;
+    for (size_t i = w->n - len + 1; found < 2 && i-- > 0;) {
+        if (memcmp(w->buf + i, ZPD_ID_HEX, len))
+            continue;
+        for (size_t k = 0; k < 16; k++) {
+            w->buf[i + 1 + 2 * k] = (unsigned char) hex[digest[k] >> 4];
+            w->buf[i + 2 + 2 * k] = (unsigned char) hex[digest[k] & 15];
+        }
+        found++;
+    }
+    return found == 2;
+}
+
 /* zupdf_writer_save(ptr, created, deterministic): closes the file and
    returns its bytes. */
 SEXP zupdf_writer_save(SEXP ptr, SEXP created, SEXP deterministic)
 {
     zpd_writer *w = zpd_writer_get(ptr);
     if (!w)
-        return zpd_status("closed");
+        return zpd_status("closed_writer");
     zpd_record_reset(&w->rec);
     pdfioFileSetCreationDate(w->pdf, zpd_clamp_time(Rf_asReal(created)));
     /* An encrypted file's key is derived from its identifier, so the
        identifier stays pdfio's (random) once encryption is on. */
-    if (Rf_asLogical(deterministic) == TRUE && w->pdf->encryption == PDFIO_ENCRYPTION_NONE) {
-        /* The identifier: the first 16 bytes of the SHA-256 of everything
-           written so far, which every page, font and image is. */
-        _pdfio_sha256_t ctx;
-        uint8_t digest[32];
-        _pdfioCryptoSHA256Init(&ctx);
-        _pdfioCryptoSHA256Append(&ctx, w->buf, w->n);
-        _pdfioCryptoSHA256Finish(&ctx, digest);
+    bool fixed = Rf_asLogical(deterministic) == TRUE && w->pdf->encryption == PDFIO_ENCRYPTION_NONE;
+    if (fixed) {
+        static const uint8_t zero[16] = {0};
         pdfio_array_t *id = pdfioArrayCreate(w->pdf);
-        if (!id || !pdfioArrayAppendBinary(id, digest, 16) || !pdfioArrayAppendBinary(id, digest, 16))
+        if (!id || !pdfioArrayAppendBinary(id, zero, 16) || !pdfioArrayAppendBinary(id, zero, 16))
             return zpd_status("memory");
         w->pdf->id_array = id;
     }
     int ok = pdfioFileClose(w->pdf) && !w->oom;
     w->pdf = NULL;
+    if (ok && fixed && !zpd_set_file_id(w)) {
+        ok = 0;
+        zpd_fallback(&w->rec, "Unable to write the file identifier.");
+    }
     if (!ok) {
         zpd_fallback(&w->rec, w->oom ? "Unable to allocate memory for the output."
                                      : "Unable to finish the file.");
@@ -611,8 +643,11 @@ static bool zpd_page_copy(pdfio_file_t *pdf, pdfio_obj_t *page, pdfio_obj_t *src
         }
     } while (parent && depth < PDFIO_MAX_DEPTH);
 
+    /* A page with no MediaBox, which the standard requires, gets the
+       writer's default page size. pdfioPageCopy() gives it the source
+       file's default, which for a file read is all zeros. */
     if (!_pdfioDictGetValue(dst, "MediaBox"))
-        pdfioDictSetRect(dst, "MediaBox", &srcpage->pdf->media_box);
+        pdfioDictSetRect(dst, "MediaBox", &pdf->media_box);
     if (rotate || absolute) {
         long r = (absolute ? 0 : zpd_clamp_int(pdfioDictGetNumber(dst, "Rotate"), -36000, 36000)) + rotate;
         pdfioDictSetNumber(dst, "Rotate", (double) (((r % 360) + 360) % 360));
@@ -676,7 +711,7 @@ SEXP zupdf_writer_set_meta(SEXP ptr, SEXP keys, SEXP values, SEXP modified)
 {
     zpd_writer *w = zpd_writer_get(ptr);
     if (!w)
-        return zpd_status("closed");
+        return zpd_status("closed_writer");
     zpd_record_reset(&w->rec);
     pdfio_dict_t *info = pdfioObjGetDict(w->pdf->info_obj);
     if (!info)
@@ -708,7 +743,7 @@ SEXP zupdf_writer_set_encryption(SEXP ptr, SEXP method, SEXP permissions, SEXP o
 {
     zpd_writer *w = zpd_writer_get(ptr);
     if (!w)
-        return zpd_status("closed");
+        return zpd_status("closed_writer");
     zpd_record_reset(&w->rec);
     /* Both methods make their keys from PDFDocEncoding bytes. The buffers
        are R's, taken before any pdfio call. */

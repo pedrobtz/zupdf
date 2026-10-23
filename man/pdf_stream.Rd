@@ -23,7 +23,8 @@ Reads a stream object's bytes, decoded or as stored. pdfio decodes
 \code{FlateDecode}, with or without a PNG predictor. A stream with any other
 filter, such as \code{DCTDecode} (JPEG) or \code{ASCII85Decode}, is returned as
 stored even when \code{decode = TRUE}, with \code{decoded = FALSE}, so the caller
-can decode it, for example with \code{jpeg::readJPEG()}.
+can decode it, for example with \code{jpeg::readJPEG()}. Damaged \code{FlateDecode}
+data gives a \code{zupdf_warning} and the bytes decoded before the damage.
 }
 \details{
 The stream is bounded by the \code{max_stream} limit of \code{\link[=pdf_open]{pdf_open()}}, which

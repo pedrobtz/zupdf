@@ -28,8 +28,6 @@
 #'   \item{`zupdf_io_error`}{A file, temporary file or connection failed.
 #'     From [pdf_save()], after the file was finished, it carries `bytes`,
 #'     the file's bytes.}
-#'   \item{`zupdf_encoding_error`}{Extracted text is not valid UTF-8 after
-#'     mapping.}
 #' }
 #'
 #' Warnings carry the class `zupdf_warning`.
@@ -37,11 +35,12 @@
 #' @name zupdf-conditions
 #' @examples
 #' tryCatch(
-#'   stop(structure(
-#'     class = c("zupdf_parse_error", "zupdf_error", "error", "condition"),
-#'     list(message = "PDF parse error", call = NULL, detail = NULL)
-#'   )),
+#'   pdf_open(as.raw(1:10)),
 #'   zupdf_error = function(e) class(e)[1]
+#' )
+#' tryCatch(
+#'   pdf_open(as.raw(1:10), max_size = 5),
+#'   zupdf_limit_error = function(e) e$limit
 #' )
 NULL
 
@@ -55,8 +54,7 @@ zpd_condition_classes <- c(
   "zupdf_unsupported_input",
   "zupdf_write_error",
   "zupdf_font_error",
-  "zupdf_io_error",
-  "zupdf_encoding_error"
+  "zupdf_io_error"
 )
 
 # Builds and raises a classed condition. `class` is one of
@@ -217,7 +215,10 @@ zpd_unwrap <- function(
       "max_stream",
       limits$max_stream,
       sprintf(
-        "%s: the page's streams, forms and fonts come to more than `max_stream` (%s bytes).",
+        paste(
+          "%s: the page's streams, forms and fonts come to more than",
+          "`max_stream` (%s bytes)."
+        ),
         what,
         format(limits$max_stream, scientific = FALSE, big.mark = "")
       ),
@@ -260,7 +261,7 @@ zpd_unwrap <- function(
       call = call
     ),
     memory = zpd_abort(
-      "zupdf_parse_error",
+      default,
       sprintf("%s: out of memory.", what),
       call = call
     ),

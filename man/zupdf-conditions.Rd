@@ -30,18 +30,17 @@ was used.}
 \item{\code{zupdf_io_error}}{A file, temporary file or connection failed.
 From \code{\link[=pdf_save]{pdf_save()}}, after the file was finished, it carries \code{bytes},
 the file's bytes.}
-\item{\code{zupdf_encoding_error}}{Extracted text is not valid UTF-8 after
-mapping.}
 }
 
 Warnings carry the class \code{zupdf_warning}.
 }
 \examples{
 tryCatch(
-  stop(structure(
-    class = c("zupdf_parse_error", "zupdf_error", "error", "condition"),
-    list(message = "PDF parse error", call = NULL, detail = NULL)
-  )),
+  pdf_open(as.raw(1:10)),
   zupdf_error = function(e) class(e)[1]
+)
+tryCatch(
+  pdf_open(as.raw(1:10), max_size = 5),
+  zupdf_limit_error = function(e) e$limit
 )
 }

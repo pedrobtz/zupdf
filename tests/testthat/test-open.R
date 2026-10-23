@@ -275,7 +275,9 @@ test_that("a closed handle is refused everywhere and closing twice is fine", {
   expect_no_error(pdf_close(pdf))
   expect_zupdf_error(pdf_meta(pdf), "zupdf_invalid_argument", arg = "pdf")
   expect_zupdf_error(pdf_pages(pdf), "zupdf_invalid_argument", arg = "pdf")
-  expect_zupdf_error(length(pdf), "zupdf_invalid_argument", arg = "pdf")
+  # length() answers for a closed handle, since str() and IDEs call it.
+  expect_identical(length(pdf), 0L)
+  expect_no_error(utils::capture.output(utils::str(pdf)))
   expect_zupdf_error(pdf_open(pdf), "zupdf_invalid_argument", arg = "pdf")
   expect_output(print(pdf), "(closed)", fixed = TRUE)
 })

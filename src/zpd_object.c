@@ -190,7 +190,7 @@ SEXP zupdf_stream(SEXP ptr, SEXP number, SEXP decode_, SEXP max_stream_)
         free(h->scratch);
         h->scratch = NULL;
         if (n == -2)
-            return zpd_status("max_stream");
+            return zpd_result("max_stream", R_NilValue, &h->rec);
         if (h->rec.nerror == 0) {
             h->rec.nerror = 1;
             strcpy(h->rec.error, n == -3 ? "Unable to allocate memory for the stream."
@@ -209,6 +209,10 @@ SEXP zupdf_stream(SEXP ptr, SEXP number, SEXP decode_, SEXP max_stream_)
     h->scratch = NULL;
     SET_VECTOR_ELT(v, 1, Rf_ScalarLogical(decoded));
     SET_VECTOR_ELT(v, 2, zpd_filters(obj));
+    /* pdfioStreamRead() reports a decoding error (damaged Flate data) and
+       returns what it decoded before it as the whole stream: those bytes
+       are returned with the error as a warning. */
+    zpd_errors_to_warnings(&h->rec);
     SEXP out = zpd_result("ok", v, &h->rec);
     UNPROTECT(1);
     return out;

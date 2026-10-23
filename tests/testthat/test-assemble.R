@@ -42,6 +42,40 @@ test_that("inherited boxes are carried onto the copy", {
   expect_identical(pdf_pages(out)$media_box[[1]], c(0, 0, 300, 400))
 })
 
+test_that("a page with no media box gets the writer's", {
+  src <- pdf_open(minimal_pdf(media_box = NULL))
+  withr::defer(pdf_close(src))
+  expect_true(anyNA(pdf_pages(src)$media_box[[1]]))
+  w <- pdf_new(media_box = pdf_paper("a5"))
+  pdf_copy_pages(w, src)
+  out <- pdf_open(pdf_save(w))
+  withr::defer(pdf_close(out))
+  expect_identical(pdf_pages(out)$media_box[[1]], pdf_paper("a5"))
+})
+
+test_that("a page with no /Type or a /Parent that is not a node is copied", {
+  # Page 3 has no /Type, which pdfio warns about, and a /Parent naming a
+  # number, which the copy does not follow.
+  bytes <- build_pdf(list(
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 /Rotate 90 >>",
+    "<< /Parent 4 0 R /MediaBox [0 0 200 300] >>",
+    "42"
+  ))
+  expect_warning(src <- pdf_open(bytes), class = "zupdf_warning")
+  withr::defer(pdf_close(src))
+  w <- pdf_new()
+  pdf_copy_pages(w, src)
+  out <- pdf_open(pdf_save(w))
+  withr::defer(pdf_close(out))
+  pg <- pdf_pages(out)
+  expect_identical(pg$media_box[[1]], c(0, 0, 200, 300))
+  # The page tree's /Rotate is not reached through a /Parent of 42.
+  expect_identical(pg$rotate, 0L)
+  objs <- pdf_objects(out)
+  expect_identical(sum(objs$type %in% "Page"), 1L)
+})
+
 test_that("a long chain of references is copied, and one too deep refused", {
   # Each pdfio copy of an object nests on the C stack: 1 100 objects (a 60 KB
   # file) overflowed it before patch 0015 bounded the depth (#30).
