@@ -167,7 +167,11 @@ zpd_unwrap <- function(
   switch(
     res$status,
     ok = res$value,
-    closed = zpd_invalid_argument("pdf", "The PDF file is closed.", call),
+    closed = zpd_invalid_argument(
+      "pdf",
+      "The PDF file is closed.",
+      call = call
+    ),
     pdfio = zpd_abort(
       zpd_pdfio_class(res$detail, default),
       paste0(what, ": ", res$detail),

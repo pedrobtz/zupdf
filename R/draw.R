@@ -50,14 +50,14 @@ pdf_page_new <- function(w, media_box = NULL, crop_box = NULL, dict = NULL) {
   call <- sys.call()
   zpd_check_writer(w, call = call)
   if (!is.null(media_box)) {
-    media_box <- zpd_check_box(media_box, "media_box", call)
+    media_box <- zpd_check_box(media_box, "media_box", call = call)
   }
   if (!is.null(crop_box)) {
-    crop_box <- zpd_check_box(crop_box, "crop_box", call)
+    crop_box <- zpd_check_box(crop_box, "crop_box", call = call)
   }
   if (!is.null(dict)) {
     if (!is.list(dict) || is.object(dict) || is.null(names(dict))) {
-      zpd_invalid_argument("dict", "`dict` must be a named list.", call)
+      zpd_invalid_argument("dict", "`dict` must be a named list.", call = call)
     }
     zpd_check_value(dict, "dict", zpd_default_limits()$max_depth, call = call)
   }
@@ -109,7 +109,7 @@ pdf_page_end <- function(page) {
       zpd_default_limits()$max_depth
     ),
     "Cannot write the page",
-    call,
+    call = call,
     default = "zupdf_write_error",
     limits = zpd_default_limits(),
     arg = "dict"
@@ -168,7 +168,11 @@ zpd_rgb <- function(colour, arg, call = NULL) {
     return(NULL)
   }
   if (length(colour) != 1L) {
-    zpd_invalid_argument(arg, sprintf("`%s` must be one colour.", arg), call)
+    zpd_invalid_argument(
+      arg,
+      sprintf("`%s` must be one colour.", arg),
+      call = call
+    )
   }
   if (is.na(colour) || identical(colour, "transparent")) {
     return(NULL)
@@ -178,7 +182,7 @@ zpd_rgb <- function(colour, arg, call = NULL) {
     zpd_invalid_argument(
       arg,
       sprintf("`%s` is not a colour R knows.", arg),
-      call
+      call = call
     )
   }
   as.numeric(rgb) / 255
@@ -236,26 +240,35 @@ pdf_draw_text <- function(
   call <- sys.call()
   zpd_check_page(page, call = call)
   zpd_check_dots(..., call = call)
-  x <- zpd_check_numbers(x, "x", call)
-  y <- zpd_check_numbers(y, "y", call)
+  x <- zpd_check_numbers(x, "x", call = call)
+  y <- zpd_check_numbers(y, "y", call = call)
   if (!is.character(text) || length(text) < 1L || anyNA(text)) {
-    zpd_invalid_argument("text", "`text` must be strings, not NA.", call)
+    zpd_invalid_argument("text", "`text` must be strings, not NA.", call = call)
   }
-  size <- zpd_check_numbers(size, "size", call)
-  line_height <- zpd_check_numbers(line_height, "line_height", call)
+  size <- zpd_check_numbers(size, "size", call = call)
+  line_height <- zpd_check_numbers(line_height, "line_height", call = call)
   if (length(size) != 1L || size <= 0) {
-    zpd_invalid_argument("size", "`size` must be one positive number.", call)
+    zpd_invalid_argument(
+      "size",
+      "`size` must be one positive number.",
+      call = call
+    )
   }
   if (length(line_height) != 1L || line_height <= 0) {
     zpd_invalid_argument(
       "line_height",
       "`line_height` must be one positive number.",
-      call
+      call = call
     )
   }
-  align <- zpd_match_arg(align, c("left", "centre", "right"), "align", call)
-  rgb <- zpd_rgb(colour, "colour", call)
-  font <- zpd_font_arg(page$writer, font, call)
+  align <- zpd_match_arg(
+    align,
+    c("left", "centre", "right"),
+    "align",
+    call = call
+  )
+  rgb <- zpd_rgb(colour, "colour", call = call)
+  font <- zpd_font_arg(page$writer, font, call = call)
 
   n <- max(length(x), length(y), length(text))
   x <- rep_len(x, n)
@@ -282,7 +295,11 @@ pdf_draw_text <- function(
 zpd_font_arg <- function(w, font, call = NULL) {
   if (inherits(font, "pdf_writer_font")) {
     if (!identical(font$writer, w)) {
-      zpd_invalid_argument("font", "The font belongs to another writer.", call)
+      zpd_invalid_argument(
+        "font",
+        "The font belongs to another writer.",
+        call = call
+      )
     }
     return(font)
   }
@@ -312,10 +329,18 @@ zpd_font_arg <- function(w, font, call = NULL) {
 #' @examples
 #' w <- pdf_new()
 #' page <- pdf_page_new(w)
-#' pdf_draw(page, list(x = c(72, 300, 186), y = c(600, 600, 750)),
-#'   fill = "gold", stroke = "black", close = TRUE)
-#' pdf_draw(page, data.frame(op = "rect", x = 72, y = 400, w = 200, h = 100),
-#'   fill = "steelblue")
+#' pdf_draw(
+#'   page,
+#'   list(x = c(72, 300, 186), y = c(600, 600, 750)),
+#'   fill = "gold",
+#'   stroke = "black",
+#'   close = TRUE
+#' )
+#' pdf_draw(
+#'   page,
+#'   data.frame(op = "rect", x = 72, y = 400, w = 200, h = 100),
+#'   fill = "steelblue"
+#' )
 #' pdf_page_end(page)
 #' bytes <- pdf_save(w)
 pdf_draw <- function(
@@ -331,25 +356,25 @@ pdf_draw <- function(
   call <- sys.call()
   zpd_check_page(page, call = call)
   zpd_check_dots(..., call = call)
-  fill <- zpd_rgb(fill, "fill", call)
+  fill <- zpd_rgb(fill, "fill", call = call)
   stroke <- if (is.null(fill) && is.null(stroke)) {
     c(0, 0, 0)
   } else {
-    zpd_rgb(stroke, "stroke", call)
+    zpd_rgb(stroke, "stroke", call = call)
   }
-  width <- zpd_check_numbers(width, "width", call)
+  width <- zpd_check_numbers(width, "width", call = call)
   if (length(width) != 1L || width < 0) {
     zpd_invalid_argument(
       "width",
       "`width` must be one number, 0 or more.",
-      call
+      call = call
     )
   }
-  rule <- zpd_match_arg(rule, c("winding", "evenodd"), "rule", call)
+  rule <- zpd_match_arg(rule, c("winding", "evenodd"), "rule", call = call)
   if (!isTRUE(close) && !isFALSE(close)) {
-    zpd_invalid_argument("close", "`close` must be TRUE or FALSE.", call)
+    zpd_invalid_argument("close", "`close` must be TRUE or FALSE.", call = call)
   }
-  steps <- zpd_path_steps(path, close, call)
+  steps <- zpd_path_steps(path, close, call = call)
 
   mode <- (!is.null(fill)) + 2L * (!is.null(stroke))
   zpd_record(
@@ -372,7 +397,7 @@ pdf_draw <- function(
 # order, checked.
 zpd_path_steps <- function(path, close, call = NULL) {
   bad <- function(what) {
-    zpd_invalid_argument("path", paste0("`path` ", what), call)
+    zpd_invalid_argument("path", paste0("`path` ", what), call = call)
   }
   if (!is.list(path) || is.null(path$x) || is.null(path$y)) {
     bad("must be points (x and y) or a data frame of operations (op).")
@@ -470,22 +495,30 @@ pdf_draw_image <- function(page, image, x, y, width, height) {
   call <- sys.call()
   zpd_check_page(page, call = call)
   if (!inherits(image, "pdf_writer_image")) {
-    zpd_invalid_argument("image", "`image` must be from pdf_image_new().", call)
+    zpd_invalid_argument(
+      "image",
+      "`image` must be from pdf_image_new().",
+      call = call
+    )
   }
   if (!identical(image$writer, page$writer)) {
-    zpd_invalid_argument("image", "The image belongs to another writer.", call)
+    zpd_invalid_argument(
+      "image",
+      "The image belongs to another writer.",
+      call = call
+    )
   }
   v <- c(
-    zpd_check_numbers(x, "x", call),
-    zpd_check_numbers(y, "y", call),
-    zpd_check_numbers(width, "width", call),
-    zpd_check_numbers(height, "height", call)
+    zpd_check_numbers(x, "x", call = call),
+    zpd_check_numbers(y, "y", call = call),
+    zpd_check_numbers(width, "width", call = call),
+    zpd_check_numbers(height, "height", call = call)
   )
   if (length(v) != 4L) {
     zpd_invalid_argument(
       "x",
       "`x`, `y`, `width` and `height` must be single numbers.",
-      call
+      call = call
     )
   }
   zpd_record(page, "image", c(image$handle, v))
@@ -512,17 +545,21 @@ pdf_text_width <- function(w, text, font = "Helvetica", size = 12) {
   call <- sys.call()
   zpd_check_writer(w, call = call)
   if (!is.character(text) || anyNA(text)) {
-    zpd_invalid_argument("text", "`text` must be strings, not NA.", call)
+    zpd_invalid_argument("text", "`text` must be strings, not NA.", call = call)
   }
-  size <- zpd_check_numbers(size, "size", call)
+  size <- zpd_check_numbers(size, "size", call = call)
   if (length(size) != 1L || size <= 0) {
-    zpd_invalid_argument("size", "`size` must be one positive number.", call)
+    zpd_invalid_argument(
+      "size",
+      "`size` must be one positive number.",
+      call = call
+    )
   }
-  font <- zpd_font_arg(w, font, call)
+  font <- zpd_font_arg(w, font, call = call)
   zpd_unwrap(
     .Call(zupdf_writer_measure, w, font$handle, enc2utf8(text), size),
     "Cannot measure the text",
-    call,
+    call = call,
     default = "zupdf_write_error"
   )
 }

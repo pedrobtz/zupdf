@@ -19,7 +19,11 @@
 pdf_objects <- function(pdf) {
   call <- sys.call()
   zpd_check_open(pdf, call = call)
-  v <- zpd_unwrap(.Call(zupdf_objects, pdf), "Cannot list the objects", call)
+  v <- zpd_unwrap(
+    .Call(zupdf_objects, pdf),
+    "Cannot list the objects",
+    call = call
+  )
   data.frame(
     number = zpd_counts(v$number),
     generation = v$generation,
@@ -59,7 +63,7 @@ pdf_object <- function(pdf, n) {
   v <- zpd_unwrap(
     .Call(zupdf_object, pdf, n, zpd_depth_int(limits$max_depth)),
     sprintf("Cannot read object %s", format(n, scientific = FALSE)),
-    call,
+    call = call,
     limits = limits
   )
   v$value
@@ -92,7 +96,11 @@ pdf_stream <- function(pdf, n, decode = TRUE) {
   zpd_check_open(pdf, call = call)
   n <- zpd_check_number(n, "n", call = call)
   if (!isTRUE(decode) && !isFALSE(decode)) {
-    zpd_invalid_argument("decode", "`decode` must be TRUE or FALSE.", call)
+    zpd_invalid_argument(
+      "decode",
+      "`decode` must be TRUE or FALSE.",
+      call = call
+    )
   }
   limits <- zpd_limits(pdf)
   v <- zpd_unwrap(
@@ -101,7 +109,7 @@ pdf_stream <- function(pdf, n, decode = TRUE) {
       "Cannot read the stream of object %s",
       format(n, scientific = FALSE)
     ),
-    call,
+    call = call,
     limits = limits
   )
   structure(v$bytes, decoded = v$decoded, filter = v$filter)

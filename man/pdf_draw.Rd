@@ -46,10 +46,18 @@ and \code{x2}, \code{y2} to \code{x}, \code{y}; \code{"rect"} draws a rectangle 
 \examples{
 w <- pdf_new()
 page <- pdf_page_new(w)
-pdf_draw(page, list(x = c(72, 300, 186), y = c(600, 600, 750)),
-  fill = "gold", stroke = "black", close = TRUE)
-pdf_draw(page, data.frame(op = "rect", x = 72, y = 400, w = 200, h = 100),
-  fill = "steelblue")
+pdf_draw(
+  page,
+  list(x = c(72, 300, 186), y = c(600, 600, 750)),
+  fill = "gold",
+  stroke = "black",
+  close = TRUE
+)
+pdf_draw(
+  page,
+  data.frame(op = "rect", x = 72, y = 400, w = 200, h = 100),
+  fill = "steelblue"
+)
 pdf_page_end(page)
 bytes <- pdf_save(w)
 }

@@ -21,7 +21,7 @@
 #' pdf_data(path)[[1]]
 pdf_data <- function(pdf, font_info = FALSE, opw = "", upw = "") {
   call <- sys.call()
-  x <- zpd_compat_open(pdf, opw, upw, call)
+  x <- zpd_compat_open(pdf, opw, upw, call = call)
   on.exit(x$done())
   p <- x$pdf
   limits <- zpd_limits(p)

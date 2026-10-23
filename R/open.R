@@ -101,7 +101,7 @@ pdf_open <- function(
     )
   }
   if (res$status == "max_objects") {
-    zpd_count_limit(NULL, "max_objects", "objects", limits, call)
+    zpd_count_limit(NULL, "max_objects", "objects", limits, call = call)
   }
   ptr <- zpd_unwrap(res, "Cannot open the PDF file", call = call)
   opened <- TRUE
@@ -216,10 +216,14 @@ zpd_spill <- function(bytes, source, name) {
 # pdfio refuses more than max_objects objects as it reads them (patch 0016).
 # A file over max_pages is closed before the condition is raised.
 zpd_check_counts <- function(pdf, limits, call = NULL) {
-  counts <- zpd_unwrap(.Call(zupdf_counts, pdf), "Cannot read the PDF file")
+  counts <- zpd_unwrap(
+    .Call(zupdf_counts, pdf),
+    "Cannot read the PDF file",
+    call = call
+  )
   if (counts[[2L]] > limits$max_pages) {
     # GUARD: max_pages
-    zpd_count_limit(pdf, "max_pages", "pages", limits, call)
+    zpd_count_limit(pdf, "max_pages", "pages", limits, call = call)
   }
 }
 

@@ -216,17 +216,23 @@ pdf_length <- function(input, password = "") {
 #' @export
 pdf_split <- function(input, output = NULL, password = "") {
   call <- sys.call()
-  x <- zpd_compat_input(input, password, call)
+  x <- zpd_compat_input(input, password, call = call)
   on.exit(x$done())
-  output <- zpd_compat_output(output, list(x), "", call, normalise = FALSE)
+  output <- zpd_compat_output(
+    output,
+    list(x),
+    "",
+    call = call,
+    normalise = FALSE
+  )
   n <- length(x$pdf)
   out <- normalizePath(
     sprintf("%s_%d.pdf", output, seq_len(n)),
     mustWork = FALSE
   )
-  zpd_compat_not_input(out, list(x), call)
+  zpd_compat_not_input(out, list(x), call = call)
   for (i in seq_len(n)) {
-    zpd_compat_write(x$pdf, i, out[[i]], call = call)
+    zpd_compat_write(x$pdf, i, out[[i]])
   }
   out
 }
@@ -235,11 +241,11 @@ pdf_split <- function(input, output = NULL, password = "") {
 #' @export
 pdf_subset <- function(input, pages = 1, output = NULL, password = "") {
   call <- sys.call()
-  x <- zpd_compat_input(input, password, call)
+  x <- zpd_compat_input(input, password, call = call)
   on.exit(x$done())
-  output <- zpd_compat_output(output, list(x), "_output.pdf", call)
-  pages <- zpd_compat_pages(x$pdf, pages, call)
-  zpd_compat_write(x$pdf, pages, output, call = call)
+  output <- zpd_compat_output(output, list(x), "_output.pdf", call = call)
+  pages <- zpd_compat_pages(x$pdf, pages, call = call)
+  zpd_compat_write(x$pdf, pages, output)
   output
 }
 
@@ -251,7 +257,11 @@ pdf_combine <- function(input, output = NULL, password = "") {
     input <- list(input)
   }
   if (!length(input)) {
-    zpd_invalid_argument("input", "`input` must name at least one file.", call)
+    zpd_invalid_argument(
+      "input",
+      "`input` must name at least one file.",
+      call = call
+    )
   }
   opened <- lapply(input, zpd_compat_input, password = password, call = call)
   on.exit(
@@ -259,7 +269,7 @@ pdf_combine <- function(input, output = NULL, password = "") {
       x$done()
     }
   )
-  output <- zpd_compat_output(output, opened, "_combined.pdf", call)
+  output <- zpd_compat_output(output, opened, "_combined.pdf", call = call)
   w <- pdf_new()
   for (x in opened) {
     pdf_copy_pages(w, x$pdf)
@@ -279,17 +289,21 @@ pdf_rotate_pages <- function(
   password = ""
 ) {
   call <- sys.call()
-  x <- zpd_compat_input(input, password, call)
+  x <- zpd_compat_input(input, password, call = call)
   on.exit(x$done())
-  output <- zpd_compat_output(output, list(x), "_output.pdf", call)
-  pages <- zpd_compat_pages(x$pdf, pages, call)
+  output <- zpd_compat_output(output, list(x), "_output.pdf", call = call)
+  pages <- zpd_compat_pages(x$pdf, pages, call = call)
   if (
     !is.numeric(angle) ||
       length(angle) != 1L ||
       !is.finite(angle) ||
       angle %% 90 != 0
   ) {
-    zpd_invalid_argument("angle", "`angle` must be a multiple of 90.", call)
+    zpd_invalid_argument(
+      "angle",
+      "`angle` must be a multiple of 90.",
+      call = call
+    )
   }
   w <- pdf_new()
   rot <- as.integer(angle %% 360)
@@ -298,7 +312,7 @@ pdf_rotate_pages <- function(
       zpd_unwrap(
         .Call(zupdf_writer_copy_pages, w, x$pdf, i, rot, !isTRUE(relative)),
         "Cannot copy the pages",
-        call,
+        call = call,
         default = "zupdf_write_error"
       )
     } else {
@@ -325,7 +339,7 @@ zpd_compat_open <- function(pdf, opw, upw, call = NULL) {
   pw <- unique(c(upw, opw)[nzchar(c(upw, opw))])
   if (length(pw) > 1L && inherits(pdf, "connection")) {
     # A second try needs the bytes again.
-    pdf <- zpd_read_connection(pdf, zpd_default_limits()$max_size, call)
+    pdf <- zpd_read_connection(pdf, zpd_default_limits()$max_size, call = call)
   }
   p <- tryCatch(
     pdf_open(pdf, password = if (length(pw)) pw[[1L]]),
@@ -351,7 +365,12 @@ zpd_compat_input <- function(input, password = "", call = NULL) {
     return(list(pdf = input, path = path, done = function() NULL))
   }
   if (!is.character(input) || length(input) != 1L || is.na(input)) {
-    zpd_invalid_argument("input", "input should contain exactly one file", call)
+    # qpdf's own message, word for word, as is "Selected pages out of range".
+    zpd_invalid_argument(
+      "input",
+      "input should contain exactly one file",
+      call = call
+    )
   }
   path <- normalizePath(input, mustWork = FALSE)
   p <- pdf_open(path, password = if (nzchar(password)) password else NULL)
@@ -371,7 +390,7 @@ zpd_compat_output <- function(output, inputs, suffix, call, normalise = TRUE) {
       zpd_invalid_argument(
         "output",
         "`output` is needed for a PDF read from memory.",
-        call
+        call = call
       )
     }
     output <- paste0(sub("\\.pdf$", "", path, ignore.case = TRUE), suffix)
@@ -380,7 +399,7 @@ zpd_compat_output <- function(output, inputs, suffix, call, normalise = TRUE) {
     return(output)
   }
   output <- normalizePath(output, mustWork = FALSE)
-  zpd_compat_not_input(output, inputs, call)
+  zpd_compat_not_input(output, inputs, call = call)
   output
 }
 
@@ -390,7 +409,7 @@ zpd_compat_not_input <- function(output, inputs, call) {
     zpd_invalid_argument(
       "output",
       "`output` must not overwrite an input.",
-      call
+      call = call
     )
   }
 }
@@ -399,12 +418,12 @@ zpd_compat_not_input <- function(output, inputs, call) {
 zpd_compat_pages <- function(pdf, pages, call = NULL) {
   sel <- seq_len(length(pdf))[pages]
   if (anyNA(sel) || !length(sel)) {
-    zpd_invalid_argument("pages", "Selected pages out of range", call)
+    zpd_invalid_argument("pages", "Selected pages out of range", call = call)
   }
   sel
 }
 
-zpd_compat_write <- function(pdf, pages, output, call = NULL) {
+zpd_compat_write <- function(pdf, pages, output) {
   w <- pdf_new()
   pdf_copy_pages(w, pdf, pages)
   pdf_save(w, output)
@@ -672,12 +691,15 @@ zpd_attachment <- function(pdf, name, spec) {
     fname <- if (is.na(name)) "" else name
   }
   desc <- text(zpd_key(spec, "Desc"))
+  if (is.null(desc)) {
+    desc <- ""
+  }
   list(
     name = fname,
     mime = mime,
     created = created,
     modified = modified,
-    description = if (is.null(desc)) "" else desc,
+    description = desc,
     data = data
   )
 }

@@ -26,7 +26,7 @@ pdf_font_table <- function(pdf) {
     objs$type %in% "Font" & !objs$subtype %in% c("CIDFontType0", "CIDFontType2")
   ]
   na_row <- list(name = NA_character_, type = NA_character_, embedded = NA)
-  rows <- zpd_rows(numbers, na_row, call, function(n) {
+  rows <- zpd_rows(numbers, na_row, call = call, function(n) {
     d <- pdf_object(pdf, n)
     list(
       name = zpd_chr(zpd_key(d, "BaseFont")),
