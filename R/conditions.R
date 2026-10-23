@@ -184,6 +184,15 @@ zpd_unwrap <- function(
       sprintf("%s: a pdf_ref names no object in the file.", what),
       call = call
     ),
+    pdfdoc = zpd_invalid_argument(
+      res$value,
+      sprintf(
+        "%s: `%s` has a character PDFDocEncoding cannot hold.",
+        what,
+        res$value
+      ),
+      call = call
+    ),
     font = zpd_abort(
       zpd_pdfio_class(res$detail, "zupdf_font_error"),
       paste0(what, ": ", res$detail),

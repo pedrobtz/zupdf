@@ -701,8 +701,20 @@ SEXP zupdf_writer_set_encryption(SEXP ptr, SEXP method, SEXP permissions, SEXP o
     if (!w)
         return zpd_status("closed");
     zpd_record_reset(&w->rec);
-    const char *o = owner == R_NilValue ? NULL : Rf_translateCharUTF8(STRING_ELT(owner, 0));
-    const char *u = user == R_NilValue ? NULL : Rf_translateCharUTF8(STRING_ELT(user, 0));
+    /* Both methods make their keys from PDFDocEncoding bytes. The buffers
+       are R's, taken before any pdfio call. */
+    const char *pw[2] = {NULL, NULL};
+    SEXP given[2] = {owner, user};
+    for (int i = 0; i < 2; i++) {
+        if (given[i] == R_NilValue)
+            continue;
+        const char *s = Rf_translateCharUTF8(STRING_ELT(given[i], 0));
+        char *b = R_alloc(strlen(s) + 1, 1);
+        if (!zpd_pdfdoc_encode(s, b))
+            return zpd_result("pdfdoc", Rf_mkString(i ? "user" : "owner"), &w->rec);
+        pw[i] = b;
+    }
+    const char *o = pw[0], *u = pw[1];
     if (!pdfioFileSetPermissions(w->pdf, (pdfio_permission_t) Rf_asInteger(permissions),
                                  (pdfio_encryption_t) Rf_asInteger(method), o, u)) {
         zpd_fallback(&w->rec, "Unable to set the encryption.");

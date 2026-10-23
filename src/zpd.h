@@ -39,8 +39,9 @@ bool zpd_error_cb(pdfio_file_t *pdf, const char *message, void *data);
  * closes the file and removes a temporary copy. */
 typedef struct zpd_file {
     pdfio_file_t *pdf;  /* NULL once closed */
-    char *password;     /* the password to answer with, or NULL */
-    int password_asked; /* times pdfio asked; answered only the first */
+    char *password;     /* the password as UTF-8, or NULL */
+    char *password_doc; /* the same in PDFDocEncoding when that differs */
+    int password_asked; /* times pdfio asked; answered only the first two */
     char *tmpfile;      /* a spilled temporary copy to remove, or NULL */
     unsigned char *scratch; /* a stream read's buffer until R has copied it */
     struct zpd_font_cache *fonts; /* fonts loaded for text, by object */
@@ -111,6 +112,10 @@ SEXP zpd_mkchar_pdf(const char *s, size_t n);
 SEXP zpd_string_or_na(const char *s);
 bool zpd_is_utf16be(const unsigned char *b, size_t n);
 SEXP zpd_mkchar_utf16be(const unsigned char *b, size_t n);
+
+/* A password's PDFDocEncoding bytes into `out` (strlen(s) + 1 bytes), or
+   false when it has none (zpd_string.c). */
+bool zpd_pdfdoc_encode(const char *s, char *out);
 
 #endif /* !ZPD_STANDALONE */
 

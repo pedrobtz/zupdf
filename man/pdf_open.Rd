@@ -23,7 +23,8 @@ handle removes when it is closed.}
 
 \item{password}{\code{NULL} for none, a string, or a function of the file
 name that returns one. A function is called only when the file turns
-out to need a password.}
+out to need a password. A non-ASCII password is tried as UTF-8 and as
+PDFDocEncoding, since writers differ.}
 
 \item{...}{Must be empty.}
 

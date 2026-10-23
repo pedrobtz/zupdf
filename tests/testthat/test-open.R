@@ -186,6 +186,58 @@ test_that("a password-protected file needs its user or owner password", {
   }
 })
 
+test_that("a non-ASCII password is written in PDFDocEncoding", {
+  # RC4 and AES-128 keys are made from the password's PDFDocEncoding bytes
+  # (PDF 2.0, 7.6.4.3.2), as Acrobat makes them: e-acute is 0xE9 and the
+  # euro sign 0xA0.
+  pw <- "café €"
+  pdfdoc <- rawToChar(as.raw(c(0x63, 0x61, 0x66, 0xe9, 0x20, 0xa0)))
+  Encoding(pdfdoc) <- "bytes"
+  paths <- character()
+  for (method in c("aes128", "rc4128")) {
+    w <- pdf_new()
+    pdf_set_encryption(w, user = pw, owner = "øwner", method = method)
+    pdf_page_end(pdf_page_new(w))
+    paths[[method]] <- withr::local_tempfile(fileext = ".pdf")
+    pdf_save(w, paths[[method]])
+    for (p in c(pw, "øwner")) {
+      pdf <- pdf_open(paths[[method]], password = p)
+      expect_identical(length(pdf), 1L, label = method)
+      pdf_close(pdf)
+    }
+    expect_zupdf_error(
+      pdf_open(paths[[method]], password = "café"),
+      "zupdf_password_error"
+    )
+  }
+  skip_if_not_installed("qpdf")
+  # The qpdf library takes a password's bytes as they are.
+  for (path in paths) {
+    expect_identical(qpdf::pdf_length(path, password = pdfdoc), 1L)
+    expect_error(qpdf::pdf_length(path, password = pw))
+  }
+})
+
+test_that("a password with no PDFDocEncoding form is refused for writing", {
+  w <- pdf_new()
+  expect_zupdf_error(
+    pdf_set_encryption(w, user = "パス"),
+    "zupdf_invalid_argument",
+    arg = "user"
+  )
+  expect_zupdf_error(
+    pdf_set_encryption(w, user = "u", owner = "Ł☃"),
+    "zupdf_invalid_argument",
+    arg = "owner"
+  )
+  # Nothing was set, so the writer still takes a password.
+  pdf_set_encryption(w, user = "Ł")
+  pdf_page_end(pdf_page_new(w))
+  pdf <- pdf_open(pdf_save(w), password = "Ł")
+  withr::defer(pdf_close(pdf))
+  expect_identical(pdf_meta(pdf)$encryption, "aes-128")
+})
+
 test_that("a password function is called only when one is needed", {
   calls <- 0L
   ask <- function(name) {
