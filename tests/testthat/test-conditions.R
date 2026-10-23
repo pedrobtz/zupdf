@@ -195,10 +195,12 @@ test_that("every status from C raises a zupdf_error, with its class", {
     memory = "zupdf_parse_error",
     unsupported = "zupdf_invalid_argument",
     closed_writer = "zupdf_write_error",
-    bad_ops = "zupdf_write_error"
+    bad_ops = "zupdf_write_error",
+    pdfdoc = "zupdf_invalid_argument",
+    max_objects = "zupdf_limit_error"
   )
   expect_setequal(c("ok", names(expected)), zpd_c_statuses)
-  limits <- list(max_depth = 1, max_stream = 1)
+  limits <- list(max_depth = 1, max_stream = 1, max_objects = 1)
   for (s in names(expected)) {
     expect_zupdf_error(
       zpd_unwrap(res(s), "x", default = "zupdf_write_error", limits = limits),

@@ -131,7 +131,9 @@ zpd_c_statuses <- c(
   "memory",
   "unsupported",
   "closed_writer",
-  "bad_ops"
+  "bad_ops",
+  "pdfdoc",
+  "max_objects"
 )
 
 # Unwraps a zpd_result() from C: warns once for pdfio's warnings, raises
@@ -184,6 +186,16 @@ zpd_unwrap <- function(
       "max_depth",
       limits$max_depth,
       sprintf("%s: a form XObject draws itself.", what),
+      call = call
+    ),
+    max_objects = zpd_limit_error(
+      "max_objects",
+      limits$max_objects,
+      sprintf(
+        "%s: the file has more objects than `max_objects` (%s).",
+        what,
+        format(limits$max_objects, scientific = FALSE, big.mark = "")
+      ),
       call = call
     ),
     max_stream = zpd_limit_error(
