@@ -341,6 +341,32 @@ test_that("pdf_text_width() measures as pdf_draw_text() draws", {
   )
 })
 
+test_that("a long path and many calls are recorded whole and in order", {
+  # Recording is linear: a 20,000-point path once took seconds.
+  n <- 20000L
+  w <- pdf_new()
+  page <- pdf_page_new(w)
+  pdf_draw(page, list(x = seq_len(n) / 40, y = rep(c(10, 20), n / 2)))
+  for (i in 1:200) {
+    pdf_draw_text(page, 72, 800 - i * 3, sprintf("t%d", i), size = 3)
+  }
+  # save, stroke_rgb, line_width, move, lines, paint, restore; then
+  # save, fill_rgb, text, restore per call.
+  expect_output(print(page), sprintf("%d operations", n + 5L + 4L * 200L))
+  pdf_page_end(page)
+  bytes <- pdf_save(w)
+  ops <- reread(bytes, function(p) {
+    t <- pdf_page_tokens(p, 1)
+    t$value[t$type == "operator"]
+  })
+  expect_identical(sum(ops == "l"), n - 1L)
+  text <- reread(bytes, function(p) pdf_page_text(p, layout = "raw"))
+  expect_identical(
+    strsplit(as.vector(text), "\n")[[1]],
+    sprintf("t%d", 1:200)
+  )
+})
+
 test_that("line_height must be one positive number", {
   w <- pdf_new()
   page <- pdf_page_new(w)

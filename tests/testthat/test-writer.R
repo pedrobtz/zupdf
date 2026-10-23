@@ -212,7 +212,8 @@ test_that("a page that fails to end is not retried and the writer saves", {
   expect_zupdf_error(pdf_page_end(bad), "zupdf_write_error")
   # Operations C refuses (here forged) are a write error, not a bare one.
   forged <- pdf_page_new(w)
-  forged$ops <- 99L
+  forged$chunks[["1"]] <- list(ops = 99L, nums = numeric(), strs = character())
+  forged$nchunks <- 1L
   expect_zupdf_error(pdf_page_end(forged), "zupdf_write_error")
   good <- pdf_page_new(w)
   pdf_draw_text(good, 72, 700, "kept")
