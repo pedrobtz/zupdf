@@ -501,10 +501,8 @@ pdf_draw_image <- function(page, image, x, y, width, height) {
 #' wrapping a paragraph to a column.
 #'
 #' @inheritParams pdf_font
+#' @inheritParams pdf_draw_text
 #' @param text Strings, UTF-8.
-#' @param font A base-14 font name, a font file path, or a font from
-#'   [pdf_font()].
-#' @param size The font size in points.
 #' @return A numeric vector of widths in points.
 #' @export
 #' @examples
