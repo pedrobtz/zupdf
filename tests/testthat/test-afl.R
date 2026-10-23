@@ -1,64 +1,98 @@
-# pdfio's afl-input corpus: PDFs from PDFBox's issue tracker, some
-# malformed. Each must either open and read, or be refused with a classed
-# condition; nothing may crash (design section 15).
+# pdfio's afl-input corpus (PDFs from PDFBox's issue tracker, some
+# malformed) and the inputs tools/run-fuzz found. What each reads is pinned
+# in fixtures/corpus.tsv; nothing may crash or write to stderr (design
+# sections 15 and 19).
 
-test_that("every afl-input case opens or is refused with a classed error", {
-  files <- afl_files()
-  expect_gt(length(files), 20L)
-  for (f in files) {
-    res <- tryCatch(
-      suppressWarnings(read_all(f)),
-      zupdf_error = function(e) "refused"
+test_that("every corpus file has a pinned outcome", {
+  pins <- corpus_pins()
+  files <- basename(c(afl_files(), corpus_files("fuzz")))
+  expect_gt(length(afl_files()), 20L)
+  expect_setequal(pins$file, files)
+})
+
+test_that("every afl-input case opens and reads as pinned", {
+  pins <- corpus_pins()
+  for (f in afl_files()) {
+    pin <- pins[pins$file == basename(f), ]
+    expect_identical(
+      read_corpus(f),
+      as.list(pin[, -1L]),
+      label = basename(f)
     )
-    if (!identical(res, "refused")) {
-      expect_identical(res$rows, res$pages, label = basename(f))
+  }
+})
+
+test_that("every fuzz-found input reads as pinned or is refused", {
+  # Each was fixed by a pdfio patch or a zupdf change (fixtures/README.md).
+  pins <- corpus_pins()
+  for (f in corpus_files("fuzz")) {
+    pin <- pins[pins$file == basename(f), ]
+    if (is.na(pin$pages)) {
+      expect_zupdf_error(
+        suppressWarnings(pdf_open(f)),
+        "zupdf_parse_error"
+      )
     } else {
-      succeed()
+      expect_identical(
+        read_corpus(f),
+        as.list(pin[, -1L]),
+        label = basename(f)
+      )
     }
   }
 })
 
-test_that("reading the afl-input corpus writes nothing to stderr", {
+test_that("reading the corpus neither crashes nor writes to stderr", {
   skip_heavy()
-  # A child R process, so that anything written to the C stderr is caught.
+  # A child R process, so that a crash or anything written to the C stderr
+  # is seen. It loads the zupdf under test: the source tree, already built,
+  # under devtools::test(); otherwise the installed copy the namespace came
+  # from, not whichever zupdf is first on the library path.
+  path <- getNamespaceInfo("zupdf", "path")
+  dev <- isNamespaceLoaded("pkgload") && pkgload::is_dev_package("zupdf")
+  load <- if (dev) {
+    sprintf(
+      "pkgload::load_all(%s, compile = FALSE, quiet = TRUE)",
+      deparse1(path)
+    )
+  } else {
+    sprintf(
+      "suppressMessages(library(zupdf, lib.loc = %s))",
+      deparse1(dirname(path))
+    )
+  }
+  files <- normalizePath(c(afl_files(), corpus_files("fuzz")))
   script <- withr::local_tempfile(fileext = ".R")
   writeLines(
     c(
-      "suppressMessages(library(zupdf))",
-      sprintf("files <- %s", deparse1(afl_files())),
+      load,
+      sprintf("files <- %s", deparse1(files)),
       "for (f in files) try(suppressWarnings({",
-      "  p <- pdf_open(f); pdf_meta(p); pdf_pages(p); pdf_close(p)",
-      "}), silent = TRUE)"
+      "  p <- pdf_open(f)",
+      "  pdf_meta(p); pdf_pages(p); o <- pdf_objects(p)",
+      "  for (n in o$number) try(pdf_object(p, n), silent = TRUE)",
+      "  for (n in o$number[!is.na(o$length)]) {",
+      "    try(pdf_stream(p, n), silent = TRUE)",
+      "  }",
+      "  pdf_page_text(p); pdf_page_text(p, layout = 'raw')",
+      "  for (i in seq_len(length(p))) {",
+      "    pdf_page_tokens(p, i)",
+      "    for (k in pdf_page_images(p, i)$object) {",
+      "      try(pdf_image(p, k), silent = TRUE)",
+      "    }",
+      "  }",
+      "  pdf_close(p)",
+      "}), silent = TRUE)",
+      "cat('done\\n')"
     ),
     script
   )
   rscript <- file.path(R.home("bin"), "Rscript")
   out <- withr::local_tempfile()
   err <- withr::local_tempfile()
-  status <- system2(rscript, script, stdout = out, stderr = err)
-  skip_if(status != 0L, "zupdf is not installed for a child process")
+  status <- system2(rscript, c("--vanilla", script), stdout = out, stderr = err)
+  # Every call is wrapped in try(), so only a crash or abort() stops it.
+  expect_identical(status, 0L)
+  expect_identical(readLines(out), "done")
   expect_identical(readLines(err), character())
-})
-
-test_that("every fuzz-found input is read or refused cleanly", {
-  # tests/testthat/fixtures/fuzz holds the inputs tools/run-fuzz found, each
-  # now fixed by a pdfio patch or a zupdf change (design section 15).
-  files <- list.files(test_path("fixtures", "fuzz"), full.names = TRUE)
-  expect_gt(length(files), 0L)
-  for (f in files) {
-    res <- tryCatch(
-      suppressWarnings({
-        pdf <- pdf_open(f)
-        on.exit(pdf_close(pdf), add = TRUE)
-        list(
-          pdf_meta(pdf),
-          pdf_pages(pdf),
-          pdf_page_text(pdf),
-          suppressWarnings(pdf_objects(pdf))
-        )
-      }),
-      zupdf_error = function(e) "refused"
-    )
-    expect_true(is.list(res) || identical(res, "refused"), label = basename(f))
-  }
 })

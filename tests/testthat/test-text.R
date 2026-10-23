@@ -246,17 +246,18 @@ test_that("encrypted text is decrypted", {
   )
 })
 
-test_that("every afl-input page's text extracts or is refused cleanly", {
+test_that("every afl-input case's text extracts as pinned", {
+  pins <- corpus_pins()
   for (f in afl_files()) {
-    res <- tryCatch(
-      suppressWarnings({
-        pdf <- pdf_open(f)
-        on.exit(pdf_close(pdf), add = TRUE)
-        pdf_page_text(pdf)
-      }),
-      zupdf_error = function(e) "refused"
+    pdf <- suppressWarnings(pdf_open(f))
+    withr::defer(pdf_close(pdf))
+    text <- suppressWarnings(pdf_page_text(pdf))
+    expect_length(text, length(pdf))
+    expect_identical(
+      bytes_md5(charToRaw(enc2utf8(paste(text, collapse = "\f")))),
+      pins$text[pins$file == basename(f)],
+      label = basename(f)
     )
-    expect_type(res, "character")
   }
 })
 

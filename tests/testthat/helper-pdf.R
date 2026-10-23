@@ -134,16 +134,46 @@ pdf_escape <- function(x) gsub("([\\\\()])", "\\\\\\1", x)
 
 # pdfio's afl-input corpus (tools/update-fixtures).
 afl_files <- function() {
-  list.files(test_path("fixtures", "afl-input"), full.names = TRUE)
+  corpus_files("afl-input")
 }
 
-# Opens a file and reads everything Stage 1 can read, closing it again.
-read_all <- function(path) {
-  pdf <- pdf_open(path)
+# The files of a corpus directory under fixtures: "afl-input", or "fuzz"
+# for the inputs tools/run-fuzz found.
+corpus_files <- function(dir) {
+  list.files(test_path("fixtures", dir), full.names = TRUE)
+}
+
+# Opens a corpus file, reads everything zupdf reads, and closes it again:
+# the page count (checked against pdf_pages()), the object count, the MD5
+# of the pages' text joined by form feeds, and the tokens and images over
+# all pages. pdfio's warnings about damaged files are expected.
+read_corpus <- function(path) {
+  pdf <- suppressWarnings(pdf_open(path))
   on.exit(pdf_close(pdf))
-  m <- pdf_meta(pdf)
-  p <- pdf_pages(pdf)
-  list(pages = m$pages, rows = nrow(p))
+  pages <- seq_len(length(pdf))
+  stopifnot(nrow(suppressWarnings(pdf_pages(pdf))) == length(pages))
+  suppressWarnings(pdf_meta(pdf))
+  text <- suppressWarnings(pdf_page_text(pdf))
+  count <- function(f) {
+    sum(vapply(pages, function(i) nrow(suppressWarnings(f(pdf, i))), 1L))
+  }
+  list(
+    pages = length(pages),
+    objects = nrow(suppressWarnings(pdf_objects(pdf))),
+    text = bytes_md5(charToRaw(enc2utf8(paste(text, collapse = "\f")))),
+    tokens = count(pdf_page_tokens),
+    images = count(pdf_page_images)
+  )
+}
+
+# What read_corpus() gives for each corpus file (fixtures/corpus.tsv), NA
+# throughout for a file pdf_open() refuses with zupdf_parse_error.
+corpus_pins <- function() {
+  utils::read.delim(
+    fixture("corpus.tsv"),
+    comment.char = "#",
+    colClasses = c("character", "integer", "integer", "character", "integer", "integer")
+  )
 }
 
 # A one-page PDF whose object 4 is a stream holding `data` (raw) with the

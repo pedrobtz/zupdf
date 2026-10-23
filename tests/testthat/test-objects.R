@@ -153,11 +153,17 @@ test_that("the default max_stream stops a large Flate bomb", {
   )
 })
 
-test_that("every afl-input case lists its objects", {
+test_that("every afl-input case lists its pinned objects", {
+  pins <- corpus_pins()
   for (f in afl_files()) {
     pdf <- suppressWarnings(pdf_open(f))
+    withr::defer(pdf_close(pdf))
     o <- suppressWarnings(pdf_objects(pdf))
-    pdf_close(pdf)
-    expect_s3_class(o, "data.frame")
+    expect_identical(
+      nrow(o),
+      pins$objects[pins$file == basename(f)],
+      label = basename(f)
+    )
+    expect_false(anyDuplicated(o$number) > 0L, label = basename(f))
   }
 })
