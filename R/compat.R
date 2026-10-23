@@ -38,8 +38,9 @@
 #'   page; `pdf_fonts()` a data frame of `name`, `type`, `embedded` and
 #'   `file`; `pdf_pagesize()` a data frame of `top`, `right`, `bottom`,
 #'   `left`, `width` and `height`; `pdf_toc()` a nested list of `title`,
-#'   `is_open` and `children`; `pdf_attachments()` a list of attachments, each with
-#'   `name`, `mime`, `created`, `modified`, `description` and `data`.
+#'   `is_open` and `children`; `pdf_attachments()` a list of attachments,
+#'   each with `name`, `mime`, `created`, `modified`, `description` and
+#'   `data`.
 #' @name pdftools-compat
 #' @examples
 #' path <- system.file("examples", "hello.pdf", package = "zupdf")
@@ -57,7 +58,7 @@ pdf_info <- function(pdf, opw = "", upw = "") {
   m <- pdf_meta(p)
   limits <- zpd_limits(p)
   info <- zpd_doc_dict(p, "info")
-  cat <- zpd_doc_dict(p, "catalog")
+  catalog <- zpd_doc_dict(p, "catalog")
   keys <- info[!names(info) %in% c("CreationDate", "ModDate")]
   keys <- keys[vapply(
     keys,
@@ -65,19 +66,19 @@ pdf_info <- function(pdf, opw = "", upw = "") {
     TRUE
   )]
   keys <- lapply(keys, as.character)
-  local <- function(t) .POSIXct(as.numeric(t), tz = "")
+  as_local_time <- function(x) .POSIXct(as.numeric(x), tz = "")
   list(
     version = m$version,
     pages = m$pages,
     encrypted = m$encryption != "none",
     linearized = zpd_linearized(p),
     keys = keys,
-    created = local(m$created),
-    modified = local(m$modified),
-    metadata = zpd_xmp(p, cat),
+    created = as_local_time(m$created),
+    modified = as_local_time(m$modified),
+    metadata = zpd_xmp(p, catalog),
     locked = FALSE,
-    attachments = length(zpd_embedded_files(p, cat, limits)) > 0L,
-    layout = zpd_layout(zpd_key(cat, "PageLayout"))
+    attachments = length(zpd_embedded_files(p, catalog, limits)) > 0L,
+    layout = zpd_layout(zpd_key(catalog, "PageLayout"))
   )
 }
 
@@ -86,12 +87,12 @@ pdf_info <- function(pdf, opw = "", upw = "") {
 pdf_text <- function(pdf, opw = "", upw = "", raw = FALSE) {
   x <- zpd_compat_open(pdf, opw, upw, sys.call())
   on.exit(x$done())
-  t <- as.vector(pdf_page_text(
+  text <- as.vector(pdf_page_text(
     x$pdf,
     layout = if (isTRUE(raw)) "raw" else "reading"
   ))
   # pdftools ends every line, the last included, with a line break.
-  ifelse(nzchar(t), paste0(t, "\n"), t)
+  ifelse(nzchar(text), paste0(text, "\n"), text)
 }
 
 #' @rdname pdftools-compat
@@ -146,8 +147,8 @@ pdf_toc <- function(pdf, opw = "", upw = "") {
   x <- zpd_compat_open(pdf, opw, upw, sys.call())
   on.exit(x$done())
   p <- x$pdf
-  cat <- zpd_doc_dict(p, "catalog")
-  outlines <- zpd_deref(p, zpd_key(cat, "Outlines"))
+  catalog <- zpd_doc_dict(p, "catalog")
+  outlines <- zpd_deref(p, zpd_key(catalog, "Outlines"))
   first <- zpd_key(outlines, "First")
   if (is.null(first)) {
     return(list())
@@ -165,8 +166,8 @@ pdf_attachments <- function(pdf, opw = "", upw = "") {
   x <- zpd_compat_open(pdf, opw, upw, sys.call())
   on.exit(x$done())
   p <- x$pdf
-  cat <- zpd_doc_dict(p, "catalog")
-  files <- zpd_embedded_files(p, cat, zpd_limits(p))
+  catalog <- zpd_doc_dict(p, "catalog")
+  files <- zpd_embedded_files(p, catalog, zpd_limits(p))
   lapply(files, function(f) zpd_attachment(p, f$name, f$spec))
 }
 
@@ -432,8 +433,8 @@ zpd_layout <- function(x) {
 
 # The XMP stream's text. A damaged or missing stream is "" (poppler's
 # answer), but a limit is the caller's and is raised, as everywhere else.
-zpd_xmp <- function(pdf, cat) {
-  ref <- zpd_key(cat, "Metadata")
+zpd_xmp <- function(pdf, catalog) {
+  ref <- zpd_key(catalog, "Metadata")
   if (!inherits(ref, "pdf_ref")) {
     return("")
   }
@@ -480,8 +481,8 @@ zpd_linearized <- function(pdf) {
 # test-compat.R.
 zpd_poppler_font_type <- function(pdf, n) {
   d <- pdf_object(pdf, n)
-  sub <- zpd_chr(zpd_key(d, "Subtype"))
-  cid <- identical(sub, "Type0")
+  subtype <- zpd_chr(zpd_key(d, "Subtype"))
+  cid <- identical(subtype, "Type0")
   if (cid) {
     desc <- zpd_deref(pdf, zpd_key(d, "DescendantFonts"))
     d <- if (is.list(desc) && length(desc)) zpd_deref(pdf, desc[[1L]])
@@ -489,7 +490,7 @@ zpd_poppler_font_type <- function(pdf, n) {
     type <- if (two) "cid_truetype" else "cid_type0"
   } else {
     type <- switch(
-      if (is.na(sub)) "" else sub,
+      if (is.na(subtype)) "" else subtype,
       Type1 = ,
       MMType1 = "type1",
       TrueType = "truetype",
@@ -556,8 +557,12 @@ zpd_outline <- function(pdf, first, limits) {
         break
       }
       n <- n + 1L
-      t <- zpd_key(item, "Title")
-      title[[n]] <- if (is.character(t) && length(t)) t[[1L]] else ""
+      item_title <- zpd_key(item, "Title")
+      title[[n]] <- if (is.character(item_title) && length(item_title)) {
+        item_title[[1L]]
+      } else {
+        ""
+      }
       # A positive /Count marks an item shown open (PDF 2.0, 12.3.3).
       count <- zpd_key(item, "Count")
       is_open[[n]] <- is.numeric(count) && isTRUE(count[[1L]] > 0)
@@ -586,8 +591,8 @@ zpd_outline <- function(pdf, first, limits) {
 
 # The /EmbeddedFiles name tree's entries, in order: list(list(name, spec)).
 # Like zpd_outline(), it keeps its own stack.
-zpd_embedded_files <- function(pdf, cat, limits) {
-  names_dict <- zpd_deref(pdf, zpd_key(cat, "Names"))
+zpd_embedded_files <- function(pdf, catalog, limits) {
+  names_dict <- zpd_deref(pdf, zpd_key(catalog, "Names"))
   root <- zpd_key(names_dict, "EmbeddedFiles")
   out <- list()
   k <- 0L
@@ -650,9 +655,9 @@ zpd_attachment <- function(pdf, name, spec) {
   if (inherits(ref, "pdf_ref")) {
     n <- unclass(ref)[[1L]]
     sd <- pdf_object(pdf, n)
-    sub <- zpd_key(sd, "Subtype")
-    if (is.character(sub) && length(sub) == 1L) {
-      mime <- as.character(sub)
+    subtype <- zpd_key(sd, "Subtype")
+    if (is.character(subtype) && length(subtype) == 1L) {
+      mime <- as.character(subtype)
     }
     params <- zpd_deref(pdf, zpd_key(sd, "Params"))
     created <- date(zpd_key(params, "CreationDate"))

@@ -43,8 +43,10 @@ zpd_is_time <- function(x) {
   if (!inherits(x, "POSIXct") || length(x) != 1L) {
     return(FALSE)
   }
-  t <- unclass(x)[[1L]]
-  is.finite(t) && t >= zpd_time_range[[1L]] && t <= zpd_time_range[[2L]]
+  secs <- unclass(x)[[1L]]
+  is.finite(secs) &&
+    secs >= zpd_time_range[[1L]] &&
+    secs <= zpd_time_range[[2L]]
 }
 
 # Checks that `x`, a list, can be written as a PDF dictionary (named) or
@@ -80,8 +82,8 @@ zpd_check_value <- function(x, arg, max_depth, call = NULL) {
         fail(path, "must have names that are all present and distinct")
       }
       for (i in seq_along(v)) {
-        sub <- if (is.null(nm)) sprintf("[[%d]]", i) else paste0("$", nm[[i]])
-        walk(v[[i]], paste0(path, sub), depth + 1L)
+        step <- if (is.null(nm)) sprintf("[[%d]]", i) else paste0("$", nm[[i]])
+        walk(v[[i]], paste0(path, step), depth + 1L)
       }
       return(invisible())
     }

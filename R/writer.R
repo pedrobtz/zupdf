@@ -162,7 +162,10 @@ pdf_save <- function(w, file = NULL) {
       zpd_abort(
         "zupdf_io_error",
         sprintf(
-          "Cannot write the PDF file to %s: %s; its bytes are in the condition's `bytes`.",
+          paste(
+            "Cannot write the PDF file to %s: %s; its bytes are in the",
+            "condition's `bytes`."
+          ),
           dest$what,
           conditionMessage(e)
         ),
@@ -282,7 +285,10 @@ zpd_writer_font <- function(w, x, arg = "font", call = NULL) {
     zpd_invalid_argument(
       arg,
       sprintf(
-        "'%s' is neither a base-14 font name nor a font file; zupdf does not look up system fonts.",
+        paste(
+          "'%s' is neither a base-14 font name nor a font file; zupdf",
+          "does not look up system fonts."
+        ),
         x
       ),
       call = call
@@ -493,7 +499,7 @@ zpd_check_box <- function(box, name, call = NULL) {
 
 #' @export
 print.pdf_writer <- function(x, ...) {
-  open <- .Call(zupdf_writer_is_open, x)
-  writeLines(if (open) "<pdf_writer>" else "<pdf_writer> (saved)")
+  is_open <- .Call(zupdf_writer_is_open, x)
+  writeLines(if (is_open) "<pdf_writer>" else "<pdf_writer> (saved)")
   invisible(x)
 }

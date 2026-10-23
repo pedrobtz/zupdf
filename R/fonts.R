@@ -103,12 +103,12 @@ zpd_int <- function(pdf, x) {
 }
 
 zpd_font_embedded <- function(pdf, d) {
-  sub <- zpd_chr(zpd_key(d, "Subtype"))
+  subtype <- zpd_chr(zpd_key(d, "Subtype"))
   # A Type 3 font's glyphs are content streams in the file itself.
-  if (identical(sub, "Type3")) {
+  if (identical(subtype, "Type3")) {
     return(TRUE)
   }
-  if (identical(sub, "Type0")) {
+  if (identical(subtype, "Type0")) {
     desc <- zpd_deref(pdf, zpd_key(d, "DescendantFonts"))
     if (!is.list(desc) || length(desc) == 0L) {
       return(FALSE)
