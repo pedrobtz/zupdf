@@ -136,7 +136,8 @@ zpd_c_statuses <- c(
   "closed_writer",
   "bad_ops",
   "pdfdoc",
-  "max_objects"
+  "max_objects",
+  "max_stream_page"
 )
 
 # Unwraps a zpd_result() from C: warns once for pdfio's warnings, raises

@@ -197,7 +197,8 @@ test_that("every status from C raises a zupdf_error, with its class", {
     closed_writer = "zupdf_write_error",
     bad_ops = "zupdf_write_error",
     pdfdoc = "zupdf_invalid_argument",
-    max_objects = "zupdf_limit_error"
+    max_objects = "zupdf_limit_error",
+    max_stream_page = "zupdf_limit_error"
   )
   expect_setequal(c("ok", names(expected)), zpd_c_statuses)
   limits <- list(max_depth = 1, max_stream = 1, max_objects = 1)
