@@ -50,6 +50,17 @@ test_that("an unknown font name or a file that is not a font is refused", {
     "zupdf_invalid_argument",
     arg = "font"
   )
+  # The argument at fault is the caller's: `x` for pdf_font().
+  expect_zupdf_error(
+    pdf_font(w, "Arial"),
+    "zupdf_invalid_argument",
+    arg = "x"
+  )
+  expect_zupdf_error(
+    pdf_text_width(w, "x", font = "Arial"),
+    "zupdf_invalid_argument",
+    arg = "font"
+  )
   not_font <- withr::local_tempfile(fileext = ".ttf")
   writeBin(charToRaw("not a font"), not_font)
   expect_zupdf_error(pdf_font(w, not_font), "zupdf_font_error")

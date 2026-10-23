@@ -247,7 +247,7 @@ pdf_font <- function(w, x) {
   call <- sys.call()
   zpd_check_writer(w, call = call)
   zpd_check_string(x, "x", call = call)
-  zpd_writer_font(w, x, call = call)
+  zpd_writer_font(w, x, arg = "x", call = call)
 }
 
 zpd_base14 <- c(
@@ -267,8 +267,9 @@ zpd_base14 <- c(
   "ZapfDingbats"
 )
 
-# The font for a name or path, made once per writer.
-zpd_writer_font <- function(w, x, call = NULL) {
+# The font for a name or path, made once per writer. `arg` is the caller's
+# argument that `x` came from.
+zpd_writer_font <- function(w, x, arg = "font", call = NULL) {
   state <- attr(w, "state", exact = TRUE)
   if (!is.null(state$fonts[[x]])) {
     return(state$fonts[[x]])
@@ -279,7 +280,7 @@ zpd_writer_font <- function(w, x, call = NULL) {
     kind <- "file"
   } else {
     zpd_invalid_argument(
-      "font",
+      arg,
       sprintf(
         "'%s' is neither a base-14 font name nor a font file; zupdf does not look up system fonts.",
         x
