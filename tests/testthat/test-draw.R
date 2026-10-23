@@ -340,3 +340,17 @@ test_that("pdf_text_width() measures as pdf_draw_text() draws", {
     arg = "size"
   )
 })
+
+test_that("line_height must be one positive number", {
+  w <- pdf_new()
+  page <- pdf_page_new(w)
+  for (lh in list(c(1, 2), 0, -1, NA_real_, "1")) {
+    expect_zupdf_error(
+      pdf_draw_text(page, 10, 10, "a\nb", line_height = lh),
+      "zupdf_invalid_argument",
+      arg = "line_height"
+    )
+  }
+  pdf_page_end(page)
+  expect_type(pdf_save(w), "raw")
+})

@@ -24,6 +24,10 @@ zpd_ops <- c(
 #' may be open at once. [pdf_save()] refuses a writer with a page not
 #' ended.
 #'
+#' A page ends even when `pdf_page_end()` raises an error: it is then
+#' missing from the file, or in it only in part, and cannot be ended again,
+#' but the writer can still be saved.
+#'
 #' @inheritParams pdf_save
 #' @param media_box,crop_box The page's boxes, `c(x1, y1, x2, y2)` in
 #'   points, or `NULL` for the writer's default size.
@@ -78,6 +82,14 @@ pdf_page_end <- function(page) {
   call <- sys.call()
   zpd_check_page(page, call = call)
   w <- page$writer
+  # The page ends whether or not it is written: a page that fails may
+  # already be in the file, so it is never retried, and the writer can
+  # still be saved.
+  on.exit({
+    page$ended <- TRUE
+    state <- attr(w, "state", exact = TRUE)
+    state$open_pages <- state$open_pages - 1L
+  })
   zpd_unwrap(
     .Call(
       zupdf_writer_page,
@@ -93,11 +105,9 @@ pdf_page_end <- function(page) {
     "Cannot write the page",
     call,
     default = "zupdf_write_error",
-    limits = list(max_depth = 64L)
+    limits = list(max_depth = 64L),
+    arg = "dict"
   )
-  page$ended <- TRUE
-  state <- attr(w, "state", exact = TRUE)
-  state$open_pages <- state$open_pages - 1L
   invisible(page)
 }
 
@@ -218,6 +228,13 @@ pdf_draw_text <- function(
   line_height <- zpd_check_numbers(line_height, "line_height", call)
   if (length(size) != 1L || size <= 0) {
     zpd_invalid_argument("size", "`size` must be one positive number.", call)
+  }
+  if (length(line_height) != 1L || line_height <= 0) {
+    zpd_invalid_argument(
+      "line_height",
+      "`line_height` must be one positive number.",
+      call
+    )
   }
   align <- zpd_match_arg(align, c("left", "centre", "right"), "align", call)
   rgb <- zpd_rgb(colour, "colour", call)

@@ -110,15 +110,39 @@ zpd_pdfio_class <- function(detail, default = "zupdf_parse_error") {
   if (any(hit)) zpd_pdfio_prefixes[[which(hit)[[1L]]]] else default
 }
 
+# Every status C returns, by enumerator name. zpd_unwrap() has a branch for
+# each; test-conditions.R checks that each raises a zupdf_error and that
+# src/ returns no other.
+zpd_c_statuses <- c(
+  "ok",
+  "closed",
+  "pdfio",
+  "max_depth",
+  "form_cycle",
+  "max_stream",
+  "unknown_object",
+  "no_stream",
+  "unknown_ref",
+  "font",
+  "image",
+  "memory",
+  "unsupported",
+  "closed_writer",
+  "bad_ops"
+)
+
 # Unwraps a zpd_result() from C: warns once for pdfio's warnings, raises
 # for a status other than "ok", and returns the value. `what` begins the
-# message; pdfio's own message follows it and is kept as `detail`.
+# message; pdfio's own message follows it and is kept as `detail`. `arg`
+# names the argument a value came from, for "unknown_ref" and
+# "unsupported".
 zpd_unwrap <- function(
   res,
   what,
   call = NULL,
   default = "zupdf_parse_error",
-  limits = NULL
+  limits = NULL,
+  arg = "x"
 ) {
   if (res$nwarning > 0L) {
     zpd_warn(
@@ -180,7 +204,7 @@ zpd_unwrap <- function(
       call = call
     ),
     unknown_ref = zpd_invalid_argument(
-      "x",
+      arg,
       sprintf("%s: a pdf_ref names no object in the file.", what),
       call = call
     ),
@@ -211,7 +235,7 @@ zpd_unwrap <- function(
       call = call
     ),
     unsupported = zpd_invalid_argument(
-      "x",
+      arg,
       sprintf("%s: a value has no PDF form.", what),
       call = call
     ),
@@ -220,6 +244,17 @@ zpd_unwrap <- function(
       sprintf("%s: the writer is closed.", what),
       call = call
     ),
-    stop("unknown status from C: ", res$status)
+    bad_ops = zpd_abort(
+      "zupdf_write_error",
+      sprintf("%s: the recorded operations are not valid.", what),
+      call = call
+    ),
+    # A status this table does not know is a bug in zupdf, still classed.
+    zpd_abort(
+      default,
+      sprintf("%s: unknown status '%s' from C.", what, res$status),
+      detail = res$status,
+      call = call
+    )
   )
 }

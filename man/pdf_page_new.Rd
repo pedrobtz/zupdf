@@ -33,6 +33,11 @@ invisibly.
 may be open at once. \code{\link[=pdf_save]{pdf_save()}} refuses a writer with a page not
 ended.
 }
+\details{
+A page ends even when \code{pdf_page_end()} raises an error: it is then
+missing from the file, or in it only in part, and cannot be ended again,
+but the writer can still be saved.
+}
 \examples{
 w <- pdf_new()
 page <- pdf_page_new(w, media_box = pdf_paper("a6"))

@@ -173,3 +173,21 @@ test_that("pdf_paper() gives ISO and US sizes", {
   expect_zupdf_error(pdf_paper("a11"), "zupdf_invalid_argument", arg = "name")
   expect_zupdf_error(pdf_paper("a4", landscape = NA), "zupdf_invalid_argument")
 })
+
+test_that("a page that fails to end is not retried and the writer saves", {
+  w <- pdf_new()
+  ref <- structure(999L, generation = 0L, class = "pdf_ref")
+  bad <- pdf_page_new(w, dict = list(X = ref))
+  expect_zupdf_error(pdf_page_end(bad), "zupdf_invalid_argument", arg = "dict")
+  expect_output(print(bad), "ended")
+  expect_zupdf_error(pdf_page_end(bad), "zupdf_write_error")
+  # Operations C refuses (here forged) are a write error, not a bare one.
+  forged <- pdf_page_new(w)
+  forged$ops <- 99L
+  expect_zupdf_error(pdf_page_end(forged), "zupdf_write_error")
+  good <- pdf_page_new(w)
+  pdf_draw_text(good, 72, 700, "kept")
+  pdf_page_end(good)
+  bytes <- pdf_save(w)
+  expect_identical(as.vector(reread(bytes)), "kept")
+})
