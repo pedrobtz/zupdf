@@ -59,6 +59,67 @@ test_that("a long chain of references is copied, and one too deep refused", {
   expect_zupdf_error(pdf_copy_pages(pdf_new(), deep), "zupdf_write_error")
 })
 
+test_that("a copied page brings no other page with it", {
+  src <- pdf_open(linked_pdf())
+  withr::defer(pdf_close(src))
+  # Page 1's annotation names page 1 as its /P and links to page 3. The
+  # copy of page 1 alone holds one page and one page tree, and is no larger
+  # than the copy of page 2, which has no annotation (#38).
+  w <- pdf_new()
+  pdf_copy_pages(w, src, pages = 1)
+  one <- pdf_save(w)
+  w <- pdf_new()
+  pdf_copy_pages(w, src, pages = 2)
+  two <- pdf_save(w)
+  expect_lt(length(one), length(two) + 1000L)
+  out <- pdf_open(one)
+  withr::defer(pdf_close(out))
+  page <- objects_of_type(out, "Page")
+  expect_length(page, 1L)
+  expect_length(objects_of_type(out, "Pages"), 1L)
+  annot <- pdf_object(out, objects_of_type(out, "Annot"))
+  expect_identical(unclass(annot$P)[[1L]], page)
+  # Page 3 is not copied: the link leads to a null object.
+  expect_null(pdf_object(out, unclass(annot$Dest[[1L]])[[1L]]))
+})
+
+test_that("a link between copied pages leads to the copy", {
+  src <- pdf_open(linked_pdf())
+  withr::defer(pdf_close(src))
+  w <- pdf_new()
+  pdf_copy_pages(w, src, pages = c(1, 3, 1))
+  out <- pdf_open(pdf_save(w))
+  withr::defer(pdf_close(out))
+  page <- objects_of_type(out, "Page")
+  expect_length(page, 3L)
+  annot <- pdf_object(out, objects_of_type(out, "Annot"))
+  kids <- vapply(
+    pdf_object(out, objects_of_type(out, "Pages"))$Kids,
+    unclass,
+    1L
+  )
+  # The first copy of page 1 owns the annotation; the link goes to the copy
+  # of page 3.
+  expect_identical(unclass(annot$P)[[1L]], kids[[1L]])
+  expect_identical(unclass(annot$Dest[[1L]])[[1L]], kids[[2L]])
+})
+
+test_that("only inheritable attributes come from the page tree", {
+  src <- pdf_open(linked_pdf())
+  withr::defer(pdf_close(src))
+  w <- pdf_new()
+  pdf_copy_pages(w, src, pages = 2)
+  out <- pdf_open(pdf_save(w))
+  withr::defer(pdf_close(out))
+  page <- pdf_object(out, objects_of_type(out, "Page"))
+  # /Foo is the page tree's own; /Type stays the page's (#55).
+  expect_null(page$Foo)
+  expect_identical(unclass(page$Type), "Page")
+  expect_identical(page$Rotate, 90L)
+  expect_identical(page$MediaBox, list(0L, 0L, 300L, 400L))
+  expect_false(is.null(page$Resources))
+})
+
 test_that("pages copied from an encrypted file are readable", {
   src <- pdf_open(fixture("encrypted-aes-128-pw.pdf"), password = "user")
   withr::defer(pdf_close(src))
