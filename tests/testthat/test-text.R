@@ -59,6 +59,105 @@ test_that("T*, ' and \" start new lines", {
   expect_identical(as.vector(text_of(bytes)), "one\ntwo\nthree\nfour")
 })
 
+test_that("TD moves to the next line and sets the leading", {
+  content <- "BT /F1 12 Tf 72 700 Td (a) Tj 0 -14 TD (b) Tj T* (c) Tj ET"
+  bytes <- page_pdf(content, sprintf("<< /Font << /F1 %s >> >>", helv))
+  expect_identical(as.vector(text_of(bytes)), "a\nb\nc")
+  expect_identical(as.vector(text_of(bytes, layout = "raw")), "a\nb\nc")
+})
+
+test_that("Tz scales the advance", {
+  box <- function(content) {
+    bytes <- page_pdf(content, sprintf("<< /Font << /F1 %s >> >>", helv))
+    pdf_data(bytes)[[1]]$width
+  }
+  # Helvetica's a and b are 556 units each: 13.3 points at 12 points.
+  expect_identical(box("BT /F1 12 Tf 72 700 Td (ab) Tj ET"), 13L)
+  expect_identical(box("BT /F1 12 Tf 50 Tz 72 700 Td (ab) Tj ET"), 7L)
+})
+
+test_that("an operator keeps its last operands when there are too many", {
+  junk <- paste(rep("5", 100), collapse = " ")
+  content <- sprintf(
+    "BT /F1 12 Tf 72 700 Td (a) Tj %s 0 -50 Td (b) Tj ET",
+    junk
+  )
+  bytes <- page_pdf(content, sprintf("<< /Font << /F1 %s >> >>", helv))
+  expect_identical(as.vector(text_of(bytes)), "a\nb")
+})
+
+test_that("nested inline dictionaries carry no text", {
+  content <- paste(
+    "BT /F1 12 Tf 72 700 Td",
+    "/P << /A << /B 1 >> /C (no) Tj >> BDC (yes) Tj EMC ET"
+  )
+  bytes <- page_pdf(content, sprintf("<< /Font << /F1 %s >> >>", helv))
+  expect_identical(as.vector(text_of(bytes)), "yes")
+})
+
+test_that("an Identity-UCS2 font reads UTF-16 codes, surrogate pairs whole", {
+  cmap <- paste(
+    "/CIDInit /ProcSet findresource begin 12 dict begin begincmap",
+    "/CMapName /Identity-UCS2 def",
+    "1 begincodespacerange <0000> <FFFF> endcodespacerange endcmap end end"
+  )
+  font <- paste(
+    "<< /Type /Font /Subtype /Type0 /BaseFont /Test /Encoding /Identity-H",
+    "/DescendantFonts [6 0 R] /ToUnicode 7 0 R >>"
+  )
+  cid <- paste(
+    "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Test",
+    "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>",
+    "/DW 500 >>"
+  )
+  # A pair, A, a lone high surrogate (U+FFFD), B; then a tab, which as a
+  # control code becomes a space.
+  bytes <- page_pdf(
+    "BT /F1 12 Tf 72 700 Td <D83DDE000041D83D0042> Tj <004100090042> Tj ET",
+    "<< /Font << /F1 5 0 R >> >>",
+    extra = list(font, cid, list(dict = "<< >>", data = cmap))
+  )
+  t <- text_of(bytes)
+  expect_identical(as.vector(t), "\U0001f600A\ufffdBA B")
+  expect_identical(attr(t, "unmapped"), 0L)
+  # The pair is one glyph: four glyphs of 6 points before the second Tj.
+  expect_identical(pdf_data(bytes)[[1]]$x, c(72L, 108L))
+})
+
+test_that("an unmapped control code is U+FFFD, which pdftools drops", {
+  # WinAnsiEncoding has no glyph for a tab: zupdf shows U+FFFD and counts
+  # it, where poppler (pdftools) leaves it out and gives "ab".
+  bytes <- page_pdf(
+    "BT /F1 12 Tf 72 700 Td (a\\tb) Tj ET",
+    sprintf("<< /Font << /F1 %s >> >>", helv)
+  )
+  t <- text_of(bytes)
+  expect_identical(as.vector(t), "a\ufffdb")
+  expect_identical(attr(t, "unmapped"), 1L)
+})
+
+test_that("resources inherited past max_depth are a limit error", {
+  # The page's resources are on the root, two /Parent steps up.
+  bytes <- build_pdf(list(
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    sprintf(
+      "<< /Type /Pages /Kids [5 0 R] /Count 1 /Resources << /Font << /F1 %s >> >> >>",
+      helv
+    ),
+    "<< /Type /Page /Parent 6 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+    list(dict = "<< >>", data = "BT /F1 12 Tf 72 700 Td (inherited) Tj ET"),
+    "<< /Type /Pages /Parent 2 0 R /Kids [6 0 R] /Count 1 >>",
+    "<< /Type /Pages /Parent 5 0 R /Kids [3 0 R] /Count 1 >>"
+  ))
+  expect_identical(as.vector(text_of(bytes, max_depth = 3)), "inherited")
+  expect_zupdf_error(
+    text_of(bytes, max_depth = 2),
+    "zupdf_limit_error",
+    limit = "max_depth",
+    limit_value = 2
+  )
+})
+
 test_that("Differences and glyph names map simple-font codes", {
   font <- paste(
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica",
@@ -423,21 +522,36 @@ test_that("pdfio's own test document reads in full", {
   pdf <- pdf_open(fixture("testpdfio.pdf"))
   withr::defer(pdf_close(pdf))
   t <- pdf_page_text(pdf)
-  expect_length(t, 4L)
-  expect_match(
-    t[[1]],
-    "^Lorem ipsum dolor sit amet, consectetur adipiscing\nelit\\."
-  )
   expect_identical(attr(t, "unmapped"), rep(0L, 4))
+  # Pinned exactly: the MD5 of each page's UTF-8 text everywhere, and the
+  # text itself in _snaps/text.md where snapshots run. pdftools gives the
+  # same words (the conformance job).
+  expect_identical(
+    vapply(
+      as.vector(t),
+      function(x) bytes_md5(charToRaw(x)),
+      "",
+      USE.NAMES = FALSE
+    ),
+    c(
+      "ee0190d0a187b8861e1821100da4ad87",
+      "c0663566545ea7b655e07a403d1ebd1d",
+      "a5300402376582dcfd4b55ec4493f9c3",
+      "ed7d5c2f06fb815d4fc82feccbe38d73"
+    )
+  )
+  expect_snapshot(writeLines(t))
 })
 
 test_that("an R graphics device's text is read, rotated labels whole", {
   pdf <- pdf_open(fixture("grdevices.pdf"))
   withr::defer(pdf_close(pdf))
-  t <- pdf_page_text(pdf)
-  expect_match(t, "grDevices::pdf()", fixed = TRUE)
-  expect_match(t, "1:10", fixed = TRUE)
-  expect_match(t, "Index", fixed = TRUE)
+  # pdftools has the same words; it puts the rotated y-axis labels on the
+  # lines they cross, where zupdf keeps them as one run.
+  expect_identical(
+    as.vector(pdf_page_text(pdf)),
+    "grDevices::pdf()\n1:10\n2 4 6 8 10\n2 4 6 8 10\nIndex"
+  )
 })
 
 test_that("encrypted text is decrypted", {
@@ -511,6 +625,31 @@ test_that("pdf_page_tokens() lists the content stream's tokens", {
     "zupdf_invalid_argument",
     arg = "i"
   )
+})
+
+test_that("the lexer decodes escapes, continuations, names and comments", {
+  content <- paste0(
+    "(a\\tb\\bc\\fd\\ne\\rf\\\\g\\(h\\)i\\101\\7j(k)l) ",
+    "/A#20B % a comment\n",
+    "(m\\\nn) (o\\\r\np) <41 4>"
+  )
+  pdf <- pdf_open(page_pdf(content))
+  withr::defer(pdf_close(pdf))
+  tk <- pdf_page_tokens(pdf, 1)
+  expect_identical(tk$type, c("string", "name", "string", "string", "string"))
+  expect_identical(
+    tk$value,
+    c("a\tb\bc\fd\ne\rf\\g(h)iA\aj(k)l", "A B", "mn", "op", "A@")
+  )
+})
+
+test_that("an inline image without EI runs to the end of the content", {
+  pdf <- pdf_open(page_pdf("BI /W 1 /H 1 ID xyz"))
+  withr::defer(pdf_close(pdf))
+  tk <- pdf_page_tokens(pdf, 1)
+  expect_identical(tail(tk$type, 2), c("operator", "inline_image"))
+  # The data, and the space zupdf puts after each content stream.
+  expect_identical(tail(tk$value, 1), "4 bytes")
 })
 
 test_that("an inline image is one token with its size", {
