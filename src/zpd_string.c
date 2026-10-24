@@ -72,6 +72,43 @@ SEXP zpd_mkchar_pdf(const char *s, size_t n)
     return Rf_mkCharLenCE(buf, (int) k, CE_UTF8);
 }
 
+/* A password's PDFDocEncoding bytes (PDF 2.0, 7.6.4.3.2: RC4 and AES-128
+   keys are made from them). `out` holds at least strlen(s) + 1 bytes,
+   which is enough, since no character takes more bytes in PDFDocEncoding
+   than in UTF-8. False when `s` is not UTF-8 or has a character the
+   encoding cannot hold. */
+bool zpd_pdfdoc_encode(const char *s, char *out)
+{
+    size_t n = strlen(s);
+    if (!zuf_utf8_valid(s, n))
+        return false;
+    const unsigned char *p = (const unsigned char *) s;
+    size_t k = 0;
+    while (*p) {
+        unsigned cp;
+        if (*p < 0x80) {
+            cp = *p++;
+        } else if (*p < 0xE0) {
+            cp = ((unsigned) (p[0] & 0x1F) << 6) | (p[1] & 0x3F);
+            p += 2;
+        } else if (*p < 0xF0) {
+            cp = ((unsigned) (p[0] & 0x0F) << 12) | ((unsigned) (p[1] & 0x3F) << 6) |
+                 (p[2] & 0x3F);
+            p += 3;
+        } else {
+            return false; /* beyond U+FFFF: never in PDFDocEncoding */
+        }
+        unsigned b = 1;
+        while (b < 256 && (cp == 0xFFFD || zpd_pdfdoc_code((unsigned char) b) != cp))
+            b++;
+        if (b == 256)
+            return false;
+        out[k++] = (char) b;
+    }
+    out[k] = '\0';
+    return true;
+}
+
 SEXP zpd_string_or_na(const char *s)
 {
     SEXP out = PROTECT(Rf_allocVector(STRSXP, 1));
@@ -82,7 +119,8 @@ SEXP zpd_string_or_na(const char *s)
 
 /* A UTF-16BE text string with its byte-order mark (PDF 2.0, 7.9.2.2):
    pdfio keeps hex strings as bytes, so one that begins FE FF is decoded
-   here. An unpaired surrogate becomes U+FFFD. */
+   here. An unpaired surrogate becomes U+FFFD, and so does U+0000, which
+   an R string cannot hold. */
 bool zpd_is_utf16be(const unsigned char *b, size_t n)
 {
     return n >= 2 && n % 2 == 0 && b[0] == 0xFE && b[1] == 0xFF;
@@ -108,7 +146,7 @@ SEXP zpd_mkchar_utf16be(const unsigned char *b, size_t n)
                 continue;
             }
         }
-        if (u >= 0xD800 && u <= 0xDFFF)
+        if (u == 0 || (u >= 0xD800 && u <= 0xDFFF))
             u = 0xFFFD;
         k += zpd_utf8_put(buf + k, u);
     }

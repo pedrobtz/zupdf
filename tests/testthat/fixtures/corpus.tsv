@@ -1,0 +1,37 @@
+# What read_corpus() in helper-pdf.R gives for each afl-input and fuzz file
+# (design section 15); NA for a file pdf_open() refuses. text is the MD5 of
+# the pages' text joined by form feeds. A change that moves a row says why.
+file	pages	objects	text	tokens	images
+PDFBOX-1010-0.pdf	1	13	e5c00913d0113d4164250487339ececa	1560	3
+PDFBOX-1018-0.pdf	1	11	d41d8cd98f00b204e9800998ecf8427e	11	1
+PDFBOX-1023-2.pdf	1	18	551da0cf397c91404c6f061f22750970	359	1
+PDFBOX-1029-0.pdf	3	63	0b0d40bea8482df673b8c25851e8b0d3	0	0
+PDFBOX-1036-0.pdf	1	44	d41d8cd98f00b204e9800998ecf8427e	4	0
+PDFBOX-1036-2.pdf	1	44	d41d8cd98f00b204e9800998ecf8427e	4	0
+PDFBOX-1037-0.pdf	6	20	5be1779f020fb0d9efc176a918f7ce17	162	5
+PDFBOX-1039-0.pdf	1	16	d2a8929c538a5d075bd5818327993206	201	0
+PDFBOX-1047-0.pdf	3	24	0b0d40bea8482df673b8c25851e8b0d3	0	0
+PDFBOX-1048-1.pdf	1	19	b2a0d1373f66631eaa7826ce846bd661	2449	1
+PDFBOX-1065-0.pdf	3	42	47749107321c96ec443aaf4180607aac	7025	0
+PDFBOX-1065-1.pdf	3	41	d8245c1c5178fa663b665868414f8890	6990	0
+PDFBOX-1067-1.pdf	1	8	d41d8cd98f00b204e9800998ecf8427e	13	1
+PDFBOX-1068-1.pdf	2	44	2fa441655f21e743a144179027ec9cfc	4054	0
+PDFBOX-1074-1.pdf	1	10	d41d8cd98f00b204e9800998ecf8427e	31	1
+PDFBOX-1074-3.pdf	1	10	d41d8cd98f00b204e9800998ecf8427e	38	1
+PDFBOX-1094-10.pdf	4	27	949d2a3dead9c8bd5833943f7fc6518e	86	0
+PDFBOX-1094-13.pdf	1	31	f52b4e8f6ae99d3cf24601b68f6c287f	119	0
+PDFBOX-1094-15.pdf	1	46	00ad9572bfede38b03398f1967add443	1291	0
+PDFBOX-1094-3.pdf	1	19	d41d8cd98f00b204e9800998ecf8427e	62	0
+PDFBOX-1094-33.pdf	1	14	d41d8cd98f00b204e9800998ecf8427e	187	0
+PDFBOX-1094-4.pdf	1	19	d41d8cd98f00b204e9800998ecf8427e	87	0
+PDFBOX-1095-2.pdf	2	9	58c89562f58fd276f592420068db8c09	22	2
+cmap-empty-name.pdf	1	16	5801a8550eccc208e8fde2ffdfdfbf25	675	0
+content-nan.pdf	1	4	2690c180ff359a0ab327ce48170b9c7c	70	0
+firstchar-huge.pdf	3	28	0945ba6e43b9aed2aa0af7f93080f2de	1283	0
+object-value-leak.pdf	1	32	d41d8cd98f00b204e9800998ecf8427e	33	0
+objstm-value-leak.pdf	1	38	d41d8cd98f00b204e9800998ecf8427e	4	0
+repair-loop.pdf	NA	NA	NA	NA	NA
+trailer-not-dict.pdf	NA	NA	NA	NA	NA
+xref-generation-shift.pdf	NA	NA	NA	NA	NA
+xref-index-huge.pdf	NA	NA	NA	NA	NA
+xref-w-negative.pdf	NA	NA	NA	NA	NA

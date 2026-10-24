@@ -149,7 +149,9 @@ pdf_set_meta <- function(w, ...) {
 #' owner password (which defaults to a random one) unlocks everything.
 #'
 #' @inheritParams pdf_save
-#' @param user,owner Passwords, or `NULL`.
+#' @param user,owner Passwords, or `NULL`. They are written in
+#'   PDFDocEncoding, as the standard asks, so each may use only characters
+#'   it holds: ASCII, most of Latin-1 and a few more, such as the euro sign.
 #' @param method `"aes128"` or `"rc4128"`.
 #' @param permissions `"all"`, or any of `"print"`, `"modify"`, `"copy"`,
 #'   `"annotate"`, `"forms"`, `"reading"`, `"assemble"`, `"print_high"`;

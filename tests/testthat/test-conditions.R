@@ -20,7 +20,9 @@ test_that("every design section 11 class can be raised and caught", {
 })
 
 test_that("zpd_abort() refuses a class outside the hierarchy", {
-  expect_error(zpd_abort("zupdf_made_up", "m"))
+  # An internal check, so a plain error rather than a zupdf class.
+  err <- expect_error(zpd_abort("zupdf_made_up", "m"), class = "simpleError")
+  expect_false(inherits(err, "zupdf_error"))
 })
 
 test_that("zpd_invalid_argument() carries the argument's name", {
@@ -101,5 +103,73 @@ test_that("zpd_unwrap() raises by status and warns once for warnings", {
   w <- tryCatch(zpd_unwrap(res("ok", nwarning = 3L), "x"), warning = identity)
   expect_s3_class(w, "zupdf_warning")
   expect_identical(w$count, 3L)
-  expect_error(zpd_unwrap(res("bogus"), "x"), "unknown status")
+  pw <- res("pdfdoc")
+  pw$value <- "owner"
+  expect_zupdf_error(
+    zpd_unwrap(pw, "x"),
+    "zupdf_invalid_argument",
+    arg = "owner"
+  )
+  # A status C should never send is an internal error, not a zupdf class.
+  err <- expect_error(zpd_unwrap(res("bogus"), "x"), class = "simpleError")
+  expect_false(inherits(err, "zupdf_error"))
+})
+
+test_that("C refuses a closed handle itself, not only through R", {
+  # R checks every handle before .Call, so these branches are reached only
+  # by calling C directly, as an internal caller that skipped R's check
+  # would (design section 13).
+  pdf <- pdf_open(minimal_pdf())
+  pdf_close(pdf)
+  file_calls <- list(
+    .Call(zupdf_counts, pdf),
+    .Call(zupdf_meta, pdf),
+    .Call(zupdf_pages, pdf, 10L),
+    .Call(zupdf_page_xobjects, pdf, 1L, 10L),
+    .Call(zupdf_objects, pdf),
+    .Call(zupdf_object, pdf, 1, 10L),
+    .Call(zupdf_stream, pdf, 4, TRUE, 1e6),
+    .Call(zupdf_doc_dict, pdf, "catalog", 10L),
+    .Call(zupdf_page_text, pdf, 1L, FALSE, 10L, 1e6),
+    .Call(zupdf_page_glyphs, pdf, 1L, 10L, 1e6),
+    .Call(zupdf_page_tokens, pdf, 1L, 1e6)
+  )
+  for (res in file_calls) {
+    expect_identical(res$status, "closed")
+  }
+  expect_false(.Call(zupdf_is_open, pdf))
+
+  w <- pdf_new()
+  pdf_save(w)
+  src <- pdf_open(minimal_pdf())
+  withr::defer(pdf_close(src))
+  writer_calls <- list(
+    .Call(zupdf_writer_font, w, 1L, "Helvetica"),
+    .Call(zupdf_writer_image_file, w, "x.png", FALSE),
+    .Call(zupdf_writer_image_data, w, raw(3), 1L, 1L, 3L, FALSE, FALSE),
+    .Call(zupdf_writer_page, w, NULL, NULL, NULL, NULL, NULL, NULL, 10L),
+    .Call(zupdf_writer_save, w, 0, TRUE),
+    .Call(zupdf_writer_set_meta, w, character(), character(), NA_real_),
+    .Call(zupdf_writer_set_encryption, w, 3L, -1L, NULL, NULL)
+  )
+  for (res in writer_calls) {
+    expect_identical(res$status, "closed")
+  }
+  expect_identical(
+    .Call(zupdf_writer_copy_pages, w, src, 1L, 0L, TRUE)$status,
+    "closed_writer"
+  )
+  expect_identical(
+    .Call(zupdf_writer_measure, w, 1L, "x", 12)$status,
+    "closed_writer"
+  )
+  expect_false(.Call(zupdf_writer_is_open, w))
+
+  # An open writer, with a closed source file.
+  w2 <- pdf_new()
+  withr::defer(pdf_save(w2))
+  expect_identical(
+    .Call(zupdf_writer_copy_pages, w2, pdf, 1L, 0L, TRUE)$status,
+    "closed"
+  )
 })

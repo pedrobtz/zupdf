@@ -93,8 +93,9 @@ test_that("an abandoned writer and page are finalized without harm", {
     page <- pdf_page_new(w)
     pdf_draw_text(page, 1, 1, "never written")
   })
-  gc()
-  expect_true(TRUE)
+  # The finalizers run without a warning here; that they free everything
+  # is seen only under ASan and valgrind (native-checks.yaml).
+  expect_no_warning(gc())
 })
 
 test_that("page boxes and extra dictionary entries are written", {

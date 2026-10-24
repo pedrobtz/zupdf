@@ -78,6 +78,8 @@ static void zpd_file_release(zpd_file *h)
     }
     free(h->password);
     h->password = NULL;
+    free(h->password_doc);
+    h->password_doc = NULL;
     free(h->scratch);
     h->scratch = NULL;
     zpd_text_release(h);
@@ -102,14 +104,23 @@ zpd_file *zpd_file_get(SEXP ptr)
     return (h && h->pdf) ? h : NULL;
 }
 
-/* pdfio asks again after a wrong password; answering with the same one
-   again would only repeat the failure, so the second ask gets NULL and
+/* pdfio asks again after a wrong password. The first ask gets the
+   password's UTF-8 bytes, which some writers use; the second its
+   PDFDocEncoding bytes, which the standard and zupdf's writer use for RC4
+   and AES-128 keys, when they differ. After that the answer is NULL and
    pdfio reports "Unable to unlock PDF file." */
 static const char *zpd_password_cb(void *data, const char *filename)
 {
     zpd_file *h = data;
     (void) filename;
-    return h->password_asked++ == 0 ? h->password : NULL;
+    switch (h->password_asked++) {
+    case 0:
+        return h->password;
+    case 1:
+        return h->password_doc;
+    default:
+        return NULL;
+    }
 }
 
 /* zupdf_open(path, password, owned, max_objects): `path` is a file R has
@@ -133,8 +144,16 @@ SEXP zupdf_open(SEXP path, SEXP password, SEXP owned, SEXP max_objects)
     const char *filename = R_ExpandFileName(Rf_translateChar(STRING_ELT(path, 0)));
     if (Rf_asLogical(owned) == TRUE)
         h->tmpfile = zpd_strdup(filename);
-    if (password != R_NilValue)
-        h->password = zpd_strdup(Rf_translateCharUTF8(STRING_ELT(password, 0)));
+    if (password != R_NilValue) {
+        const char *pw = Rf_translateCharUTF8(STRING_ELT(password, 0));
+        h->password = zpd_strdup(pw);
+        h->password_doc = malloc(strlen(pw) + 1);
+        if (h->password_doc &&
+            (!zpd_pdfdoc_encode(pw, h->password_doc) || !strcmp(pw, h->password_doc))) {
+            free(h->password_doc);
+            h->password_doc = NULL;
+        }
+    }
 
     double m = Rf_asReal(max_objects);
     size_t cap = m >= 1.0 && m < 9007199254740992.0 ? (size_t) m : 0;

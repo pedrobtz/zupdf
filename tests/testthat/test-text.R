@@ -174,6 +174,36 @@ test_that("forms nested deeper than max_depth are a limit error", {
   )
 })
 
+test_that("numbers too large for a double do not upset the layout", {
+  # A 400-digit number overflows to Inf and reads as 0; two finite but huge
+  # scalings overflow the CTM to Inf and NaN, and glyph positions that are
+  # not finite are placed at 0. Neither may reach the sort as NaN.
+  show <- "BT /F1 12 Tf 72 700 Td (ab) Tj ET BT /F1 12 Tf 72 600 Td (cd) Tj ET"
+  res <- sprintf("<< /Font << /F1 %s >> >>", helv)
+  huge <- strrep("9", 400)
+  big <- paste0("1", strrep("0", 200))
+  cms <- c(
+    overflow = sprintf("1 0 0 %s 0 0 cm", huge),
+    nan = sprintf(
+      "%s 0 0 %s 0 0 cm %s 0 0 %s 0 0 cm 0 0 0 0 0 0 cm",
+      big,
+      big,
+      big,
+      big
+    )
+  )
+  # The first flattens the page onto one line; in the second every glyph
+  # sits at the origin, so they make one word.
+  want <- list(overflow = c("ab cd", "ab", "cd"), nan = c("abcd", "abcd"))
+  for (k in names(cms)) {
+    bytes <- page_pdf(paste(cms[[k]], show), res)
+    expect_identical(as.vector(text_of(bytes)), want[[k]][[1]], label = k)
+    d <- pdf_data(bytes)[[1]]
+    expect_identical(d$text, want[[k]][-1], label = k)
+    expect_false(anyNA(c(d$x, d$y, d$width, d$height)), label = k)
+  }
+})
+
 test_that("inline image data does not leak into the text", {
   image <- as.raw(c(0x28, 0x45, 0x49, 0x00, 0xff, 0x29, 0x5b))
   content <- c(
@@ -246,17 +276,18 @@ test_that("encrypted text is decrypted", {
   )
 })
 
-test_that("every afl-input page's text extracts or is refused cleanly", {
+test_that("every afl-input case's text extracts as pinned", {
+  pins <- corpus_pins()
   for (f in afl_files()) {
-    res <- tryCatch(
-      suppressWarnings({
-        pdf <- pdf_open(f)
-        on.exit(pdf_close(pdf), add = TRUE)
-        pdf_page_text(pdf)
-      }),
-      zupdf_error = function(e) "refused"
+    pdf <- suppressWarnings(pdf_open(f))
+    withr::defer(pdf_close(pdf))
+    text <- suppressWarnings(pdf_page_text(pdf))
+    expect_length(text, length(pdf))
+    expect_identical(
+      bytes_md5(charToRaw(enc2utf8(paste(text, collapse = "\f")))),
+      pins$text[pins$file == basename(f)],
+      label = basename(f)
     )
-    expect_type(res, "character")
   }
 })
 

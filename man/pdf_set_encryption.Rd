@@ -15,7 +15,9 @@ pdf_set_encryption(
 \arguments{
 \item{w}{A \code{pdf_writer} from \code{\link[=pdf_new]{pdf_new()}}.}
 
-\item{user, owner}{Passwords, or \code{NULL}.}
+\item{user, owner}{Passwords, or \code{NULL}. They are written in
+PDFDocEncoding, as the standard asks, so each may use only characters
+it holds: ASCII, most of Latin-1 and a few more, such as the euro sign.}
 
 \item{method}{\code{"aes128"} or \code{"rc4128"}.}
 

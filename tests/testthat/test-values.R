@@ -28,6 +28,13 @@ test_that("strings round-trip, ASCII and not", {
   expect_identical(back$e, "")
 })
 
+test_that("a NUL in a UTF-16 string becomes U+FFFD", {
+  # R strings cannot hold NUL; the PDFDocEncoding path does the same.
+  pdf <- pdf_open(stream_pdf(raw(), value = "[<FEFF004100000042> <FEFF0000>]"))
+  withr::defer(pdf_close(pdf))
+  expect_identical(pdf_object(pdf, 5), list("A�B", "�"))
+})
+
 test_that("names, binary strings, dates and references keep their classes", {
   x <- list(
     nm = structure("Page", class = "pdf_name"),
