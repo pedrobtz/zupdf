@@ -22,6 +22,8 @@
 //
 // Modified for the zupdf R package: a file can be opened with a limit on its objects, refused before they are all allocated (a small cross-reference stream can list millions). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: a cross-reference stream's offsets and generations are assembled in unsigned types and clamped, with no signed shift overflowing (UBSan, fuzzing). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #include "pdfio-content.h"
@@ -2251,8 +2253,14 @@ load_xref(
 	  }
 
           // Offset
-	  for (i = 1, offset = buffer[w_2]; i < w[1]; i ++)
-	    offset = (offset << 8) | buffer[w_2 + i];
+	  {
+	    uintmax_t uoffset = buffer[w_2];	// Offset, unsigned
+
+	    for (i = 1; i < w[1]; i ++)
+	      uoffset = (uoffset << 8) | buffer[w_2 + i];
+
+	    offset = uoffset > (uintmax_t)INTMAX_MAX ? INTMAX_MAX : (intmax_t)uoffset;
+	  }
 
           // Generation number
 	  switch (w[2])
@@ -2275,9 +2283,12 @@ load_xref(
 		  generation = 65535;
 		break;
 	    case 4 : // Even stupider :)
-		generation = (buffer[w_3] << 24) | (buffer[w_3 + 1] << 16) | (buffer[w_3 + 2] << 8) | buffer[w_3 + 3];
-		if (generation > 65535)
-		  generation = 65535;
+		{
+		  unsigned ugeneration = ((unsigned)buffer[w_3] << 24) | ((unsigned)buffer[w_3 + 1] << 16) | ((unsigned)buffer[w_3 + 2] << 8) | (unsigned)buffer[w_3 + 3];
+					// Generation, unsigned
+
+		  generation = ugeneration > 65535 ? 65535 : (int)ugeneration;
+		}
 		break;
 	  }
 

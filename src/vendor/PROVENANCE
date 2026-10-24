@@ -25,6 +25,7 @@ Vendored dependency: pdfio, with its ttf library
                  0014-date-utc.patch
                  0015-copy-depth.patch
                  0016-object-limit.patch
+                 0017-xref-shifts.patch
 
 src/vendor/pdfio/ is the files listed in tools/pdfio-files.txt, copied from
 the release tarball, with exactly the patches above applied.
@@ -152,8 +153,15 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             load_obj_stream() now stops when add_obj()
                             fails, where it used the NULL. Found by review;
                             to be reported upstream with 0015.
+  0017-xref-shifts          A cross-reference stream's four-byte generation
+                            was assembled with buffer[i] << 24 in int, and
+                            its offset by shifting a signed intmax_t, both
+                            undefined behaviour once the top bit is set;
+                            UBSan reported the first fuzzing (0005 missed
+                            it). Both are now built in unsigned types and
+                            clamped. To be reported upstream with 0015.
 
-0001 and 0002 are proposed upstream as build options and 0003 to 0016 as
+0001 and 0002 are proposed upstream as build options and 0003 to 0017 as
 fixes; none but 0006, 0014 and 0015 changes behaviour on well-formed input:
 0006 only what is written, 0014 dates read outside UTC and 0015 copies that
 nest deeper than 2,048 values.

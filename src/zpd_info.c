@@ -31,6 +31,7 @@ static const char *zpd_patches[] = {
     "0014-date-utc",
     "0015-copy-depth",
     "0016-object-limit",
+    "0017-xref-shifts",
 };
 
 /* Features pdfio 1.7.0 adds that the 1.6.5 pin lacks (design section 9).
