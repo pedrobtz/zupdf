@@ -10,7 +10,7 @@
 SEXP zupdf_build_info(void);
 
 /* zpd_file.c */
-SEXP zupdf_open(SEXP path, SEXP password, SEXP owned);
+SEXP zupdf_open(SEXP path, SEXP password, SEXP owned, SEXP max_objects);
 SEXP zupdf_close(SEXP ptr);
 SEXP zupdf_is_open(SEXP ptr);
 SEXP zupdf_counts(SEXP ptr);

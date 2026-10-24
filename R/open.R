@@ -6,10 +6,11 @@
 #' is garbage collected.
 #'
 #' A PDF is a common carrier of hostile input, so opening is bounded by
-#' limits. `max_size` is checked before anything is read; `max_objects` and
-#' `max_pages` right after the cross-reference table is read; `max_stream`
-#' and `max_depth` by the functions that decode streams and walk nested
-#' values. Each limit is a positive whole number or `Inf`.
+#' limits. `max_size` is checked before anything is read; `max_objects` as
+#' the cross-reference table is read, before the objects it lists are all
+#' allocated; `max_pages` once the page tree is read; `max_stream` and
+#' `max_depth` by the functions that decode streams and walk nested values.
+#' Each limit is a positive whole number or `Inf`.
 #'
 #' @param x A path to a PDF file, a raw vector holding one, a connection to
 #'   read one from, or an open `pdf_file`, which is returned unchanged.
@@ -79,7 +80,7 @@ pdf_open <- function(
   }
 
   first <- if (is.function(password)) NULL else password
-  res <- .Call(zupdf_open, input$path, first, input$owned)
+  res <- .Call(zupdf_open, input$path, first, input$owned, limits$max_objects)
   if (
     is.function(password) &&
       res$status == "pdfio" &&
@@ -87,7 +88,16 @@ pdf_open <- function(
   ) {
     pw <- password(input$name)
     zpd_check_string(pw, "password", call = call)
-    res <- .Call(zupdf_open, input$path, pw, input$owned)
+    res <- .Call(
+      zupdf_open,
+      input$path,
+      pw,
+      input$owned,
+      limits$max_objects
+    )
+  }
+  if (res$status == "max_objects") {
+    zpd_count_limit(NULL, "max_objects", "objects", limits, call)
   }
   ptr <- zpd_unwrap(res, "Cannot open the PDF file", call = call)
   opened <- TRUE
@@ -198,24 +208,22 @@ zpd_spill <- function(bytes, source, name) {
   list(path = path, owned = TRUE, source = source, name = name)
 }
 
-# max_objects and max_pages, checked right after the cross-reference table
-# is read (design section 12). A file over either is closed before the
-# condition is raised.
+# max_pages, checked right after the page tree is read (design section 12);
+# pdfio refuses more than max_objects objects as it reads them (patch 0016).
+# A file over max_pages is closed before the condition is raised.
 zpd_check_counts <- function(pdf, limits, call = NULL) {
   counts <- zpd_unwrap(.Call(zupdf_counts, pdf), "Cannot read the PDF file")
-  if (counts[[1L]] > limits$max_objects) {
-    # GUARD: max_objects
-    zpd_count_limit(pdf, "max_objects", "objects", limits, call)
-  }
   if (counts[[2L]] > limits$max_pages) {
     # GUARD: max_pages
     zpd_count_limit(pdf, "max_pages", "pages", limits, call)
   }
 }
 
-# Closes the file, then raises the limit error for `name`.
+# Closes the file (if open), then raises the limit error for `name`.
 zpd_count_limit <- function(pdf, name, what, limits, call) {
-  pdf_close(pdf)
+  if (!is.null(pdf)) {
+    pdf_close(pdf)
+  }
   zpd_limit_error(
     name,
     limits[[name]],

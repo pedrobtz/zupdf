@@ -12,7 +12,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"zupdf_counts",     (DL_FUNC) &zupdf_counts,     1},
     {"zupdf_is_open",    (DL_FUNC) &zupdf_is_open,    1},
     {"zupdf_meta",       (DL_FUNC) &zupdf_meta,       1},
-    {"zupdf_open",       (DL_FUNC) &zupdf_open,       3},
+    {"zupdf_open",       (DL_FUNC) &zupdf_open,       4},
     {"zupdf_object",     (DL_FUNC) &zupdf_object,     3},
     {"zupdf_objects",    (DL_FUNC) &zupdf_objects,    1},
     {"zupdf_native_raster", (DL_FUNC) &zupdf_native_raster, 4},

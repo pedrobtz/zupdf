@@ -35,6 +35,7 @@ typedef struct {
     pdfio_obj_t **objs; /* fonts and images, index + 1 is the handle */
     unsigned char *kind; /* per object: ZPD_IMAGE, ZPD_FONT or ZPD_FONT_UNICODE */
     size_t nobjs, capobjs;
+    pdfio_obj_t *nullobj; /* what pages not copied are mapped to, once made */
     zpd_record rec;
 } zpd_writer;
 
@@ -411,7 +412,7 @@ SEXP zupdf_writer_save(SEXP ptr, SEXP created, SEXP deterministic)
     if (!w)
         return zpd_status("closed");
     zpd_record_reset(&w->rec);
-    pdfioFileSetCreationDate(w->pdf, (time_t) floor(Rf_asReal(created)));
+    pdfioFileSetCreationDate(w->pdf, zpd_clamp_time(Rf_asReal(created)));
     /* An encrypted file's key is derived from its identifier, so the
        identifier stays pdfio's (random) once encryption is on. */
     if (Rf_asLogical(deterministic) == TRUE && w->pdf->encryption == PDFIO_ENCRYPTION_NONE) {
@@ -447,15 +448,129 @@ SEXP zupdf_writer_save(SEXP ptr, SEXP created, SEXP deterministic)
 
 /* ---- assembly, metadata, encryption (Stage 5) ------------------------------- */
 
-/* pdfioPageCopy() with a rotation: the page dictionary and every inherited
-   attribute are copied (with every object they reference, through pdfio's
-   object map, so the copy is self-contained), /Rotate is advanced by
-   `rotate` degrees, and the page is added. pdfioPageCopy() writes the page
-   as it copies it, leaving no way to change /Rotate afterwards. */
-static bool zpd_page_copy(pdfio_file_t *pdf, pdfio_obj_t *srcpage, int rotate, int absolute)
+/* pdfio's object map, which pdfioObjCopy() consults so that each object is
+   copied once, is sorted by source file and object number; this is its
+   order. */
+static int zpd_objmap_cmp(const void *pa, const void *pb)
+{
+    const _pdfio_objmap_t *a = pa, *b = pb;
+    int ret = memcmp(a->src_id, b->src_id, sizeof(a->src_id));
+    if (ret)
+        return ret;
+    return (a->src_number > b->src_number) - (a->src_number < b->src_number);
+}
+
+/* The map entry for `src` among the first `n` entries, or NULL. */
+static _pdfio_objmap_t *zpd_objmap_find(pdfio_file_t *pdf, size_t n, pdfio_obj_t *src)
+{
+    if (!n)
+        return NULL;
+    _pdfio_objmap_t key;
+    memcpy(key.src_id, src->pdf->file_id, sizeof(key.src_id));
+    key.src_number = src->number;
+    return bsearch(&key, pdf->objmaps, n, sizeof(key), zpd_objmap_cmp);
+}
+
+static int zpd_obj_cmp(const void *pa, const void *pb)
+{
+    size_t a = (*(pdfio_obj_t *const *) pa)->number, b = (*(pdfio_obj_t *const *) pb)->number;
+    return (a > b) - (a < b);
+}
+
+/* Maps each of `srcs` (objects of one file, repeats allowed) not mapped yet
+   to `dst`, sorting the map once, where _pdfioFileAddMappedObj() would sort
+   it for each entry. Reorders `srcs`. */
+static bool zpd_objmap_add(pdfio_file_t *pdf, pdfio_obj_t **srcs, size_t n, pdfio_obj_t *dst)
+{
+    if (n > pdf->alloc_objmaps - pdf->num_objmaps) {
+        _pdfio_objmap_t *grown = realloc(pdf->objmaps, (pdf->num_objmaps + n) * sizeof(*grown));
+        if (!grown) {
+            _pdfioFileError(pdf, "Unable to allocate memory for object map.");
+            return false;
+        }
+        pdf->objmaps = grown;
+        pdf->alloc_objmaps = pdf->num_objmaps + n;
+    }
+    if (n)
+        qsort(srcs, n, sizeof(*srcs), zpd_obj_cmp);
+    size_t old = pdf->num_objmaps;
+    for (size_t i = 0; i < n; i++) {
+        if ((i && srcs[i]->number == srcs[i - 1]->number) || zpd_objmap_find(pdf, old, srcs[i]))
+            continue;
+        _pdfio_objmap_t *m = &pdf->objmaps[pdf->num_objmaps++];
+        m->obj = dst;
+        m->src_number = srcs[i]->number;
+        memcpy(m->src_id, srcs[i]->pdf->file_id, sizeof(m->src_id));
+    }
+    if (pdf->num_objmaps > old)
+        qsort(pdf->objmaps, pdf->num_objmaps, sizeof(*pdf->objmaps), zpd_objmap_cmp);
+    return true;
+}
+
+/* Maps every page and page-tree node of `src` that is not mapped yet to the
+   writer's null object. pdfio's copy follows every reference, so without
+   this an annotation's /P, a link's destination or a bead's page would
+   copy another page, and through its /Parent the page tree and every page
+   of the file (#38). The pages being copied are then mapped to their
+   copies; references to the others become null, as in qpdf. */
+static bool zpd_map_pages(zpd_writer *w, pdfio_file_t *src)
+{
+    pdfio_file_t *pdf = w->pdf;
+    if (!w->nullobj) {
+        pdfio_obj_t *obj = _pdfioFileCreateObj(pdf, NULL, NULL);
+        if (!obj)
+            return false;
+        obj->value.type = PDFIO_VALTYPE_NULL;
+        if (!pdfioObjClose(obj))
+            return false;
+        w->nullobj = obj;
+    }
+    size_t n = 0, cap = 0;
+    pdfio_obj_t **objs = NULL;
+    for (size_t i = 0; i < pdfioFileGetNumPages(src); i++) {
+        pdfio_obj_t *obj = pdfioFileGetPage(src, i);
+        /* The page and its ancestors, as deep as pdfio reads the tree. */
+        for (int depth = 0; obj && depth < PDFIO_MAX_DEPTH; depth++) {
+            if (n == cap) {
+                cap = cap ? 2 * cap : 64;
+                pdfio_obj_t **grown = realloc(objs, cap * sizeof(*grown));
+                if (!grown) {
+                    free(objs);
+                    _pdfioFileError(pdf, "Unable to allocate memory for object map.");
+                    return false;
+                }
+                objs = grown;
+            }
+            objs[n++] = obj;
+            pdfio_obj_t *parent = pdfioDictGetObj(pdfioObjGetDict(obj), "Parent");
+            obj = parent && pdfioObjGetDict(parent) ? parent : NULL;
+        }
+    }
+    bool ok = zpd_objmap_add(pdf, objs, n, w->nullobj);
+    free(objs);
+    return ok;
+}
+
+/* The page attributes a page inherits from the page tree (ISO 32000-2,
+   table 31). */
+static int zpd_inheritable(const char *key)
+{
+    return !strcmp(key, "Resources") || !strcmp(key, "MediaBox") || !strcmp(key, "CropBox") ||
+           !strcmp(key, "Rotate");
+}
+
+/* pdfioPageCopy() with a rotation, into `page`, an object made for the
+   copy with an empty dictionary: the page dictionary and the attributes it
+   inherits (only those, #55) are copied, with every object they reference,
+   through pdfio's object map, so the copy is self-contained; /Rotate is
+   advanced by `rotate` degrees, and the page is written and added.
+   pdfioPageCopy() writes the page as it copies it, leaving no way to change
+   /Rotate afterwards. */
+static bool zpd_page_copy(pdfio_file_t *pdf, pdfio_obj_t *page, pdfio_obj_t *srcpage, int rotate,
+                          int absolute)
 {
     pdfio_dict_t *src = pdfioObjGetDict(srcpage);
-    pdfio_dict_t *dst = pdfioDictCreate(pdf);
+    pdfio_dict_t *dst = pdfioObjGetDict(page);
     if (!src || !dst)
         return false;
     pdfio_obj_t *parent = srcpage;
@@ -478,7 +593,7 @@ static bool zpd_page_copy(pdfio_file_t *pdf, pdfio_obj_t *srcpage, int rotate, i
                 }
                 continue;
             }
-            if (d == src || !_pdfioDictGetValue(dst, p->key)) {
+            if (d == src || (zpd_inheritable(p->key) && !_pdfioDictGetValue(dst, p->key))) {
                 _pdfio_value_t v;
                 if (!_pdfioValueCopy(pdf, &v, srcpage->pdf, &p->value))
                     return false;
@@ -496,13 +611,15 @@ static bool zpd_page_copy(pdfio_file_t *pdf, pdfio_obj_t *srcpage, int rotate, i
     pdfioDictSetObj(dst, "Parent", pdf->pages_obj);
     if (!_pdfioDictGetValue(dst, "Type"))
         pdfioDictSetName(dst, "Type", "Page");
-    pdfio_obj_t *page = pdfioFileCreateObj(pdf, dst);
-    return page && pdfioObjClose(page) && _pdfioFileAddPage(pdf, page);
+    return pdfioObjClose(page) && _pdfioFileAddPage(pdf, page);
 }
 
 /* zupdf_writer_copy_pages(ptr, file, pages, rotate, absolute): copies pages
    (1-based, checked in R) of an open pdf_file, adding `rotate` degrees to
-   each page's rotation, or setting it when `absolute`. */
+   each page's rotation, or setting it when `absolute`. Every copy's object
+   is made, and its source page mapped to it, before any page is copied, so
+   a reference from one copied page to another (a link, an annotation's /P)
+   leads to the copy: for a page copied twice, to the first. */
 SEXP zupdf_writer_copy_pages(SEXP ptr, SEXP file, SEXP pages, SEXP rotate, SEXP absolute)
 {
     zpd_writer *w = zpd_writer_get(ptr);
@@ -514,14 +631,31 @@ SEXP zupdf_writer_copy_pages(SEXP ptr, SEXP file, SEXP pages, SEXP rotate, SEXP 
     zpd_record_reset(&w->rec);
     zpd_record_reset(&h->rec);
     int r = Rf_asInteger(rotate), abs_ = Rf_asLogical(absolute) == TRUE;
-    for (R_xlen_t i = 0; i < XLENGTH(pages); i++) {
-        pdfio_obj_t *page = pdfioFileGetPage(h->pdf, (size_t) INTEGER(pages)[i] - 1);
-        if (!page || !zpd_page_copy(w->pdf, page, r, abs_)) {
-            if (h->rec.nerror && !w->rec.nerror)
-                w->rec = h->rec;
-            zpd_fallback(&w->rec, "Unable to copy a page.");
-            return zpd_result("pdfio", R_NilValue, &w->rec);
-        }
+    R_xlen_t n = XLENGTH(pages);
+    pdfio_obj_t **srcs = calloc((size_t) n + 1, sizeof(*srcs));
+    pdfio_obj_t **dsts = calloc((size_t) n + 1, sizeof(*dsts));
+    bool ok = srcs && dsts && zpd_map_pages(w, h->pdf);
+    for (R_xlen_t i = 0; ok && i < n; i++) {
+        srcs[i] = pdfioFileGetPage(h->pdf, (size_t) INTEGER(pages)[i] - 1);
+        pdfio_dict_t *dict = srcs[i] && pdfioObjGetDict(srcs[i]) ? pdfioDictCreate(w->pdf) : NULL;
+        ok = dict && (dsts[i] = pdfioFileCreateObj(w->pdf, dict)) != NULL;
+    }
+    for (R_xlen_t i = n - 1; ok && i >= 0; i--) {
+        _pdfio_objmap_t *m = zpd_objmap_find(w->pdf, w->pdf->num_objmaps, srcs[i]);
+        if (m)
+            m->obj = dsts[i];
+        else
+            ok = _pdfioFileAddMappedObj(w->pdf, dsts[i], srcs[i]);
+    }
+    for (R_xlen_t i = 0; ok && i < n; i++)
+        ok = zpd_page_copy(w->pdf, dsts[i], srcs[i], r, abs_);
+    free(srcs);
+    free(dsts);
+    if (!ok) {
+        if (h->rec.nerror && !w->rec.nerror)
+            w->rec = h->rec;
+        zpd_fallback(&w->rec, "Unable to copy a page.");
+        return zpd_result("pdfio", R_NilValue, &w->rec);
     }
     return zpd_result("ok", R_NilValue, &w->rec);
 }
@@ -554,7 +688,7 @@ SEXP zupdf_writer_set_meta(SEXP ptr, SEXP keys, SEXP values, SEXP modified)
     }
     double m = Rf_asReal(modified);
     if (!ISNAN(m))
-        pdfioFileSetModificationDate(w->pdf, (time_t) floor(m));
+        pdfioFileSetModificationDate(w->pdf, zpd_clamp_time(m));
     return zpd_result("ok", R_NilValue, &w->rec);
 }
 

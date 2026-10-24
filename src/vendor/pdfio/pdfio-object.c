@@ -12,6 +12,8 @@
 //
 // Modified for the zupdf R package: an object's own binary value is freed when the object is, and before the object is read again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: copying values between files is bounded in depth, so a long chain of references cannot overflow the stack. See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -71,7 +73,7 @@ pdfioObjCopy(pdfio_file_t *pdf,		// I - PDF file
   pdfio_obj_t	*dstobj;		// Destination object
   pdfio_stream_t *srcst,		// Source stream
 		*dstst;			// Destination stream
-  char		buffer[32768];		// Copy buffer
+  char		*buffer;		// Copy buffer, on the heap since copies nest
   ssize_t	bytes;			// Bytes read
 
 
@@ -110,20 +112,29 @@ pdfioObjCopy(pdfio_file_t *pdf,		// I - PDF file
   if (srcobj->stream_offset)
   {
     // Copy stream data...
+    if ((buffer = (char *)malloc(32768)) == NULL)
+    {
+      _pdfioFileError(pdf, "Unable to allocate memory for a copy buffer - %s", strerror(errno));
+      pdfioObjClose(dstobj);
+      return (NULL);
+    }
+
     if ((srcst = pdfioObjOpenStream(srcobj, false)) == NULL)
     {
+      free(buffer);
       pdfioObjClose(dstobj);
       return (NULL);
     }
 
     if ((dstst = pdfioObjCreateStream(dstobj, PDFIO_FILTER_NONE)) == NULL)
     {
+      free(buffer);
       pdfioStreamClose(srcst);
       pdfioObjClose(dstobj);
       return (NULL);
     }
 
-    while ((bytes = pdfioStreamRead(srcst, buffer, sizeof(buffer))) > 0)
+    while ((bytes = pdfioStreamRead(srcst, buffer, 32768)) > 0)
     {
       if (!pdfioStreamWrite(dstst, buffer, (size_t)bytes))
       {
@@ -132,6 +143,7 @@ pdfioObjCopy(pdfio_file_t *pdf,		// I - PDF file
       }
     }
 
+    free(buffer);
     pdfioStreamClose(srcst);
     pdfioStreamClose(dstst);
 

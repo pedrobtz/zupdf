@@ -21,8 +21,16 @@ timeout_bin <- timeout_bin[nzchar(timeout_bin)][1]
 # probe gives with the guard in place.
 cases <- list(
   list("max_size", "R/open.R", 'pdf_open(minimal_pdf(), max_size = 10)'),
-  list("max_objects", "R/open.R", 'pdf_open(minimal_pdf(pages = 3L), max_objects = 3)'),
-  list("max_pages", "R/open.R", 'pdf_open(minimal_pdf(pages = 3L), max_pages = 2)'),
+  list(
+    "max_objects",
+    "src/vendor/pdfio/pdfio-file.c",
+    'pdf_open(minimal_pdf(pages = 3L), max_objects = 3)'
+  ),
+  list(
+    "max_pages",
+    "R/open.R",
+    'pdf_open(minimal_pdf(pages = 3L), max_pages = 2)'
+  ),
   list(
     "max_depth_inherit",
     "src/zpd_core.c",
@@ -48,8 +56,21 @@ cases <- list(
     "src/zpd_text.c",
     'pdf_page_text(pdf_open(minimal_pdf(text = strrep("x", 200)), max_stream = 100))'
   ),
-  list("form_cycle", "src/zpd_text.c", 'pdf_page_text(pdf_open(cycle_pdf(), max_depth = 8))'),
-  list("max_depth_form", "src/zpd_text.c", 'pdf_page_text(pdf_open(deep_forms_pdf(4), max_depth = 3))')
+  list(
+    "form_cycle",
+    "src/zpd_text.c",
+    'pdf_page_text(pdf_open(cycle_pdf(), max_depth = 8))'
+  ),
+  list(
+    "max_depth_form",
+    "src/zpd_text.c",
+    'pdf_page_text(pdf_open(deep_forms_pdf(4), max_depth = 3))'
+  ),
+  list(
+    "copy_depth",
+    "src/vendor/pdfio/pdfio-value.c",
+    'pdf_copy_pages(pdf_new(), pdf_open(chain_pdf(1100L)))'
+  )
 )
 expected <- c(
   max_size = "zupdf_limit_error",
@@ -61,7 +82,8 @@ expected <- c(
   max_stream = "zupdf_limit_error",
   max_stream_content = "zupdf_limit_error",
   form_cycle = "zupdf_limit_error: a form XObject draws itself",
-  max_depth_form = "zupdf_limit_error"
+  max_depth_form = "zupdf_limit_error",
+  copy_depth = "zupdf_write_error"
 )
 
 # Forms for the two form guards: one that draws itself, and a chain of
@@ -98,6 +120,7 @@ probe <- function(lib, guard, code) {
       sprintf("suppressMessages(library(zupdf, lib.loc = %s))", deparse(lib)),
       "test_path <- function(...) file.path('tests', 'testthat', ...)",
       "source('tests/testthat/helper-pdf.R')",
+      "source('tests/testthat/helper-copy.R')",
       probe_helpers,
       "out <- tryCatch({",
       paste0("  x <- suppressWarnings(", code, ")"),
@@ -155,7 +178,12 @@ mutate <- function(lines, guard, file) {
 install <- function(dir, lib) {
   dir.create(lib, showWarnings = FALSE)
   rcmd <- file.path(R.home("bin"), "R")
-  out <- system2(rcmd, c("CMD", "INSTALL", "--no-test-load", "-l", lib, dir), stdout = TRUE, stderr = TRUE)
+  out <- system2(
+    rcmd,
+    c("CMD", "INSTALL", "--no-test-load", "-l", lib, dir),
+    stdout = TRUE,
+    stderr = TRUE
+  )
   if (!is.null(attr(out, "status"))) {
     writeLines(tail(out, 30))
     stop("R CMD INSTALL failed for ", dir)
@@ -178,7 +206,12 @@ for (cs in cases) {
   code <- cs[[3]]
   got <- probe(file.path(work, "lib-base"), guard, code)
   if (!identical(got, expected[[guard]])) {
-    message(sprintf("FAIL: %s: with the guard the probe gives '%s', expected '%s'", guard, got, expected[[guard]]))
+    message(sprintf(
+      "FAIL: %s: with the guard the probe gives '%s', expected '%s'",
+      guard,
+      got,
+      expected[[guard]]
+    ))
     failed <- TRUE
     next
   }
@@ -189,10 +222,19 @@ for (cs in cases) {
   install(mdir, file.path(work, paste0("lib-", guard)))
   mutant <- probe(file.path(work, paste0("lib-", guard)), guard, code)
   if (identical(mutant, got)) {
-    message(sprintf("FAIL: %s: removing the guard changes nothing (still '%s')", guard, got))
+    message(sprintf(
+      "FAIL: %s: removing the guard changes nothing (still '%s')",
+      guard,
+      got
+    ))
     failed <- TRUE
   } else {
-    message(sprintf("==> %s: '%s' with the guard, '%s' without", guard, got, mutant))
+    message(sprintf(
+      "==> %s: '%s' with the guard, '%s' without",
+      guard,
+      got,
+      mutant
+    ))
   }
   unlink(mdir, recursive = TRUE)
 }

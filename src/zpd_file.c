@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "zpd.h"
+#include "pdfio-private.h"
 
 /* ---- records and results -------------------------------------------------- */
 
@@ -111,10 +112,12 @@ static const char *zpd_password_cb(void *data, const char *filename)
     return h->password_asked++ == 0 ? h->password : NULL;
 }
 
-/* zupdf_open(path, password, owned): `path` is a file R has already
-   checked against max_size; `owned` says it is a temporary copy the handle
-   removes when it closes. */
-SEXP zupdf_open(SEXP path, SEXP password, SEXP owned)
+/* zupdf_open(path, password, owned, max_objects): `path` is a file R has
+   already checked against max_size; `owned` says it is a temporary copy the
+   handle removes when it closes. pdfio refuses a file with more than
+   max_objects objects (Inf for no limit) as it reads them (patch 0016): a
+   small cross-reference stream can list millions, each allocated. */
+SEXP zupdf_open(SEXP path, SEXP password, SEXP owned, SEXP max_objects)
 {
     zpd_file *h = calloc(1, sizeof(*h));
     if (!h) {
@@ -133,7 +136,9 @@ SEXP zupdf_open(SEXP path, SEXP password, SEXP owned)
     if (password != R_NilValue)
         h->password = zpd_strdup(Rf_translateCharUTF8(STRING_ELT(password, 0)));
 
-    h->pdf = pdfioFileOpen(filename, zpd_password_cb, h, zpd_error_cb, &h->rec);
+    double m = Rf_asReal(max_objects);
+    size_t cap = m >= 1.0 && m < 9007199254740992.0 ? (size_t) m : 0;
+    h->pdf = _pdfioFileOpenMax(filename, cap, zpd_password_cb, h, zpd_error_cb, &h->rec);
     SEXP out;
     if (!h->pdf) {
         /* The temporary copy stays: R may retry with a password from a
@@ -142,7 +147,9 @@ SEXP zupdf_open(SEXP path, SEXP password, SEXP owned)
         free(h->tmpfile);
         h->tmpfile = NULL;
         zpd_file_release(h);
-        out = zpd_result("pdfio", R_NilValue, &h->rec);
+        /* Patch 0016's refusal, which pdfio reports only as this message. */
+        int over = h->rec.nerror && !strcmp(h->rec.error, "Too many objects.");
+        out = zpd_result(over ? "max_objects" : "pdfio", R_NilValue, &h->rec);
     } else {
         out = zpd_result("ok", ptr, &h->rec);
     }

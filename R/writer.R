@@ -17,7 +17,7 @@
 #'   so 1.7 is the default.
 #' @param media_box The default page size, `c(x1, y1, x2, y2)` in points;
 #'   see [pdf_paper()].
-#' @param created The creation date, a `POSIXct`.
+#' @param created The creation date, a `POSIXct` from 1970 to 3000.
 #' @param deterministic `TRUE` to derive the file identifier from the
 #'   content.
 #' @param ... Must be empty.
@@ -54,10 +54,12 @@ pdf_new <- function(
     )
   }
   media_box <- zpd_check_box(media_box, "media_box", call = call)
-  if (
-    !inherits(created, "POSIXct") || length(created) != 1L || is.na(created)
-  ) {
-    zpd_invalid_argument("created", "`created` must be one POSIXct time.", call)
+  if (!zpd_is_time(created)) {
+    zpd_invalid_argument(
+      "created",
+      "`created` must be one POSIXct time from 1970 to 3000.",
+      call
+    )
   }
   if (!isTRUE(deterministic) && !isFALSE(deterministic)) {
     zpd_invalid_argument(

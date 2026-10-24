@@ -69,6 +69,16 @@ static inline int zpd_clamp_int(double d, int lo, int hi)
     return d != d ? 0 : d <= (double) lo ? lo : d >= (double) hi ? hi : (int) d;
 }
 
+/* A time from R (seconds since 1970), as a time_t in the range R checks,
+   1970 to the end of 3000 (R/values.R): the dates gmtime() takes on every
+   platform. Clamped, so that the conversion is defined whatever arrives;
+   NaN is 0. Whole seconds, as truncation is floor for what remains. */
+static inline time_t zpd_clamp_time(double d)
+{
+    const double max = 32535215999.0;
+    return d != d || d <= 0.0 ? 0 : d >= max ? (time_t) max : (time_t) d;
+}
+
 /* ---- R ---------------------------------------------------------------------- */
 
 #ifndef ZPD_STANDALONE

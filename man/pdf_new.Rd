@@ -21,7 +21,7 @@ so 1.7 is the default.}
 \item{media_box}{The default page size, \code{c(x1, y1, x2, y2)} in points;
 see \code{\link[=pdf_paper]{pdf_paper()}}.}
 
-\item{created}{The creation date, a \code{POSIXct}.}
+\item{created}{The creation date, a \code{POSIXct} from 1970 to 3000.}
 
 \item{deterministic}{\code{TRUE} to derive the file identifier from the
 content.}

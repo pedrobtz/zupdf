@@ -320,7 +320,7 @@ static const char *zpd_put(pdfio_file_t *pdf, SEXP x, pdfio_dict_t *dict,
         return ok ? NULL : "pdfio";
     }
     if (zpd_inherits(x, "POSIXct")) {
-        time_t t = (time_t) floor(Rf_asReal(x));
+        time_t t = zpd_clamp_time(Rf_asReal(x));
         ok = dict ? pdfioDictSetDate(dict, key, t) : pdfioArrayAppendDate(array, t);
         return ok ? NULL : "pdfio";
     }
