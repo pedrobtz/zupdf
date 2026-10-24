@@ -41,3 +41,37 @@ test_that("pdfio's test document lists its fonts", {
   expect_gt(nrow(f), 0L)
   expect_true(all(f$type %in% c("Type1", "Type3", "TrueType", "Type0")))
 })
+
+test_that("an unreadable font is a row of NA and one warning", {
+  deep <- sprintf(
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Deep /X %s >>",
+    nested_array(6L)
+  )
+  bytes <- page_pdf(
+    "",
+    "<< /Font << /F1 5 0 R /F2 6 0 R >> >>",
+    extra = list(deep, helv)
+  )
+  pdf <- pdf_open(bytes, max_depth = 4)
+  withr::defer(pdf_close(pdf))
+  w <- expect_warning(f <- pdf_font_table(pdf), class = "zupdf_warning")
+  expect_identical(w$object, 5L)
+  expect_identical(w$count, 1L)
+  expect_identical(f$object, c(5L, 6L))
+  expect_identical(f$name, c(NA, "Helvetica"))
+  expect_identical(f$type, c(NA, "Type1"))
+  expect_identical(f$embedded, c(NA, FALSE))
+})
+
+test_that("a font's entries are looked up by their exact key", {
+  # /BaseFontX must not stand in for a missing /BaseFont, as `$` would let
+  # it.
+  bytes <- page_pdf(
+    "",
+    "<< /Font << /F1 5 0 R >> >>",
+    extra = list("<< /Type /Font /Subtype /Type1 /BaseFontX /Wrong >>")
+  )
+  pdf <- pdf_open(bytes)
+  withr::defer(pdf_close(pdf))
+  expect_identical(pdf_font_table(pdf)$name, NA_character_)
+})

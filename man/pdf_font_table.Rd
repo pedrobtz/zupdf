@@ -19,6 +19,11 @@ always for a Type 3 font, whose glyphs are drawn by the file).
 \description{
 Lists every font object in the file.
 }
+\details{
+A font whose dictionary cannot be read is listed with \code{NA} name, type
+and \code{embedded}, and the errors become one \code{zupdf_warning}, as in
+\code{\link[=pdf_objects]{pdf_objects()}}.
+}
 \examples{
 pdf <- pdf_open(system.file("examples", "hello.pdf", package = "zupdf"))
 pdf_font_table(pdf)

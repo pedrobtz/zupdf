@@ -13,7 +13,7 @@
 #' @inheritParams pdftools-compat
 #' @param font_info `TRUE` to add each word's `font_name` and `font_size`.
 #' @return A list with a data frame per page, with columns `width`,
-#'   `height`, `x`, `y`, `space` and `text`, and with `font_info`,
+#'   `height`, `x`, `y`, `space` and `text`; with `font_info = TRUE`, also
 #'   `font_name` and `font_size`.
 #' @export
 #' @examples
@@ -59,6 +59,19 @@ zpd_words <- function(g, page_top, font_info) {
     cur <<- NULL
   }
   for (i in seq_len(n)) {
+    # A glyph placed by non-finite numbers has no box; it is left out.
+    nums <- c(
+      g$x0[[i]],
+      g$y0[[i]],
+      g$x1[[i]],
+      g$y1[[i]],
+      g$size[[i]],
+      g$ascent[[i]],
+      g$descent[[i]]
+    )
+    if (!all(is.finite(nums))) {
+      next
+    }
     size <- if (g$size[[i]] > 0) g$size[[i]] else 1
     dx <- g$x1[[i]] - g$x0[[i]]
     dy <- g$y1[[i]] - g$y0[[i]]

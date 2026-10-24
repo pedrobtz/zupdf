@@ -20,7 +20,10 @@ the family of an array colour space, such as \code{"ICCBased"}) and
 }
 \description{
 Lists the images in a page's resources: the image XObjects it can draw.
-Images inside Form XObjects and inline images are not listed.
+Images inside Form XObjects and inline images are not listed. An
+XObject whose dictionary cannot be read is listed with \code{NA} in every
+column but \code{object} and \code{name}, and the errors become one
+\code{zupdf_warning}, as in \code{\link[=pdf_objects]{pdf_objects()}}.
 }
 \examples{
 pdf <- pdf_open(system.file("examples", "hello.pdf", package = "zupdf"))

@@ -59,7 +59,7 @@ pdf_page_new <- function(w, media_box = NULL, crop_box = NULL, dict = NULL) {
     if (!is.list(dict) || is.object(dict) || is.null(names(dict))) {
       zpd_invalid_argument("dict", "`dict` must be a named list.", call)
     }
-    zpd_check_value(dict, "dict", 64L, call = call)
+    zpd_check_value(dict, "dict", zpd_default_limits()$max_depth, call = call)
   }
   page <- new.env(parent = emptyenv())
   page$writer <- w
@@ -106,12 +106,12 @@ pdf_page_end <- function(page) {
       part("ops", integer()),
       part("nums", numeric()),
       part("strs", character()),
-      64L
+      zpd_default_limits()$max_depth
     ),
     "Cannot write the page",
     call,
     default = "zupdf_write_error",
-    limits = list(max_depth = 64L),
+    limits = zpd_default_limits(),
     arg = "dict"
   )
   invisible(page)

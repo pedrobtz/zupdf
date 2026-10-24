@@ -13,7 +13,7 @@ Written by `tools/update-fixtures`; nothing here is edited by hand.
 | `encrypted-rc4-128.pdf`, `encrypted-aes-128.pdf` | Written by pdfio through `tools/fixtures/make-encrypted.c`: one page, no password, all permissions | MIT (zupdf) |
 | `encrypted-rc4-128-pw.pdf`, `encrypted-aes-128-pw.pdf` | As above, with user password `user`, owner password `owner`, printing forbidden | MIT (zupdf) |
 | `grdevices.pdf` | `grDevices::pdf()`, one plot | MIT (zupdf) |
-| `cairo.pdf` | `grDevices::cairo_pdf()`, one plot, where cairo is available | MIT (zupdf) |
+| `cairo.pdf` | `grDevices::cairo_pdf()`, one plot. Written only where `cairo_pdf()` loads; not committed, because the machine that last ran `tools/update-fixtures` had no cairo, and no test reads it | MIT (zupdf) |
 
 Encryption keys are random, so regenerating the encrypted files changes
 their bytes but not what the tests read from them.

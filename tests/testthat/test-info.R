@@ -54,6 +54,17 @@ test_that("default limits are the design's", {
   expect_identical(lim$max_pages, 1e5)
 })
 
+test_that("pdf_open()'s default limits are the ones zupdf_info() reports", {
+  lim <- zpd_default_limits()
+  f <- formals(pdf_open)
+  for (name in names(lim)) {
+    expect_equal(eval(f[[name]]), lim[[name]], label = name)
+  }
+  pdf <- pdf_open(minimal_pdf())
+  withr::defer(pdf_close(pdf))
+  expect_equal(zpd_limits(pdf), lim)
+})
+
 test_that("zupdf_info() prints without error", {
   expect_output(print(zupdf_info()), "pdfio:       1.6.5", fixed = TRUE)
 })

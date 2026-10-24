@@ -181,7 +181,7 @@ Reusable workflows from `pedrobtz/r-actions`; the scaffold's three exist at `@v1
 
 ## Stage 3 — Text: `pdf_page_text()`, `pdf_page_tokens()`, `pdf_font_table()`, images · L
 
-**Status:** done, 2026-10-08.
+**Status:** done, 2026-10-08. Deviation: the `png::readPNG()` and `jpeg::readJPEG()` round trips were missing, with `png` and `jpeg` absent from `Suggests`; both were added after the 2026-10-23 review (`test-images.R`).
 
 **Do**
 
