@@ -20,7 +20,8 @@
 #' path <- system.file("examples", "hello.pdf", package = "zupdf")
 #' pdf_data(path)[[1]]
 pdf_data <- function(pdf, font_info = FALSE, opw = "", upw = "") {
-  x <- zpd_compat_open(pdf, opw, upw, sys.call())
+  call <- sys.call()
+  x <- zpd_compat_open(pdf, opw, upw, call = call)
   on.exit(x$done())
   p <- x$pdf
   limits <- zpd_limits(p)
@@ -35,6 +36,7 @@ pdf_data <- function(pdf, font_info = FALSE, opw = "", upw = "") {
         limits$max_stream
       ),
       "Cannot extract the text",
+      call = call,
       limits = limits
     )
     zpd_words(g, heights[[i]][[4]], isTRUE(font_info))

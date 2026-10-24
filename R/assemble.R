@@ -6,12 +6,13 @@
 #' copy the pages wanted, in the order wanted, from each file in turn.
 #'
 #' A page's own entries are copied, with the attributes it inherits from the
-#' page tree (resources, boxes and rotation). A reference from a copied page
-#' to another page, such as a link or an annotation's page, leads to that
-#' page's copy when it is copied in the same call (to its first copy when
-#' it is copied twice), and is null otherwise, so no page comes along
-#' uninvited. A page whose references nest deeper than 2,048 values is
-#' refused with `zupdf_write_error`.
+#' page tree (resources, boxes and rotation). A page with no media box,
+#' which the standard requires, gets the writer's (`media_box` in
+#' [pdf_new()]). A reference from a copied page to another page, such as a
+#' link or an annotation's page, leads to that page's copy when it is copied
+#' in the same call (to its first copy when it is copied twice), and is null
+#' otherwise, so no page comes along uninvited. A page whose references nest
+#' deeper than 2,048 values is refused with `zupdf_write_error`.
 #'
 #' @inheritParams pdf_save
 #' @param pdf A `pdf_file` from [pdf_open()]; it must stay open until the
@@ -40,7 +41,11 @@ pdf_copy_pages <- function(w, pdf, pages = NULL, rotate = 0) {
     is.finite(rotate) &&
     rotate %% 90 == 0
   if (!ok) {
-    zpd_invalid_argument("rotate", "`rotate` must be a multiple of 90.", call)
+    zpd_invalid_argument(
+      "rotate",
+      "`rotate` must be a multiple of 90.",
+      call = call
+    )
   }
   zpd_unwrap(
     .Call(
@@ -52,7 +57,7 @@ pdf_copy_pages <- function(w, pdf, pages = NULL, rotate = 0) {
       FALSE
     ),
     "Cannot copy the pages",
-    call,
+    call = call,
     default = "zupdf_write_error"
   )
   invisible(w)
@@ -102,7 +107,7 @@ pdf_set_meta <- function(w, ...) {
         "`...` takes named values among %s, each once.",
         paste(names(known), collapse = ", ")
       ),
-      call
+      call = call
     )
   }
   modified <- NA_real_
@@ -112,7 +117,7 @@ pdf_set_meta <- function(w, ...) {
       zpd_invalid_argument(
         "modified",
         "`modified` must be one POSIXct time from 1970 to 3000.",
-        call
+        call = call
       )
     }
     modified <- as.numeric(m)
@@ -130,7 +135,7 @@ pdf_set_meta <- function(w, ...) {
       modified
     ),
     "Cannot set the metadata",
-    call,
+    call = call,
     default = "zupdf_write_error"
   )
   invisible(w)
@@ -177,12 +182,12 @@ pdf_set_encryption <- function(
 ) {
   call <- sys.call()
   zpd_check_writer(w, call = call)
-  method <- zpd_match_arg(method, c("aes128", "rc4128"), "method", call)
-  for (a in c("user", "owner")) {
-    v <- get(a)
-    if (!is.null(v)) {
-      zpd_check_string(v, a, call = call)
-    }
+  method <- zpd_match_arg(method, c("aes128", "rc4128"), "method", call = call)
+  if (!is.null(user)) {
+    zpd_check_string(user, "user", call = call)
+  }
+  if (!is.null(owner)) {
+    zpd_check_string(owner, "owner", call = call)
   }
   if (
     !is.character(permissions) ||
@@ -195,7 +200,7 @@ pdf_set_encryption <- function(
         "`permissions` must be \"all\" or among %s.",
         paste0("\"", names(zpd_permission_bits), "\"", collapse = ", ")
       ),
-      call
+      call = call
     )
   }
   bits <- if ("all" %in% permissions) {
@@ -214,7 +219,7 @@ pdf_set_encryption <- function(
       if (is.null(user)) NULL else enc2utf8(user)
     ),
     "Cannot set the encryption",
-    call,
+    call = call,
     default = "zupdf_write_error"
   )
   invisible(w)

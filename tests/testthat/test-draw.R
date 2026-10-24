@@ -211,6 +211,38 @@ test_that("bad paths are refused", {
     "zupdf_invalid_argument",
     arg = "rule"
   )
+  expect_zupdf_error(
+    pdf_draw(page, list(x = 1:2, y = 1:2), close = NA),
+    "zupdf_invalid_argument",
+    arg = "close"
+  )
+  expect_zupdf_error(
+    pdf_draw(page, list(x = 1:2, y = 1:2), fill = c("red", "blue")),
+    "zupdf_invalid_argument",
+    arg = "fill"
+  )
+  expect_zupdf_error(
+    pdf_draw(page, list(x = 1:2, y = 1:2), stroke = "not-a-colour"),
+    "zupdf_invalid_argument",
+    arg = "stroke"
+  )
+  expect_zupdf_error(
+    pdf_draw(page, data.frame(op = c("move", "line"), x = c(1, NA), y = 1:2)),
+    "zupdf_invalid_argument",
+    arg = "path"
+  )
+  pdf_page_end(page)
+})
+
+test_that("what is not a writer or a page is refused, by name", {
+  expect_zupdf_error(pdf_page_new(1), "zupdf_invalid_argument", arg = "w")
+  expect_zupdf_error(pdf_save(1), "zupdf_invalid_argument", arg = "w")
+  expect_zupdf_error(
+    pdf_draw_text(1, 0, 0, "x"),
+    "zupdf_invalid_argument",
+    arg = "page"
+  )
+  expect_zupdf_error(pdf_page_end(1), "zupdf_invalid_argument", arg = "page")
 })
 
 # ---- images -----------------------------------------------------------------
@@ -414,6 +446,17 @@ test_that("bad images are refused by class", {
     pdf_draw_image(page, img, 1, 1, 1, 1),
     "zupdf_invalid_argument",
     arg = "image"
+  )
+  mine <- pdf_image_new(w, matrix(1, 1, 1))
+  expect_zupdf_error(
+    pdf_draw_image(page, mine, c(1, 2), 1, 1, 1),
+    "zupdf_invalid_argument",
+    arg = "x"
+  )
+  expect_zupdf_error(
+    pdf_image_new(w, matrix(1, 1, 1), interpolate = NA),
+    "zupdf_invalid_argument",
+    arg = "interpolate"
   )
 })
 

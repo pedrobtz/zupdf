@@ -27,7 +27,11 @@
 pdf_meta <- function(pdf) {
   call <- sys.call()
   zpd_check_open(pdf, call = call)
-  v <- zpd_unwrap(.Call(zupdf_meta, pdf), "Cannot read the metadata", call)
+  v <- zpd_unwrap(
+    .Call(zupdf_meta, pdf),
+    "Cannot read the metadata",
+    call = call
+  )
   utc <- function(t) .POSIXct(t, tz = "UTC")
   list(
     version = v$version,

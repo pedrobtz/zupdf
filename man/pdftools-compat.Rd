@@ -38,8 +38,9 @@ As pdftools: \code{pdf_info()} a list of \code{version}, \code{pages},
 page; \code{pdf_fonts()} a data frame of \code{name}, \code{type}, \code{embedded} and
 \code{file}; \code{pdf_pagesize()} a data frame of \code{top}, \code{right}, \code{bottom},
 \code{left}, \code{width} and \code{height}; \code{pdf_toc()} a nested list of \code{title},
-\code{is_open} and \code{children}; \code{pdf_attachments()} a list of attachments, each with
-\code{name}, \code{mime}, \code{created}, \code{modified}, \code{description} and \code{data}.
+\code{is_open} and \code{children}; \code{pdf_attachments()} a list of attachments,
+each with \code{name}, \code{mime}, \code{created}, \code{modified}, \code{description} and
+\code{data}.
 }
 \description{
 These functions take pdftools's arguments and return what pdftools

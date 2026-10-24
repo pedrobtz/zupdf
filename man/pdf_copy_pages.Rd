@@ -29,12 +29,13 @@ copy the pages wanted, in the order wanted, from each file in turn.
 }
 \details{
 A page's own entries are copied, with the attributes it inherits from the
-page tree (resources, boxes and rotation). A reference from a copied page
-to another page, such as a link or an annotation's page, leads to that
-page's copy when it is copied in the same call (to its first copy when
-it is copied twice), and is null otherwise, so no page comes along
-uninvited. A page whose references nest deeper than 2,048 values is
-refused with \code{zupdf_write_error}.
+page tree (resources, boxes and rotation). A page with no media box,
+which the standard requires, gets the writer's (\code{media_box} in
+\code{\link[=pdf_new]{pdf_new()}}). A reference from a copied page to another page, such as a
+link or an annotation's page, leads to that page's copy when it is copied
+in the same call (to its first copy when it is copied twice), and is null
+otherwise, so no page comes along uninvited. A page whose references nest
+deeper than 2,048 values is refused with \code{zupdf_write_error}.
 }
 \examples{
 src <- pdf_open(system.file("examples", "hello.pdf", package = "zupdf"))

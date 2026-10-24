@@ -50,7 +50,7 @@ pdf_new <- function(
     zpd_invalid_argument(
       "version",
       "`version` must be a PDF version such as \"1.7\" or \"2.0\".",
-      call
+      call = call
     )
   }
   media_box <- zpd_check_box(media_box, "media_box", call = call)
@@ -58,20 +58,20 @@ pdf_new <- function(
     zpd_invalid_argument(
       "created",
       "`created` must be one POSIXct time from 1970 to 3000.",
-      call
+      call = call
     )
   }
   if (!isTRUE(deterministic) && !isFALSE(deterministic)) {
     zpd_invalid_argument(
       "deterministic",
       "`deterministic` must be TRUE or FALSE.",
-      call
+      call = call
     )
   }
   ptr <- zpd_unwrap(
     .Call(zupdf_writer_new, version, media_box),
     "Cannot create the PDF file",
-    call,
+    call = call,
     default = "zupdf_write_error"
   )
   state <- new.env(parent = emptyenv())
@@ -129,13 +129,13 @@ pdf_save <- function(w, file = NULL) {
     zpd_invalid_argument(
       "file",
       "`file` must be NULL, a path or a connection.",
-      call
+      call = call
     )
   }
   # The destination is opened before the writer closes, so a path or
   # connection that cannot be written leaves the writer open.
   if (!is.null(file)) {
-    dest <- zpd_save_open(file, call)
+    dest <- zpd_save_open(file, call = call)
     if (dest$opened) {
       on.exit(close(dest$con), add = TRUE)
     }
@@ -148,7 +148,7 @@ pdf_save <- function(w, file = NULL) {
       attr(w, "deterministic", exact = TRUE)
     ),
     "Cannot finish the PDF file",
-    call,
+    call = call,
     default = "zupdf_write_error"
   )
   if (is.null(file)) {
@@ -162,7 +162,10 @@ pdf_save <- function(w, file = NULL) {
       zpd_abort(
         "zupdf_io_error",
         sprintf(
-          "Cannot write the PDF file to %s: %s; its bytes are in the condition's `bytes`.",
+          paste(
+            "Cannot write the PDF file to %s: %s; its bytes are in the",
+            "condition's `bytes`."
+          ),
           dest$what,
           conditionMessage(e)
         ),
@@ -282,7 +285,10 @@ zpd_writer_font <- function(w, x, arg = "font", call = NULL) {
     zpd_invalid_argument(
       arg,
       sprintf(
-        "'%s' is neither a base-14 font name nor a font file; zupdf does not look up system fonts.",
+        paste(
+          "'%s' is neither a base-14 font name nor a font file; zupdf",
+          "does not look up system fonts."
+        ),
         x
       ),
       call = call
@@ -291,7 +297,7 @@ zpd_writer_font <- function(w, x, arg = "font", call = NULL) {
   k <- zpd_unwrap(
     .Call(zupdf_writer_font, w, kind, x),
     "Cannot load the font",
-    call,
+    call = call,
     default = "zupdf_font_error"
   )
   font <- structure(
@@ -339,7 +345,7 @@ pdf_image_new <- function(w, x, interpolate = TRUE) {
     zpd_invalid_argument(
       "interpolate",
       "`interpolate` must be TRUE or FALSE.",
-      call
+      call = call
     )
   }
   if (is.character(x) && length(x) == 1L && is.null(dim(x))) {
@@ -353,7 +359,7 @@ pdf_image_new <- function(w, x, interpolate = TRUE) {
     v <- zpd_unwrap(
       .Call(zupdf_writer_image_file, w, path.expand(x), interpolate),
       "Cannot read the image",
-      call
+      call = call
     )
     k <- v[[1]]
     dims <- v[2:3]
@@ -371,7 +377,7 @@ pdf_image_new <- function(w, x, interpolate = TRUE) {
         interpolate
       ),
       "Cannot make the image",
-      call
+      call = call
     )
     dims <- c(img$width, img$height)
   }
@@ -493,7 +499,7 @@ zpd_check_box <- function(box, name, call = NULL) {
 
 #' @export
 print.pdf_writer <- function(x, ...) {
-  open <- .Call(zupdf_writer_is_open, x)
-  writeLines(if (open) "<pdf_writer>" else "<pdf_writer> (saved)")
+  is_open <- .Call(zupdf_writer_is_open, x)
+  writeLines(if (is_open) "<pdf_writer>" else "<pdf_writer> (saved)")
   invisible(x)
 }
