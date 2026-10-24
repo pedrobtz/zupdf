@@ -26,10 +26,12 @@ PDFBOX-1094-33.pdf	1	14	d41d8cd98f00b204e9800998ecf8427e	187	0
 PDFBOX-1094-4.pdf	1	19	d41d8cd98f00b204e9800998ecf8427e	87	0
 PDFBOX-1095-2.pdf	2	9	58c89562f58fd276f592420068db8c09	22	2
 cmap-empty-name.pdf	1	16	5801a8550eccc208e8fde2ffdfdfbf25	675	0
+content-nan.pdf	1	4	2690c180ff359a0ab327ce48170b9c7c	70	0
 firstchar-huge.pdf	3	28	0945ba6e43b9aed2aa0af7f93080f2de	1283	0
 object-value-leak.pdf	1	32	d41d8cd98f00b204e9800998ecf8427e	33	0
 objstm-value-leak.pdf	1	38	d41d8cd98f00b204e9800998ecf8427e	4	0
 repair-loop.pdf	NA	NA	NA	NA	NA
 trailer-not-dict.pdf	NA	NA	NA	NA	NA
+xref-generation-shift.pdf	NA	NA	NA	NA	NA
 xref-index-huge.pdf	NA	NA	NA	NA	NA
 xref-w-negative.pdf	NA	NA	NA	NA	NA
