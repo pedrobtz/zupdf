@@ -20,6 +20,12 @@ Writes the trailer and returns the file's bytes, or writes them to a
 file or connection. Every page must have been ended. The writer cannot
 be used afterwards.
 }
+\details{
+The path or connection is opened before the writer is closed, so one
+that cannot be written raises a \code{zupdf_io_error} and leaves the writer
+open to save elsewhere. If writing fails after that, the
+\code{zupdf_io_error} carries the file's bytes as its \code{bytes} field.
+}
 \examples{
 w <- pdf_new()
 pdf_page_end(pdf_page_new(w))

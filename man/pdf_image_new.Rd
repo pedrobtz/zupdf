@@ -23,7 +23,9 @@ PNG or JPEG file (JPEG data is copied as it is), or from an R image: a
 \code{nativeRaster}, a \code{raster} or character matrix of colours, a numeric
 matrix of grey levels in 0 to 1, or a numeric array of height x width x
 3 (RGB) or 4 (RGBA) channels in 0 to 1, such as \code{png::readPNG()}
-returns. Transparency is kept.
+returns. Transparency is kept. A PNG file with an alpha channel is a
+\code{zupdf_unsupported_input}, since pdfio reads PNG without libpng; read it
+with \code{png::readPNG()} and pass the array.
 }
 \examples{
 w <- pdf_new()

@@ -23,7 +23,9 @@
 #'   \item{`zupdf_write_error`}{pdfio refused to write, or a closed writer
 #'     was used.}
 #'   \item{`zupdf_font_error`}{A font file could not be read.}
-#'   \item{`zupdf_io_error`}{A file, temporary file or connection failed.}
+#'   \item{`zupdf_io_error`}{A file, temporary file or connection failed.
+#'     From [pdf_save()], after the file was finished, it carries `bytes`,
+#'     the file's bytes.}
 #'   \item{`zupdf_encoding_error`}{Extracted text is not valid UTF-8 after
 #'     mapping.}
 #' }
@@ -99,7 +101,8 @@ zpd_pdfio_prefixes <- c(
   "Unable to open file" = "zupdf_io_error",
   "Unable to open image file" = "zupdf_io_error",
   "Unable to open font file" = "zupdf_io_error",
-  "Unsupported image file" = "zupdf_unsupported_input"
+  "Unsupported image file" = "zupdf_unsupported_input",
+  "Unsupported PNG" = "zupdf_unsupported_input"
 )
 
 zpd_pdfio_class <- function(detail, default = "zupdf_parse_error") {
@@ -110,15 +113,41 @@ zpd_pdfio_class <- function(detail, default = "zupdf_parse_error") {
   if (any(hit)) zpd_pdfio_prefixes[[which(hit)[[1L]]]] else default
 }
 
+# Every status C returns, by enumerator name. zpd_unwrap() has a branch for
+# each; test-conditions.R checks that each raises a zupdf_error and that
+# src/ returns no other.
+zpd_c_statuses <- c(
+  "ok",
+  "closed",
+  "pdfio",
+  "max_depth",
+  "form_cycle",
+  "max_stream",
+  "unknown_object",
+  "no_stream",
+  "unknown_ref",
+  "font",
+  "image",
+  "memory",
+  "unsupported",
+  "closed_writer",
+  "bad_ops",
+  "pdfdoc",
+  "max_objects"
+)
+
 # Unwraps a zpd_result() from C: warns once for pdfio's warnings, raises
 # for a status other than "ok", and returns the value. `what` begins the
-# message; pdfio's own message follows it and is kept as `detail`.
+# message; pdfio's own message follows it and is kept as `detail`. `arg`
+# names the argument a value came from, for "unknown_ref" and
+# "unsupported".
 zpd_unwrap <- function(
   res,
   what,
   call = NULL,
   default = "zupdf_parse_error",
-  limits = NULL
+  limits = NULL,
+  arg = "x"
 ) {
   if (res$nwarning > 0L) {
     zpd_warn(
@@ -159,6 +188,16 @@ zpd_unwrap <- function(
       sprintf("%s: a form XObject draws itself.", what),
       call = call
     ),
+    max_objects = zpd_limit_error(
+      "max_objects",
+      limits$max_objects,
+      sprintf(
+        "%s: the file has more objects than `max_objects` (%s).",
+        what,
+        format(limits$max_objects, scientific = FALSE, big.mark = "")
+      ),
+      call = call
+    ),
     max_stream = zpd_limit_error(
       "max_stream",
       limits$max_stream,
@@ -180,7 +219,7 @@ zpd_unwrap <- function(
       call = call
     ),
     unknown_ref = zpd_invalid_argument(
-      "x",
+      arg,
       sprintf("%s: a pdf_ref names no object in the file.", what),
       call = call
     ),
@@ -211,7 +250,7 @@ zpd_unwrap <- function(
       call = call
     ),
     unsupported = zpd_invalid_argument(
-      "x",
+      arg,
       sprintf("%s: a value has no PDF form.", what),
       call = call
     ),
@@ -220,6 +259,17 @@ zpd_unwrap <- function(
       sprintf("%s: the writer is closed.", what),
       call = call
     ),
-    stop("unknown status from C: ", res$status)
+    bad_ops = zpd_abort(
+      "zupdf_write_error",
+      sprintf("%s: the recorded operations are not valid.", what),
+      call = call
+    ),
+    # A status this table does not know is a bug in zupdf, still classed.
+    zpd_abort(
+      default,
+      sprintf("%s: unknown status '%s' from C.", what, res$status),
+      detail = res$status,
+      call = call
+    )
   )
 }

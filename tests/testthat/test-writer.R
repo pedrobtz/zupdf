@@ -37,25 +37,71 @@ test_that("deterministic = TRUE gives the same bytes every time", {
   expect_false(identical(reread(c2, pdf_meta)$id, m$id))
 })
 
+test_that("writing does not depend on the local time zone", {
+  # CI runs under TZ=UTC, which would hide a date formatted in local time.
+  write_in <- function(tz) {
+    withr::local_timezone(tz)
+    w <- pdf_new(
+      created = as.POSIXct("2024-01-02 03:04:05", tz = "UTC"),
+      deterministic = TRUE
+    )
+    pdf_set_meta(
+      w,
+      title = "Zones",
+      modified = as.POSIXct("2024-07-02 23:30:00", tz = "UTC")
+    )
+    page <- pdf_page_new(w)
+    pdf_draw_text(page, 72, 700, "Same everywhere")
+    pdf_page_end(page)
+    pdf_save(w)
+  }
+  utc <- write_in("UTC")
+  kolkata <- write_in("Asia/Kolkata")
+  expect_identical(kolkata, utc)
+  m <- reread(kolkata, pdf_meta)
+  expect_identical(
+    format(m$modified, "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+    "2024-07-02 23:30:00"
+  )
+  expect_identical(
+    format(m$created, "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+    "2024-01-02 03:04:05"
+  )
+})
+
 test_that("without deterministic, the identifier is random", {
   a <- written(deterministic = FALSE)
   b <- written(deterministic = FALSE)
   expect_false(identical(reread(a, pdf_meta)$id, reread(b, pdf_meta)$id))
 })
 
-test_that("pinned bytes match where this zlib has a recorded hash", {
+test_that("each writer function's bytes match the pin for this zlib", {
   # Flate output differs between zlib builds (zlib-ng, Apple's), so the
-  # pin is per zlib version (design section 7).
-  hashes <- utils::read.delim(
-    fixture("hashes.tsv"),
-    colClasses = "character",
-    comment.char = "#"
-  )
+  # pin is per zlib version (design section 7). A recorded zlib has a row
+  # for every case in helper-pins.R.
+  hashes <- pinned_hashes()
+  expect_setequal(unique(hashes$case), names(pinned_cases))
   zlib <- zupdf_info()$zlib_version
-  row <- hashes[hashes$case == "hello" & hashes$zlib == zlib, ]
-  skip_if(nrow(row) == 0L, paste("no pinned hash for zlib", zlib))
-  bytes <- written(function(page) pdf_draw_text(page, 72, 700, "Hello"))
-  expect_pdf_bytes(bytes, row$md5[[1]])
+  rows <- hashes[hashes$zlib == zlib, ]
+  skip_if(nrow(rows) == 0L, paste("no pinned hash for zlib", zlib))
+  for (case in names(pinned_cases)) {
+    if (case == "font_file" && .Platform$OS.type == "windows") {
+      # The embedded TrueType font's bytes differ on Windows with the same
+      # zlib; the cause is not yet known (#89, design section 7).
+      next
+    }
+    md5 <- rows$md5[rows$case == case]
+    expect_length(md5, 1L)
+    expect_identical(bytes_md5(pinned_cases[[case]]()), md5, label = case)
+  }
+})
+
+test_that("every zlib in the table pins every case", {
+  hashes <- pinned_hashes()
+  for (zlib in unique(hashes$zlib)) {
+    expect_setequal(hashes$case[hashes$zlib == zlib], names(pinned_cases))
+  }
+  expect_false(anyDuplicated(hashes[c("case", "zlib")]) > 0L)
 })
 
 test_that("pdf_save() writes to a path and to a connection", {
@@ -71,6 +117,35 @@ test_that("pdf_save() writes to a path and to a connection", {
   con <- file(path2)
   pdf_save(w2, con)
   expect_identical(reread(path2, length), 1L)
+})
+
+test_that("pdf_save() keeps the document when it cannot write there", {
+  w <- pdf_new()
+  pdf_page_end(pdf_page_new(w))
+  dir <- withr::local_tempdir()
+  bad <- file.path(dir, "no-such-dir", "x.pdf")
+  expect_zupdf_error(pdf_save(w, bad), "zupdf_io_error")
+  # A text-mode connection cannot take bytes; it is refused first too.
+  text_con <- file(file.path(dir, "text.pdf"), "w")
+  withr::defer(close(text_con))
+  expect_zupdf_error(pdf_save(w, text_con), "zupdf_io_error")
+  # The writer is still open, so the document can go elsewhere.
+  path <- file.path(dir, "x.pdf")
+  expect_identical(pdf_save(w, path), path)
+  expect_identical(reread(path, length), 1L)
+})
+
+test_that("bytes that fail to write come with the error", {
+  w <- pdf_new()
+  pdf_page_end(pdf_page_new(w))
+  path <- withr::local_tempfile(fileext = ".pdf")
+  con <- file(path, "wb")
+  withr::defer(try(close(con), silent = TRUE))
+  # A failure once the file is finished, such as a full disk.
+  local_mocked_bindings(zpd_write_bytes = function(...) stop("disk full"))
+  err <- expect_zupdf_error(pdf_save(w, con), "zupdf_io_error")
+  expect_identical(rawToChar(err$bytes[1:5]), "%PDF-")
+  expect_identical(reread(err$bytes, length), 1L)
 })
 
 test_that("a saved writer, an ended page and an open page are refused", {
@@ -172,4 +247,23 @@ test_that("pdf_paper() gives ISO and US sizes", {
   expect_identical(pdf_paper("letter", landscape = TRUE), c(0, 0, 792, 612))
   expect_zupdf_error(pdf_paper("a11"), "zupdf_invalid_argument", arg = "name")
   expect_zupdf_error(pdf_paper("a4", landscape = NA), "zupdf_invalid_argument")
+})
+
+test_that("a page that fails to end is not retried and the writer saves", {
+  w <- pdf_new()
+  ref <- structure(999L, generation = 0L, class = "pdf_ref")
+  bad <- pdf_page_new(w, dict = list(X = ref))
+  expect_zupdf_error(pdf_page_end(bad), "zupdf_invalid_argument", arg = "dict")
+  expect_output(print(bad), "ended")
+  expect_zupdf_error(pdf_page_end(bad), "zupdf_write_error")
+  # Operations C refuses (here forged) are a write error, not a bare one.
+  forged <- pdf_page_new(w)
+  forged$chunks[["1"]] <- list(ops = 99L, nums = numeric(), strs = character())
+  forged$nchunks <- 1L
+  expect_zupdf_error(pdf_page_end(forged), "zupdf_write_error")
+  good <- pdf_page_new(w)
+  pdf_draw_text(good, 72, 700, "kept")
+  pdf_page_end(good)
+  bytes <- pdf_save(w)
+  expect_identical(as.vector(reread(bytes)), "kept")
 })

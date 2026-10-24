@@ -92,6 +92,11 @@ pdf_new <- function(
 #' file or connection. Every page must have been ended. The writer cannot
 #' be used afterwards.
 #'
+#' The path or connection is opened before the writer is closed, so one
+#' that cannot be written raises a `zupdf_io_error` and leaves the writer
+#' open to save elsewhere. If writing fails after that, the
+#' `zupdf_io_error` carries the file's bytes as its `bytes` field.
+#'
 #' @param w A `pdf_writer` from [pdf_new()].
 #' @param file `NULL` to return the bytes, a path, or a connection.
 #' @return The bytes as a raw vector when `file` is `NULL`, else `file`,
@@ -127,6 +132,14 @@ pdf_save <- function(w, file = NULL) {
       call
     )
   }
+  # The destination is opened before the writer closes, so a path or
+  # connection that cannot be written leaves the writer open.
+  if (!is.null(file)) {
+    dest <- zpd_save_open(file, call)
+    if (dest$opened) {
+      on.exit(close(dest$con), add = TRUE)
+    }
+  }
   bytes <- zpd_unwrap(
     .Call(
       zupdf_writer_save,
@@ -141,26 +154,71 @@ pdf_save <- function(w, file = NULL) {
   if (is.null(file)) {
     return(bytes)
   }
-  if (is.character(file)) {
-    tryCatch(
-      writeBin(bytes, file),
-      error = function(e) {
-        zpd_abort(
-          "zupdf_io_error",
-          sprintf("Cannot write '%s': %s", file, conditionMessage(e)),
-          call = call
-        )
-      }
-    )
-  } else {
-    if (!isOpen(file)) {
-      open(file, "wb")
-      on.exit(close(file), add = TRUE)
+  # The writer is closed now: if writing fails, the bytes go with the
+  # error so the document is not lost.
+  tryCatch(
+    zpd_write_bytes(bytes, dest$con),
+    error = function(e) {
+      zpd_abort(
+        "zupdf_io_error",
+        sprintf(
+          "Cannot write the PDF file to %s: %s; its bytes are in the condition's `bytes`.",
+          dest$what,
+          conditionMessage(e)
+        ),
+        detail = conditionMessage(e),
+        bytes = bytes,
+        call = call
+      )
     }
-    writeBin(bytes, file)
-  }
+  )
   invisible(file)
 }
+
+# Opens `file` (a path, or a connection not yet open) for binary writing,
+# or checks that an open connection can take bytes: list(con, opened,
+# what), or a zupdf_io_error.
+zpd_save_open <- function(file, call = NULL) {
+  what <- if (is.character(file)) sprintf("'%s'", file) else "the connection"
+  fail <- function(reason) {
+    zpd_abort(
+      "zupdf_io_error",
+      sprintf("Cannot write to %s: %s", what, reason),
+      detail = reason,
+      call = call
+    )
+  }
+  # file() and open() warn with the reason and then fail; the reason is
+  # kept and the warning not shown.
+  reason <- NULL
+  attempt <- function(expr) {
+    withCallingHandlers(
+      tryCatch(expr, error = function(e) {
+        fail(if (is.null(reason)) conditionMessage(e) else reason)
+      }),
+      warning = function(w) {
+        reason <<- conditionMessage(w)
+        invokeRestart("muffleWarning")
+      }
+    )
+  }
+  if (is.character(file)) {
+    con <- attempt(file(file, "wb"))
+    return(list(con = con, opened = TRUE, what = what))
+  }
+  if (!isOpen(file)) {
+    attempt(open(file, "wb"))
+    return(list(con = file, opened = TRUE, what = what))
+  }
+  s <- summary(file)
+  if (!identical(s[["can write"]], "yes") || !identical(s$text, "binary")) {
+    fail("the connection is not open for binary writing.")
+  }
+  list(con = file, opened = FALSE, what = what)
+}
+
+# writeBin(), apart so a test can make it fail.
+zpd_write_bytes <- function(bytes, con) writeBin(bytes, con)
 
 #' Fonts for the writer
 #'
@@ -189,7 +247,7 @@ pdf_font <- function(w, x) {
   call <- sys.call()
   zpd_check_writer(w, call = call)
   zpd_check_string(x, "x", call = call)
-  zpd_writer_font(w, x, call = call)
+  zpd_writer_font(w, x, arg = "x", call = call)
 }
 
 zpd_base14 <- c(
@@ -209,8 +267,9 @@ zpd_base14 <- c(
   "ZapfDingbats"
 )
 
-# The font for a name or path, made once per writer.
-zpd_writer_font <- function(w, x, call = NULL) {
+# The font for a name or path, made once per writer. `arg` is the caller's
+# argument that `x` came from.
+zpd_writer_font <- function(w, x, arg = "font", call = NULL) {
   state <- attr(w, "state", exact = TRUE)
   if (!is.null(state$fonts[[x]])) {
     return(state$fonts[[x]])
@@ -221,7 +280,7 @@ zpd_writer_font <- function(w, x, call = NULL) {
     kind <- "file"
   } else {
     zpd_invalid_argument(
-      "font",
+      arg,
       sprintf(
         "'%s' is neither a base-14 font name nor a font file; zupdf does not look up system fonts.",
         x
@@ -256,7 +315,9 @@ print.pdf_writer_font <- function(x, ...) {
 #' `nativeRaster`, a `raster` or character matrix of colours, a numeric
 #' matrix of grey levels in 0 to 1, or a numeric array of height x width x
 #' 3 (RGB) or 4 (RGBA) channels in 0 to 1, such as `png::readPNG()`
-#' returns. Transparency is kept.
+#' returns. Transparency is kept. A PNG file with an alpha channel is a
+#' `zupdf_unsupported_input`, since pdfio reads PNG without libpng; read it
+#' with `png::readPNG()` and pass the array.
 #'
 #' @inheritParams pdf_save
 #' @param x A path, or an image as above.
@@ -289,12 +350,13 @@ pdf_image_new <- function(w, x, interpolate = TRUE) {
         call = call
       )
     }
-    k <- zpd_unwrap(
+    v <- zpd_unwrap(
       .Call(zupdf_writer_image_file, w, path.expand(x), interpolate),
       "Cannot read the image",
       call
     )
-    dims <- c(NA_integer_, NA_integer_)
+    k <- v[[1]]
+    dims <- v[2:3]
   } else {
     img <- zpd_image_bytes(x, call = call)
     k <- zpd_unwrap(

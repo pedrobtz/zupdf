@@ -55,7 +55,8 @@ test_that("every known pdfio message prefix maps to its class", {
     "Unable to open file - No such file or directory" = "zupdf_io_error",
     "Unable to open image file 'x.png': No such file or directory" = "zupdf_io_error",
     "Unable to open font file 'x.ttf': No such file or directory" = "zupdf_io_error",
-    "Unsupported image file 'x.gif'." = "zupdf_unsupported_input"
+    "Unsupported image file 'x.gif'." = "zupdf_unsupported_input",
+    "Unsupported PNG color type 6." = "zupdf_unsupported_input"
   )
   for (msg in names(expected)) {
     expect_identical(zpd_pdfio_class(msg), expected[[msg]], label = msg)
@@ -110,9 +111,11 @@ test_that("zpd_unwrap() raises by status and warns once for warnings", {
     "zupdf_invalid_argument",
     arg = "owner"
   )
-  # A status C should never send is an internal error, not a zupdf class.
-  err <- expect_error(zpd_unwrap(res("bogus"), "x"), class = "simpleError")
-  expect_false(inherits(err, "zupdf_error"))
+  expect_zupdf_error(
+    zpd_unwrap(res("bogus"), "x"),
+    "zupdf_parse_error",
+    detail = "bogus"
+  )
 })
 
 test_that("C refuses a closed handle itself, not only through R", {
@@ -172,4 +175,63 @@ test_that("C refuses a closed handle itself, not only through R", {
     .Call(zupdf_writer_copy_pages, w2, pdf, 1L, 0L, TRUE)$status,
     "closed"
   )
+})
+
+test_that("every status from C raises a zupdf_error, with its class", {
+  res <- function(status) {
+    list(status = status, value = 1, detail = "d", nwarning = 0L)
+  }
+  expected <- c(
+    closed = "zupdf_invalid_argument",
+    pdfio = "zupdf_write_error",
+    max_depth = "zupdf_limit_error",
+    form_cycle = "zupdf_limit_error",
+    max_stream = "zupdf_limit_error",
+    unknown_object = "zupdf_invalid_argument",
+    no_stream = "zupdf_invalid_argument",
+    unknown_ref = "zupdf_invalid_argument",
+    font = "zupdf_font_error",
+    image = "zupdf_parse_error",
+    memory = "zupdf_parse_error",
+    unsupported = "zupdf_invalid_argument",
+    closed_writer = "zupdf_write_error",
+    bad_ops = "zupdf_write_error",
+    pdfdoc = "zupdf_invalid_argument",
+    max_objects = "zupdf_limit_error"
+  )
+  expect_setequal(c("ok", names(expected)), zpd_c_statuses)
+  limits <- list(max_depth = 1, max_stream = 1, max_objects = 1)
+  for (s in names(expected)) {
+    expect_zupdf_error(
+      zpd_unwrap(res(s), "x", default = "zupdf_write_error", limits = limits),
+      expected[[s]]
+    )
+  }
+  expect_zupdf_error(
+    zpd_unwrap(res("unknown_ref"), "x", arg = "dict"),
+    "zupdf_invalid_argument",
+    arg = "dict"
+  )
+})
+
+test_that("C returns no status zpd_unwrap() does not know", {
+  src <- test_path("..", "..", "src")
+  skip_if_not(dir.exists(src), "no src/ beside the tests")
+  code <- unlist(lapply(
+    list.files(src, pattern = "^zpd_.*\\.c$", full.names = TRUE),
+    readLines
+  ))
+  calls <- regmatches(
+    code,
+    gregexpr(
+      paste0(
+        "zpd_(status|result)\\(\"[a-z_]+\"|zpd_fail\\([a-z]+, \"[a-z_]+\"|",
+        "return \"[a-z_]+\";|status = \"[a-z_]+\";"
+      ),
+      code
+    )
+  )
+  expect_true("form_cycle" %in% gsub(".*\"([a-z_]+)\".*", "\\1", unlist(calls)))
+  found <- unique(gsub(".*\"([a-z_]+)\".*", "\\1", unlist(calls)))
+  expect_length(setdiff(found, zpd_c_statuses), 0L)
 })

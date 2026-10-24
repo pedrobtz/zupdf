@@ -24,6 +24,10 @@ zpd_ops <- c(
 #' may be open at once. [pdf_save()] refuses a writer with a page not
 #' ended.
 #'
+#' A page ends even when `pdf_page_end()` raises an error: it is then
+#' missing from the file, or in it only in part, and cannot be ended again,
+#' but the writer can still be saved.
+#'
 #' @inheritParams pdf_save
 #' @param media_box,crop_box The page's boxes, `c(x1, y1, x2, y2)` in
 #'   points, or `NULL` for the writer's default size.
@@ -62,9 +66,11 @@ pdf_page_new <- function(w, media_box = NULL, crop_box = NULL, dict = NULL) {
   page$media_box <- media_box
   page$crop_box <- crop_box
   page$dict <- dict
-  page$ops <- integer()
-  page$nums <- numeric()
-  page$strs <- character()
+  # Each drawing call adds one chunk; pdf_page_end() joins them, so
+  # recording takes time linear in the operations (see zpd_record()).
+  page$chunks <- new.env(hash = TRUE, parent = emptyenv())
+  page$nchunks <- 0L
+  page$nops <- 0L
   page$ended <- FALSE
   state <- attr(w, "state", exact = TRUE)
   state$open_pages <- state$open_pages + 1L
@@ -78,6 +84,18 @@ pdf_page_end <- function(page) {
   call <- sys.call()
   zpd_check_page(page, call = call)
   w <- page$writer
+  # The page ends whether or not it is written: a page that fails may
+  # already be in the file, so it is never retried, and the writer can
+  # still be saved.
+  on.exit({
+    page$ended <- TRUE
+    state <- attr(w, "state", exact = TRUE)
+    state$open_pages <- state$open_pages - 1L
+  })
+  chunks <- mget(as.character(seq_len(page$nchunks)), envir = page$chunks)
+  part <- function(name, empty) {
+    unlist(c(list(empty), lapply(chunks, `[[`, name)), use.names = FALSE)
+  }
   zpd_unwrap(
     .Call(
       zupdf_writer_page,
@@ -85,19 +103,17 @@ pdf_page_end <- function(page) {
       page$media_box,
       page$crop_box,
       page$dict,
-      page$ops,
-      page$nums,
-      page$strs,
+      part("ops", integer()),
+      part("nums", numeric()),
+      part("strs", character()),
       64L
     ),
     "Cannot write the page",
     call,
     default = "zupdf_write_error",
-    limits = list(max_depth = 64L)
+    limits = list(max_depth = 64L),
+    arg = "dict"
   )
-  page$ended <- TRUE
-  state <- attr(w, "state", exact = TRUE)
-  state$open_pages <- state$open_pages - 1L
   invisible(page)
 }
 
@@ -105,8 +121,8 @@ pdf_page_end <- function(page) {
 print.pdf_page <- function(x, ...) {
   writeLines(sprintf(
     "<pdf_page> %d operation%s%s",
-    length(x$ops),
-    if (length(x$ops) == 1L) "" else "s",
+    x$nops,
+    if (x$nops == 1L) "" else "s",
     if (x$ended) ", ended" else ""
   ))
   invisible(x)
@@ -126,12 +142,23 @@ zpd_check_page <- function(page, call = NULL) {
   zpd_check_writer(page$writer, call = call)
 }
 
-zpd_record <- function(page, op, nums = numeric(), str = NULL) {
-  page$ops <- c(page$ops, zpd_ops[[op]])
-  page$nums <- c(page$nums, nums)
-  if (!is.null(str)) {
-    page$strs <- c(page$strs, str)
-  }
+# Records one drawing call's operations: `ops` are names of zpd_ops, `nums`
+# and `strs` their numbers and strings in order. One chunk per call, kept
+# in an environment under its number: assigning a list element would copy
+# the list, so every call would copy all the calls before it.
+zpd_record <- function(page, ops, nums = numeric(), strs = character()) {
+  k <- page$nchunks + 1L
+  assign(
+    as.character(k),
+    list(
+      ops = unname(zpd_ops[ops]),
+      nums = as.numeric(nums),
+      strs = as.character(strs)
+    ),
+    envir = page$chunks
+  )
+  page$nchunks <- k
+  page$nops <- page$nops + length(ops)
 }
 
 # A colour as three numbers in 0 to 1, or NULL for none ("transparent",
@@ -219,6 +246,13 @@ pdf_draw_text <- function(
   if (length(size) != 1L || size <= 0) {
     zpd_invalid_argument("size", "`size` must be one positive number.", call)
   }
+  if (length(line_height) != 1L || line_height <= 0) {
+    zpd_invalid_argument(
+      "line_height",
+      "`line_height` must be one positive number.",
+      call
+    )
+  }
   align <- zpd_match_arg(align, c("left", "centre", "right"), "align", call)
   rgb <- zpd_rgb(colour, "colour", call)
   font <- zpd_font_arg(page$writer, font, call)
@@ -228,23 +262,20 @@ pdf_draw_text <- function(
   y <- rep_len(y, n)
   text <- rep_len(enc2utf8(text), n)
   shift <- c(left = 0, centre = 1, right = 2)[[align]]
-  zpd_record(page, "save")
-  if (!is.null(rgb)) {
-    zpd_record(page, "fill_rgb", rgb)
+  # Each string's lines, the j-th line_height * size below the first.
+  lines <- strsplit(text, "\n", fixed = TRUE)
+  i <- rep(seq_len(n), lengths(lines))
+  j <- sequence(lengths(lines))
+  yy <- y[i] - (j - 1) * size * line_height
+  nums <- if (length(i)) {
+    as.vector(rbind(font$handle, size, x[i], yy, shift))
   }
-  for (i in seq_len(n)) {
-    lines <- strsplit(text[[i]], "\n", fixed = TRUE)[[1]]
-    for (j in seq_along(lines)) {
-      yy <- y[[i]] - (j - 1) * size * line_height
-      zpd_record(
-        page,
-        "text",
-        c(font$handle, size, x[[i]], yy, shift),
-        lines[[j]]
-      )
-    }
-  }
-  zpd_record(page, "restore")
+  zpd_record(
+    page,
+    c("save", if (!is.null(rgb)) "fill_rgb", rep("text", length(i)), "restore"),
+    c(rgb, nums),
+    unlist(lines)
+  )
   invisible(page)
 }
 
@@ -320,24 +351,25 @@ pdf_draw <- function(
   }
   steps <- zpd_path_steps(path, close, call)
 
-  zpd_record(page, "save")
-  if (!is.null(fill)) {
-    zpd_record(page, "fill_rgb", fill)
-  }
-  if (!is.null(stroke)) {
-    zpd_record(page, "stroke_rgb", stroke)
-  }
-  zpd_record(page, "line_width", width)
-  for (s in steps) {
-    zpd_record(page, s$op, s$nums)
-  }
   mode <- (!is.null(fill)) + 2L * (!is.null(stroke))
-  zpd_record(page, "paint", c(mode, rule == "evenodd"))
-  zpd_record(page, "restore")
+  zpd_record(
+    page,
+    c(
+      "save",
+      if (!is.null(fill)) "fill_rgb",
+      if (!is.null(stroke)) "stroke_rgb",
+      "line_width",
+      steps$ops,
+      "paint",
+      "restore"
+    ),
+    c(fill, stroke, width, steps$nums, mode, rule == "evenodd")
+  )
   invisible(page)
 }
 
-# A path as a list of steps, list(op, nums), checked.
+# A path as list(ops, nums): the operations' names and their numbers in
+# order, checked.
 zpd_path_steps <- function(path, close, call = NULL) {
   bad <- function(what) {
     zpd_invalid_argument("path", paste0("`path` ", what), call)
@@ -360,16 +392,10 @@ zpd_path_steps <- function(path, close, call = NULL) {
     if (length(x) < 2L || !all(is.finite(c(x, y)))) {
       bad("must have two or more finite points.")
     }
-    steps <- c(
-      list(list(op = "move", nums = c(x[[1]], y[[1]]))),
-      lapply(seq_along(x)[-1], function(i) {
-        list(op = "line", nums = c(x[[i]], y[[i]]))
-      })
-    )
-    if (close) {
-      steps <- c(steps, list(list(op = "close", nums = numeric())))
-    }
-    return(steps)
+    return(list(
+      ops = c("move", rep("line", length(x) - 1L), if (close) "close"),
+      nums = as.vector(rbind(as.numeric(x), as.numeric(y)))
+    ))
   }
   op <- as.character(path$op)
   if (
@@ -388,44 +414,39 @@ zpd_path_steps <- function(path, close, call = NULL) {
     }
     v[[i]]
   }
-  lapply(seq_along(op), function(i) {
+  nums <- lapply(seq_along(op), function(i) {
     switch(
       op[[i]],
       move = ,
-      line = list(op = op[[i]], nums = c(finite(x, i, "x"), finite(y, i, "y"))),
-      close = list(op = "close", nums = numeric()),
+      line = c(finite(x, i, "x"), finite(y, i, "y")),
+      close = numeric(),
       curve = {
         x1 <- num(path$x1, "x1")
         y1 <- num(path$y1, "y1")
         x2 <- num(path$x2, "x2")
         y2 <- num(path$y2, "y2")
-        list(
-          op = "curve",
-          nums = c(
-            finite(x1, i, "x1"),
-            finite(y1, i, "y1"),
-            finite(x2, i, "x2"),
-            finite(y2, i, "y2"),
-            finite(x, i, "x"),
-            finite(y, i, "y")
-          )
+        c(
+          finite(x1, i, "x1"),
+          finite(y1, i, "y1"),
+          finite(x2, i, "x2"),
+          finite(y2, i, "y2"),
+          finite(x, i, "x"),
+          finite(y, i, "y")
         )
       },
       rect = {
         w <- num(path$w, "w")
         h <- num(path$h, "h")
-        list(
-          op = "rect",
-          nums = c(
-            finite(x, i, "x"),
-            finite(y, i, "y"),
-            finite(w, i, "w"),
-            finite(h, i, "h")
-          )
+        c(
+          finite(x, i, "x"),
+          finite(y, i, "y"),
+          finite(w, i, "w"),
+          finite(h, i, "h")
         )
       }
     )
   })
+  list(ops = op, nums = as.numeric(unlist(nums)))
 }
 
 #' Draw images
@@ -468,6 +489,7 @@ pdf_draw_image <- function(page, image, x, y, width, height) {
     )
   }
   zpd_record(page, "image", c(image$handle, v))
+
   invisible(page)
 }
 
@@ -479,10 +501,8 @@ pdf_draw_image <- function(page, image, x, y, width, height) {
 #' wrapping a paragraph to a column.
 #'
 #' @inheritParams pdf_font
+#' @inheritParams pdf_draw_text
 #' @param text Strings, UTF-8.
-#' @param font A base-14 font name, a font file path, or a font from
-#'   [pdf_font()].
-#' @param size The font size in points.
 #' @return A numeric vector of widths in points.
 #' @export
 #' @examples
