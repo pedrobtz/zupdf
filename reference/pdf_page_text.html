@@ -88,7 +88,11 @@ a new line and a space at a large gap in a <code>TJ</code> array.</p>
 <p>A character the font cannot map becomes U+FFFD, and the count per page
 is the <code>unmapped</code> attribute. Text in Form XObjects is included; their
 nesting is bounded by the <code>max_depth</code> of <code><a href="pdf_open.html">pdf_open()</a></code>, and a form drawn
-inside itself is a <code>zupdf_limit_error</code>.</p>
+inside itself is a <code>zupdf_limit_error</code> with <code>cycle = TRUE</code>. The
+<code>max_stream</code> of <code><a href="pdf_open.html">pdf_open()</a></code> bounds all one page reads: its content
+streams, each form each time it is drawn (at least 256 bytes a time), and
+its fonts' ToUnicode maps. So a page that draws one form from many levels
+or lists one stream many times is refused, not walked for ever.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

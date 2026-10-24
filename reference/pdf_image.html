@@ -57,7 +57,7 @@ grid::grid.raster() or graphics::rasterImage().'></head><body>
     <p>Reads an image XObject. With <code>as = "raw"</code> the samples come back as
 bytes: decoded when the filter is <code>FlateDecode</code> or none, and as stored
 otherwise, so a JPEG (<code>DCTDecode</code>) image is its JPEG file, for
-<code>jpeg::readJPEG()</code>. zupdf decodes no JPEG itself. With <code>as = "native"</code>,
+<code><a href="https://rdrr.io/pkg/jpeg/man/readJPEG.html" class="external-link">jpeg::readJPEG()</a></code>. zupdf decodes no JPEG itself. With <code>as = "native"</code>,
 an 8-bit <code>DeviceRGB</code> or <code>DeviceGray</code> image (or <code>ICCBased</code> with 3 or 1
 components) that zupdf can decode comes back as a <code>nativeRaster</code>, for
 <code><a href="https://rdrr.io/r/grid/grid.raster.html" class="external-link">grid::grid.raster()</a></code> or <code><a href="https://rdrr.io/r/graphics/rasterImage.html" class="external-link">graphics::rasterImage()</a></code>.</p>
@@ -93,12 +93,34 @@ components) that zupdf can decode comes back as a <code>nativeRaster</code>, for
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">pdf</span> <span class="op">&lt;-</span> <span class="fu"><a href="pdf_open.html">pdf_open</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"examples"</span>, <span class="st">"hello.pdf"</span>, package <span class="op">=</span> <span class="st">"zupdf"</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">imgs</span> <span class="op">&lt;-</span> <span class="fu"><a href="pdf_page_images.html">pdf_page_images</a></span><span class="op">(</span><span class="va">pdf</span>, <span class="fl">1</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">imgs</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] object      name        width       height      bits        color_space</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [7] filter     </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;0 rows&gt; (or 0-length row.names)</span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">w</span> <span class="op">&lt;-</span> <span class="fu"><a href="pdf_new.html">pdf_new</a></span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">img</span> <span class="op">&lt;-</span> <span class="fu"><a href="pdf_image_new.html">pdf_image_new</a></span><span class="op">(</span><span class="va">w</span>, <span class="fu"><a href="https://rdrr.io/r/grDevices/as.raster.html" class="external-link">as.raster</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"red"</span>, <span class="st">"blue"</span><span class="op">)</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">page</span> <span class="op">&lt;-</span> <span class="fu"><a href="pdf_page_new.html">pdf_page_new</a></span><span class="op">(</span><span class="va">w</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="pdf_draw_image.html">pdf_draw_image</a></span><span class="op">(</span><span class="va">page</span>, <span class="va">img</span>, <span class="fl">72</span>, <span class="fl">600</span>, <span class="fl">200</span>, <span class="fl">100</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="pdf_page_new.html">pdf_page_end</a></span><span class="op">(</span><span class="va">page</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">pdf</span> <span class="op">&lt;-</span> <span class="fu"><a href="pdf_open.html">pdf_open</a></span><span class="op">(</span><span class="fu"><a href="pdf_save.html">pdf_save</a></span><span class="op">(</span><span class="va">w</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fu"><a href="pdf_page_images.html">pdf_page_images</a></span><span class="op">(</span><span class="va">pdf</span>, <span class="fl">1</span><span class="op">)</span><span class="op">$</span><span class="va">object</span></span></span>
+<span class="r-in"><span><span class="fu">pdf_image</span><span class="op">(</span><span class="va">pdf</span>, <span class="va">n</span>, as <span class="op">=</span> <span class="st">"raw"</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] ff 00 00 00 00 ff</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"width")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"height")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"bits")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 8</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"color_space")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "DeviceRGB"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"filter")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "FlateDecode"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"decoded")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] TRUE</span>
+<span class="r-in"><span><span class="fu">pdf_image</span><span class="op">(</span><span class="va">pdf</span>, <span class="va">n</span>, as <span class="op">=</span> <span class="st">"native"</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>           [,1]   [,2]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1,] -16776961 -65536</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"class")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "nativeRaster"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"channels")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 4</span>
 <span class="r-in"><span><span class="fu"><a href="pdf_close.html">pdf_close</a></span><span class="op">(</span><span class="va">pdf</span><span class="op">)</span></span></span>
 </code></pre></div>
     </div>

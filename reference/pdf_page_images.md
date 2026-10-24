@@ -1,7 +1,10 @@
 # Images on a page
 
 Lists the images in a page's resources: the image XObjects it can draw.
-Images inside Form XObjects and inline images are not listed.
+Images inside Form XObjects and inline images are not listed. An XObject
+whose dictionary cannot be read is listed with `NA` in every column but
+`object` and `name`, and the errors become one `zupdf_warning`, as in
+[`pdf_objects()`](https://pedrobtz.github.io/zupdf/reference/pdf_objects.md).
 
 ## Usage
 

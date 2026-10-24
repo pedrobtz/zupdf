@@ -43,8 +43,12 @@ pdf_rotate_pages(
 
 - output:
 
-  The output path, or `NULL` for qpdf's default next to the input: for
-  `pdf_split()` a prefix, to which `_1.pdf`, `_2.pdf`, ... are added.
+  The output path, or `NULL` for qpdf's default next to the (first)
+  input: its name without `.pdf`, in any case, followed by `_output.pdf`
+  (`pdf_combine()`: `_combined.pdf`). For `pdf_split()` a prefix, to
+  which `_1.pdf`, `_2.pdf`, ... are added. An output that would
+  overwrite an input is refused, and a `pdf_file` read from a raw vector
+  or a connection needs an explicit `output`.
 
 - pages:
 

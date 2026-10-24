@@ -4,6 +4,29 @@
 
 - First release: reads, assembles and writes PDF files through a bundled
   copy of pdfio, with no system library beyond zlib.
+- Untrusted input is bounded as a whole, not only stream by stream:
+  `max_stream` covers everything one page’s text walk reads, each form
+  counted every time it is drawn; `max_objects` is enforced while the
+  cross-reference table is read; copying refuses references nested
+  deeper than 2 048 values. Text extraction can be interrupted inside a
+  page.
+- [`pdf_copy_pages()`](https://pedrobtz.github.io/zupdf/reference/pdf_copy_pages.md)
+  and the qpdf functions copy only the pages asked for: links and
+  annotations that point at other pages lead to the copies or to null,
+  and pages take only inheritable attributes from the page tree. The
+  qpdf functions refuse to overwrite an input.
+- Passwords are written and tried in PDFDocEncoding, as the standard
+  says; the pdftools readers try the user password, then the owner
+  password.
+- [`pdf_save()`](https://pedrobtz.github.io/zupdf/reference/pdf_save.md)
+  keeps the writer open when the destination cannot be written, and a
+  write that fails afterwards keeps the file in the condition’s `bytes`
+  field. A page that fails in
+  [`pdf_page_end()`](https://pedrobtz.github.io/zupdf/reference/pdf_page_new.md)
+  never blocks saving the rest.
+- Every error is a classed `zupdf_error`, malformed values in a file
+  included. `deterministic = TRUE` hashes the whole file for its
+  identifier.
 - [`pdf_text_width()`](https://pedrobtz.github.io/zupdf/reference/pdf_text_width.md)
   measures text for layout. Four vignettes: inspecting a PDF, assembling
   PDFs, writing a report from R, and switching from pdftools and qpdf.

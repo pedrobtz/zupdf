@@ -87,13 +87,14 @@ They agree with poppler's to within a point or two.</p>
 
 
 <dt id="arg-opw-upw">opw, upw<a class="anchor" aria-label="anchor" href="#arg-opw-upw"></a></dt>
-<dd><p>The owner and user passwords; <code>""</code> for none.</p></dd>
+<dd><p>The owner and user passwords; <code>""</code> for none. The user
+password is tried first, then the owner password.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A list with a data frame per page, with columns <code>width</code>,
-<code>height</code>, <code>x</code>, <code>y</code>, <code>space</code> and <code>text</code>, and with <code>font_info</code>,
+<code>height</code>, <code>x</code>, <code>y</code>, <code>space</code> and <code>text</code>; with <code>font_info = TRUE</code>, also
 <code>font_name</code> and <code>font_size</code>.</p>
     </div>
 

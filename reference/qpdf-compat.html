@@ -97,8 +97,11 @@ provided.</p>
 
 <dt id="arg-output">output<a class="anchor" aria-label="anchor" href="#arg-output"></a></dt>
 <dd><p>The output path, or <code>NULL</code> for qpdf's default next to the
-input: for <code>pdf_split()</code> a prefix, to which <code>_1.pdf</code>, <code>_2.pdf</code>, ... are
-added.</p></dd>
+(first) input: its name without <code>.pdf</code>, in any case, followed by
+<code>_output.pdf</code> (<code>pdf_combine()</code>: <code>_combined.pdf</code>). For <code>pdf_split()</code> a
+prefix, to which <code>_1.pdf</code>, <code>_2.pdf</code>, ... are added. An output that
+would overwrite an input is refused, and a <code>pdf_file</code> read from a raw
+vector or a connection needs an explicit <code>output</code>.</p></dd>
 
 
 <dt id="arg-pages">pages<a class="anchor" aria-label="anchor" href="#arg-pages"></a></dt>

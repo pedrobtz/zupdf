@@ -45,6 +45,12 @@ pdf_page_end(page)
 
 `pdf_page_new()`: a `pdf_page`. `pdf_page_end()`: the page, invisibly.
 
+## Details
+
+A page ends even when `pdf_page_end()` raises an error: it is then
+missing from the file, or in it only in part, and cannot be ended again,
+but the writer can still be saved.
+
 ## Examples
 
 ``` r

@@ -24,7 +24,8 @@ Each carries `detail`, pdfio's own message where there is one.
 - `zupdf_limit_error`:
 
   A limit was reached. Carries `limit`, the argument's name, such as
-  `"max_stream"`, and `limit_value`.
+  `"max_stream"`, and `limit_value`. A form XObject drawn inside itself
+  is refused on `"max_depth"` and also carries `cycle = TRUE`.
 
 - `zupdf_unsupported_input`:
 
@@ -41,11 +42,9 @@ Each carries `detail`, pdfio's own message where there is one.
 
 - `zupdf_io_error`:
 
-  A file, temporary file or connection failed.
-
-- `zupdf_encoding_error`:
-
-  Extracted text is not valid UTF-8 after mapping.
+  A file, temporary file or connection failed. From
+  [`pdf_save()`](https://pedrobtz.github.io/zupdf/reference/pdf_save.md),
+  after the file was finished, it carries `bytes`, the file's bytes.
 
 Warnings carry the class `zupdf_warning`.
 
@@ -53,11 +52,13 @@ Warnings carry the class `zupdf_warning`.
 
 ``` r
 tryCatch(
-  stop(structure(
-    class = c("zupdf_parse_error", "zupdf_error", "error", "condition"),
-    list(message = "PDF parse error", call = NULL, detail = NULL)
-  )),
+  pdf_open(as.raw(1:10)),
   zupdf_error = function(e) class(e)[1]
 )
 #> [1] "zupdf_parse_error"
+tryCatch(
+  pdf_open(as.raw(1:10), max_size = 5),
+  zupdf_limit_error = function(e) e$limit
+)
+#> [1] "max_size"
 ```

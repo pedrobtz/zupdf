@@ -91,6 +91,12 @@ its number here. Use <code><a href="pdf_copy_pages.html">pdf_copy_pages()</a></c
     <p><code>pdf_page_new()</code>: a <code>pdf_page</code>. <code>pdf_page_end()</code>: the page,
 invisibly.</p>
     </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>A page ends even when <code>pdf_page_end()</code> raises an error: it is then
+missing from the file, or in it only in part, and cannot be ended again,
+but the writer can still be saved.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

@@ -51,7 +51,9 @@ pdf_open(
 
 - max_stream:
 
-  Largest decoded stream, in bytes.
+  Largest decoded stream, in bytes. For text, the most one page's walk
+  may read: its content streams, each Form XObject each time it is
+  drawn, and its fonts' ToUnicode maps.
 
 - max_depth:
 
@@ -64,7 +66,9 @@ pdf_open(
 ## Value
 
 A `pdf_file`. [`length()`](https://rdrr.io/r/base/length.html) gives its
-page count.
+page count, and 0 once it is closed, so that
+[`str()`](https://rdrr.io/r/utils/str.html) and environment panes can
+show a closed handle.
 
 ## Details
 

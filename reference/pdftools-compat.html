@@ -81,7 +81,8 @@ may also be an open <code>pdf_file</code>, which is left open.</p>
 
 
 <dt id="arg-opw-upw">opw, upw<a class="anchor" aria-label="anchor" href="#arg-opw-upw"></a></dt>
-<dd><p>The owner and user passwords; <code>""</code> for none.</p></dd>
+<dd><p>The owner and user passwords; <code>""</code> for none. The user
+password is tried first, then the owner password.</p></dd>
 
 
 <dt id="arg-raw">raw<a class="anchor" aria-label="anchor" href="#arg-raw"></a></dt>
@@ -97,8 +98,9 @@ order.</p></dd>
 page; <code>pdf_fonts()</code> a data frame of <code>name</code>, <code>type</code>, <code>embedded</code> and
 <code>file</code>; <code>pdf_pagesize()</code> a data frame of <code>top</code>, <code>right</code>, <code>bottom</code>,
 <code>left</code>, <code>width</code> and <code>height</code>; <code>pdf_toc()</code> a nested list of <code>title</code>,
-<code>is_open</code> and <code>children</code>; <code>pdf_attachments()</code> a list of attachments, each with
-<code>name</code>, <code>mime</code>, <code>created</code>, <code>modified</code>, <code>description</code> and <code>data</code>.</p>
+<code>is_open</code> and <code>children</code>; <code>pdf_attachments()</code> a list of attachments,
+each with <code>name</code>, <code>mime</code>, <code>created</code>, <code>modified</code>, <code>description</code> and
+<code>data</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -107,10 +109,12 @@ poppler's physical layout: the same pages and words, single spaces
 instead of padding to page positions, and no text from annotations.</p></li>
 <li><p><code>pdf_fonts()</code> reports <code>file</code> as <code>""</code> for an embedded font and <code>NA</code>
 otherwise, since zupdf looks up no system fonts.</p></li>
-<li><p><code>pdf_info()</code> reports an absent date as <code>NA</code>, where pdftools reports
-one second before 1970.</p></li>
-</ul><p><code>pdf_render_page()</code>, <code>pdf_convert()</code> and the OCR functions need a
-renderer and are not provided; <code><a href="pdf_data.html">pdf_data()</a></code> is not provided yet.</p>
+<li><p><code>pdf_info()</code> and <code>pdf_attachments()</code> report an absent date as <code>NA</code>,
+where pdftools reports one second before 1970.</p></li>
+<li><p><code>pdf_attachments()</code> names an attachment whose file specification has
+no file name by its key in the name tree, where pdftools reports <code>""</code>.</p></li>
+</ul><p><code><a href="pdf_data.html">pdf_data()</a></code> has its own page. <code>pdf_render_page()</code>, <code>pdf_convert()</code> and
+the OCR functions need a renderer and are not provided.</p>
     </div>
 
     <div class="section level2">

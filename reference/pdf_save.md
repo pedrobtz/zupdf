@@ -25,6 +25,13 @@ pdf_save(w, file = NULL)
 
 The bytes as a raw vector when `file` is `NULL`, else `file`, invisibly.
 
+## Details
+
+The path or connection is opened before the writer is closed, so one
+that cannot be written raises a `zupdf_io_error` and leaves the writer
+open to save elsewhere. If writing fails after that, the
+`zupdf_io_error` carries the file's bytes as its `bytes` field.
+
 ## Examples
 
 ``` r

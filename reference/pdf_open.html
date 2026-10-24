@@ -99,7 +99,9 @@ PDFDocEncoding, since writers differ.</p></dd>
 
 
 <dt id="arg-max-stream">max_stream<a class="anchor" aria-label="anchor" href="#arg-max-stream"></a></dt>
-<dd><p>Largest decoded stream, in bytes.</p></dd>
+<dd><p>Largest decoded stream, in bytes. For text, the most
+one page's walk may read: its content streams, each Form XObject each
+time it is drawn, and its fonts' ToUnicode maps.</p></dd>
 
 
 <dt id="arg-max-depth">max_depth<a class="anchor" aria-label="anchor" href="#arg-max-depth"></a></dt>
@@ -113,7 +115,8 @@ tree.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A <code>pdf_file</code>. <code><a href="https://rdrr.io/r/base/length.html" class="external-link">length()</a></code> gives its page count.</p>
+    <p>A <code>pdf_file</code>. <code><a href="https://rdrr.io/r/base/length.html" class="external-link">length()</a></code> gives its page count, and 0 once it is
+closed, so that <code><a href="https://rdrr.io/r/utils/str.html" class="external-link">str()</a></code> and environment panes can show a closed handle.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

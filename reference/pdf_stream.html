@@ -3,11 +3,13 @@
 FlateDecode, with or without a PNG predictor. A stream with any other
 filter, such as DCTDecode (JPEG) or ASCII85Decode, is returned as
 stored even when decode = TRUE, with decoded = FALSE, so the caller
-can decode it, for example with jpeg::readJPEG()."><meta property="og:description" content="Reads a stream object's bytes, decoded or as stored. pdfio decodes
+can decode it, for example with jpeg::readJPEG(). Damaged FlateDecode
+data gives a zupdf_warning and the bytes decoded before the damage."><meta property="og:description" content="Reads a stream object's bytes, decoded or as stored. pdfio decodes
 FlateDecode, with or without a PNG predictor. A stream with any other
 filter, such as DCTDecode (JPEG) or ASCII85Decode, is returned as
 stored even when decode = TRUE, with decoded = FALSE, so the caller
-can decode it, for example with jpeg::readJPEG()."></head><body>
+can decode it, for example with jpeg::readJPEG(). Damaged FlateDecode
+data gives a zupdf_warning and the bytes decoded before the damage."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -54,7 +56,8 @@ can decode it, for example with jpeg::readJPEG()."></head><body>
 <code>FlateDecode</code>, with or without a PNG predictor. A stream with any other
 filter, such as <code>DCTDecode</code> (JPEG) or <code>ASCII85Decode</code>, is returned as
 stored even when <code>decode = TRUE</code>, with <code>decoded = FALSE</code>, so the caller
-can decode it, for example with <code>jpeg::readJPEG()</code>.</p>
+can decode it, for example with <code><a href="https://rdrr.io/pkg/jpeg/man/readJPEG.html" class="external-link">jpeg::readJPEG()</a></code>. Damaged <code>FlateDecode</code>
+data gives a <code>zupdf_warning</code> and the bytes decoded before the damage.</p>
     </div>
 
     <div class="section level2">

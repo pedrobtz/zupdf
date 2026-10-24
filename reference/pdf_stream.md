@@ -4,7 +4,10 @@ Reads a stream object's bytes, decoded or as stored. pdfio decodes
 `FlateDecode`, with or without a PNG predictor. A stream with any other
 filter, such as `DCTDecode` (JPEG) or `ASCII85Decode`, is returned as
 stored even when `decode = TRUE`, with `decoded = FALSE`, so the caller
-can decode it, for example with `jpeg::readJPEG()`.
+can decode it, for example with
+[`jpeg::readJPEG()`](https://rdrr.io/pkg/jpeg/man/readJPEG.html).
+Damaged `FlateDecode` data gives a `zupdf_warning` and the bytes decoded
+before the damage.
 
 ## Usage
 

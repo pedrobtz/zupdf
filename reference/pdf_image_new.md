@@ -5,8 +5,12 @@ Makes an image object a writer can draw with
 from a PNG or JPEG file (JPEG data is copied as it is), or from an R
 image: a `nativeRaster`, a `raster` or character matrix of colours, a
 numeric matrix of grey levels in 0 to 1, or a numeric array of height x
-width x 3 (RGB) or 4 (RGBA) channels in 0 to 1, such as `png::readPNG()`
-returns. Transparency is kept.
+width x 3 (RGB) or 4 (RGBA) channels in 0 to 1, such as
+[`png::readPNG()`](https://rdrr.io/pkg/png/man/readPNG.html) returns.
+Transparency is kept. A PNG file with an alpha channel is a
+`zupdf_unsupported_input`, since pdfio reads PNG without libpng; read it
+with [`png::readPNG()`](https://rdrr.io/pkg/png/man/readPNG.html) and
+pass the array.
 
 ## Usage
 

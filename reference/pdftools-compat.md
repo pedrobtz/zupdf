@@ -33,7 +33,8 @@ pdf_attachments(pdf, opw = "", upw = "")
 
 - opw, upw:
 
-  The owner and user passwords; `""` for none.
+  The owner and user passwords; `""` for none. The user password is
+  tried first, then the owner password.
 
 - raw:
 
@@ -62,13 +63,15 @@ Where the results differ from pdftools's (design section 5.1):
 - `pdf_fonts()` reports `file` as `""` for an embedded font and `NA`
   otherwise, since zupdf looks up no system fonts.
 
-- `pdf_info()` reports an absent date as `NA`, where pdftools reports
-  one second before 1970.
+- `pdf_info()` and `pdf_attachments()` report an absent date as `NA`,
+  where pdftools reports one second before 1970.
 
-`pdf_render_page()`, `pdf_convert()` and the OCR functions need a
-renderer and are not provided;
+- `pdf_attachments()` names an attachment whose file specification has
+  no file name by its key in the name tree, where pdftools reports `""`.
+
 [`pdf_data()`](https://pedrobtz.github.io/zupdf/reference/pdf_data.md)
-is not provided yet.
+has its own page. `pdf_render_page()`, `pdf_convert()` and the OCR
+functions need a renderer and are not provided.
 
 ## Examples
 

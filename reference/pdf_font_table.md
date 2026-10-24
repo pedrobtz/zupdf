@@ -23,6 +23,12 @@ A data frame with columns `object` (the font's object number), `name`
 `embedded` (whether the font program is in the file; always for a Type 3
 font, whose glyphs are drawn by the file).
 
+## Details
+
+A font whose dictionary cannot be read is listed with `NA` name, type
+and `embedded`, and the errors become one `zupdf_warning`, as in
+[`pdf_objects()`](https://pedrobtz.github.io/zupdf/reference/pdf_objects.md).
+
 ## Examples
 
 ``` r

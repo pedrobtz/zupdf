@@ -66,6 +66,12 @@ kept), <code>type</code> (its <code>/Subtype</code>, such as <code>"Type1"</code
 <code>"Type0"</code>) and <code>embedded</code> (whether the font program is in the file;
 always for a Type 3 font, whose glyphs are drawn by the file).</p>
     </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>A font whose dictionary cannot be read is listed with <code>NA</code> name, type
+and <code>embedded</code>, and the errors become one <code>zupdf_warning</code>, as in
+<code><a href="pdf_objects.html">pdf_objects()</a></code>.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

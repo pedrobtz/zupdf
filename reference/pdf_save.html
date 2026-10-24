@@ -73,6 +73,13 @@ be used afterwards.</p>
     <p>The bytes as a raw vector when <code>file</code> is <code>NULL</code>, else <code>file</code>,
 invisibly.</p>
     </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>The path or connection is opened before the writer is closed, so one
+that cannot be written raises a <code>zupdf_io_error</code> and leaves the writer
+open to save elsewhere. If writing fails after that, the
+<code>zupdf_io_error</code> carries the file's bytes as its <code>bytes</code> field.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

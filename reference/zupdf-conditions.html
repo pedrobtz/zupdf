@@ -73,7 +73,9 @@ given opened it.</p></dd>
 
 <dt><code>zupdf_limit_error</code></dt>
 <dd><p>A limit was reached. Carries <code>limit</code>, the
-argument's name, such as <code>"max_stream"</code>, and <code>limit_value</code>.</p></dd>
+argument's name, such as <code>"max_stream"</code>, and <code>limit_value</code>. A form
+XObject drawn inside itself is refused on <code>"max_depth"</code> and also
+carries <code>cycle = TRUE</code>.</p></dd>
 
 <dt><code>zupdf_unsupported_input</code></dt>
 <dd><p>The input uses something zupdf does
@@ -87,11 +89,9 @@ was used.</p></dd>
 <dd><p>A font file could not be read.</p></dd>
 
 <dt><code>zupdf_io_error</code></dt>
-<dd><p>A file, temporary file or connection failed.</p></dd>
-
-<dt><code>zupdf_encoding_error</code></dt>
-<dd><p>Extracted text is not valid UTF-8 after
-mapping.</p></dd>
+<dd><p>A file, temporary file or connection failed.
+From <code><a href="pdf_save.html">pdf_save()</a></code>, after the file was finished, it carries <code>bytes</code>,
+the file's bytes.</p></dd>
 
 
 </dl><p>Warnings carry the class <code>zupdf_warning</code>.</p>
@@ -100,13 +100,15 @@ mapping.</p></dd>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/structure.html" class="external-link">structure</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>    class <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"zupdf_parse_error"</span>, <span class="st">"zupdf_error"</span>, <span class="st">"error"</span>, <span class="st">"condition"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>    <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>message <span class="op">=</span> <span class="st">"PDF parse error"</span>, call <span class="op">=</span> <span class="cn">NULL</span>, detail <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></span>
-<span class="r-in"><span>  <span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  <span class="fu"><a href="pdf_open.html">pdf_open</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/raw.html" class="external-link">as.raw</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">10</span><span class="op">)</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  zupdf_error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">class</a></span><span class="op">(</span><span class="va">e</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "zupdf_parse_error"</span>
+<span class="r-in"><span><span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="fu"><a href="pdf_open.html">pdf_open</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/raw.html" class="external-link">as.raw</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">10</span><span class="op">)</span>, max_size <span class="op">=</span> <span class="fl">5</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  zupdf_limit_error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="va">e</span><span class="op">$</span><span class="va">limit</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "max_size"</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

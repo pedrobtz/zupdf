@@ -30,12 +30,13 @@ pdf_data(pdf, font_info = FALSE, opw = "", upw = "")
 
 - opw, upw:
 
-  The owner and user passwords; `""` for none.
+  The owner and user passwords; `""` for none. The user password is
+  tried first, then the owner password.
 
 ## Value
 
 A list with a data frame per page, with columns `width`, `height`, `x`,
-`y`, `space` and `text`, and with `font_info`, `font_name` and
+`y`, `space` and `text`; with `font_info = TRUE`, also `font_name` and
 `font_size`.
 
 ## Examples
