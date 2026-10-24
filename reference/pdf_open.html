@@ -82,7 +82,8 @@ handle removes when it is closed.</p></dd>
 <dt id="arg-password">password<a class="anchor" aria-label="anchor" href="#arg-password"></a></dt>
 <dd><p><code>NULL</code> for none, a string, or a function of the file
 name that returns one. A function is called only when the file turns
-out to need a password.</p></dd>
+out to need a password. A non-ASCII password is tried as UTF-8 and as
+PDFDocEncoding, since writers differ.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

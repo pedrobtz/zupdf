@@ -25,7 +25,9 @@ pdf_set_encryption(
 
 - user, owner:
 
-  Passwords, or `NULL`.
+  Passwords, or `NULL`. They are written in PDFDocEncoding, as the
+  standard asks, so each may use only characters it holds: ASCII, most
+  of Latin-1 and a few more, such as the euro sign.
 
 - method:
 

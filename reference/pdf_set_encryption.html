@@ -71,7 +71,9 @@ keys before the first object is written.</p>
 
 
 <dt id="arg-user-owner">user, owner<a class="anchor" aria-label="anchor" href="#arg-user-owner"></a></dt>
-<dd><p>Passwords, or <code>NULL</code>.</p></dd>
+<dd><p>Passwords, or <code>NULL</code>. They are written in
+PDFDocEncoding, as the standard asks, so each may use only characters
+it holds: ASCII, most of Latin-1 and a few more, such as the euro sign.</p></dd>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
