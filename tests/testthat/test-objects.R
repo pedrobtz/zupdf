@@ -113,6 +113,15 @@ test_that("a filter array is reported in order", {
   expect_false(attr(s, "decoded"))
 })
 
+test_that("filter names that are not UTF-8 are read as PDFDocEncoding", {
+  for (dict in c("/Filter /#82#A0", "/Filter [/#82#A0]")) {
+    pdf <- pdf_open(stream_pdf(as.raw(1:4), dict))
+    s <- pdf_stream(pdf, 4)
+    pdf_close(pdf)
+    expect_identical(attr(s, "filter"), "\u2021\u20ac", label = dict)
+  }
+})
+
 test_that("an object without a stream is refused", {
   pdf <- pdf_open(minimal_pdf())
   withr::defer(pdf_close(pdf))
@@ -166,4 +175,58 @@ test_that("every afl-input case lists its pinned objects", {
     )
     expect_false(anyDuplicated(o$number) > 0L, label = basename(f))
   }
+})
+
+# ---- objects and streams pdfio cannot read ----------------------------------
+
+test_that("an object pdfio cannot parse is a parse error with pdfio's detail", {
+  pdf <- pdf_open(page_pdf("", extra = list(">> ]")))
+  withr::defer(pdf_close(pdf))
+  err <- expect_zupdf_error(pdf_object(pdf, 5), "zupdf_parse_error")
+  expect_type(err$detail, "character")
+  expect_zupdf_error(pdf_stream(pdf, 5), "zupdf_invalid_argument", arg = "n")
+})
+
+test_that("a Flate stream with no data cannot be opened", {
+  pdf <- pdf_open(stream_pdf(raw(), "/Filter /FlateDecode"))
+  withr::defer(pdf_close(pdf))
+  err <- expect_zupdf_error(pdf_stream(pdf, 4), "zupdf_parse_error")
+  expect_type(err$detail, "character")
+  expect_length(pdf_stream(pdf, 4, decode = FALSE), 0L)
+})
+
+test_that("damaged Flate data warns and gives the bytes decoded before it", {
+  good <- flate(charToRaw(strrep("zupdf ", 2000)))
+  # The zlib header kept, the deflate data after it replaced by garbage.
+  bad <- c(good[1:2], as.raw(rep(0xff, 64)))
+  pdf <- pdf_open(stream_pdf(bad, "/Filter /FlateDecode"))
+  withr::defer(pdf_close(pdf))
+  w <- expect_warning(s <- pdf_stream(pdf, 4), class = "zupdf_warning")
+  expect_identical(w$count, 1L)
+  expect_true(attr(s, "decoded"))
+  expect_lt(length(s), 12000L)
+})
+
+test_that("max_stream keeps the warnings pdfio gave reading the object", {
+  # A duplicate key in the stream's dictionary is a pdfio warning, given
+  # when pdf_stream() first reads the object.
+  pdf <- pdf_open(
+    stream_pdf(flate(raw(1e5)), "/Filter /FlateDecode /X 1 /X 2"),
+    max_stream = 1000
+  )
+  withr::defer(pdf_close(pdf))
+  w <- NULL
+  withCallingHandlers(
+    expect_zupdf_error(
+      pdf_stream(pdf, 4),
+      "zupdf_limit_error",
+      limit = "max_stream"
+    ),
+    zupdf_warning = function(cnd) {
+      w <<- cnd
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_s3_class(w, "zupdf_warning")
+  expect_identical(w$count, 1L)
 })

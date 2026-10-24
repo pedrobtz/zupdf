@@ -24,7 +24,7 @@ pdf_pages <- function(pdf) {
   v <- zpd_unwrap(
     .Call(zupdf_pages, pdf, zpd_depth_int(limits$max_depth)),
     "Cannot read the pages",
-    call,
+    call = call,
     limits = limits
   )
   n <- ncol(v$media)

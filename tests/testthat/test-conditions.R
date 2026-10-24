@@ -153,18 +153,18 @@ test_that("C refuses a closed handle itself, not only through R", {
     .Call(zupdf_writer_page, w, NULL, NULL, NULL, NULL, NULL, NULL, 10L),
     .Call(zupdf_writer_save, w, 0, TRUE),
     .Call(zupdf_writer_set_meta, w, character(), character(), NA_real_),
-    .Call(zupdf_writer_set_encryption, w, 3L, -1L, NULL, NULL)
+    .Call(zupdf_writer_set_encryption, w, 3L, -1L, NULL, NULL),
+    .Call(zupdf_writer_copy_pages, w, src, 1L, 0L, TRUE),
+    .Call(zupdf_writer_measure, w, 1L, "x", 12)
   )
+  # A closed writer is a write error, as zpd_check_writer() raises it, not
+  # a closed pdf_file.
   for (res in writer_calls) {
-    expect_identical(res$status, "closed")
+    expect_identical(res$status, "closed_writer")
   }
-  expect_identical(
-    .Call(zupdf_writer_copy_pages, w, src, 1L, 0L, TRUE)$status,
-    "closed_writer"
-  )
-  expect_identical(
-    .Call(zupdf_writer_measure, w, 1L, "x", 12)$status,
-    "closed_writer"
+  expect_zupdf_error(
+    zpd_unwrap(writer_calls[[1L]], "x"),
+    "zupdf_write_error"
   )
   expect_false(.Call(zupdf_writer_is_open, w))
 
@@ -192,12 +192,13 @@ test_that("every status from C raises a zupdf_error, with its class", {
     unknown_ref = "zupdf_invalid_argument",
     font = "zupdf_font_error",
     image = "zupdf_parse_error",
-    memory = "zupdf_parse_error",
+    memory = "zupdf_write_error",
     unsupported = "zupdf_invalid_argument",
     closed_writer = "zupdf_write_error",
     bad_ops = "zupdf_write_error",
     pdfdoc = "zupdf_invalid_argument",
-    max_objects = "zupdf_limit_error"
+    max_objects = "zupdf_limit_error",
+    max_stream_page = "zupdf_limit_error"
   )
   expect_setequal(c("ok", names(expected)), zpd_c_statuses)
   limits <- list(max_depth = 1, max_stream = 1, max_objects = 1)

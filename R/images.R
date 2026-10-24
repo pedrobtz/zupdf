@@ -25,7 +25,7 @@ pdf_page_images <- function(pdf, i) {
   xo <- zpd_unwrap(
     .Call(zupdf_page_xobjects, pdf, i, zpd_depth_int(limits$max_depth)),
     "Cannot read the page's resources",
-    call,
+    call = call,
     limits = limits
   )
   na_info <- list(
@@ -35,7 +35,7 @@ pdf_page_images <- function(pdf, i) {
     color_space = NA_character_,
     filter = NA_character_
   )
-  info <- zpd_rows(xo$number, na_info, call, function(n) {
+  info <- zpd_rows(xo$number, na_info, call = call, function(n) {
     d <- pdf_object(pdf, n)
     if (!identical(zpd_chr(zpd_key(d, "Subtype")), "Image")) {
       return(NULL)
@@ -105,7 +105,7 @@ pdf_image <- function(pdf, n, as = c("raw", "native")) {
   call <- sys.call()
   zpd_check_open(pdf, call = call)
   n <- zpd_check_number(n, "n", call = call)
-  as <- zpd_match_arg(as, c("raw", "native"), "as", call)
+  as <- zpd_match_arg(as, c("raw", "native"), "as", call = call)
   d <- pdf_object(pdf, n)
   if (!identical(zpd_chr(zpd_key(d, "Subtype")), "Image")) {
     zpd_invalid_argument("n", "The object is not an image.", call = call)

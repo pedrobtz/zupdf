@@ -57,6 +57,11 @@ cases <- list(
     'pdf_page_text(pdf_open(minimal_pdf(text = strrep("x", 200)), max_stream = 100))'
   ),
   list(
+    "max_stream_forms",
+    "src/zpd_text.c",
+    'pdf_page_text(pdf_open(shared_forms_pdf(10, 3), max_stream = 2000))'
+  ),
+  list(
     "form_cycle",
     "src/zpd_text.c",
     'pdf_page_text(pdf_open(cycle_pdf(), max_depth = 8))'
@@ -81,13 +86,15 @@ expected <- c(
   max_depth_write = "max_depth",
   max_stream = "zupdf_limit_error",
   max_stream_content = "zupdf_limit_error",
-  form_cycle = "zupdf_limit_error: a form XObject draws itself",
+  max_stream_forms = "zupdf_limit_error",
+  form_cycle = "zupdf_limit_error: cycle",
   max_depth_form = "zupdf_limit_error",
   copy_depth = "zupdf_write_error"
 )
 
-# Forms for the two form guards: one that draws itself, and a chain of
-# `n` forms of which the last shows text.
+# Forms for the form guards: one that draws itself, a chain of `n` forms of
+# which the last shows text, and `levels` forms each drawing the next `k`
+# times, each read once but walked k^level times.
 probe_helpers <- '
 cycle_pdf <- function() {
   form <- list(
@@ -109,10 +116,22 @@ deep_forms_pdf <- function(n) {
   })
   page_pdf("/X1 Do", "<< /XObject << /X1 5 0 R >> >>", extra = forms)
 }
+shared_forms_pdf <- function(k, levels) {
+  forms <- lapply(seq_len(levels), function(i) {
+    list(
+      dict = sprintf(
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 600 800] /Resources << /Font << /F1 %s >> /XObject << /X1 %d 0 R >> >> >>",
+        helv, 5L + i
+      ),
+      data = if (i < levels) strrep("/X1 Do ", k) else "BT /F1 12 Tf 72 700 Td (x) Tj ET"
+    )
+  })
+  page_pdf("/X1 Do", "<< /XObject << /X1 5 0 R >> >>", extra = forms)
+}
 '
 
 # Runs a probe against the package installed in `lib`: one line, the
-# condition's class (with the message for form_cycle) or the value's.
+# condition's class (with its cycle field for form_cycle) or the value's.
 probe <- function(lib, guard, code) {
   script <- file.path(work, paste0("probe-", guard, ".R"))
   writeLines(
@@ -127,7 +146,7 @@ probe <- function(lib, guard, code) {
       "  if (is.character(x) && length(x) == 1L) x else class(x)[[1L]]",
       "}, error = function(e) {",
       sprintf(
-        "  if (%s == 'form_cycle') paste0(class(e)[[1L]], ': ', sub('.*: ', '', conditionMessage(e))) else class(e)[[1L]]",
+        "  if (%s == 'form_cycle') paste0(class(e)[[1L]], if (isTRUE(e$cycle)) ': cycle' else ': no cycle') else class(e)[[1L]]",
         deparse(guard)
       ),
       "})",

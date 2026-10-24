@@ -30,7 +30,7 @@ pdf_paper <- function(name, landscape = FALSE) {
     zpd_invalid_argument(
       "landscape",
       "`landscape` must be TRUE or FALSE.",
-      call
+      call = call
     )
   }
   wh <- sizes[[key]]
@@ -44,19 +44,14 @@ pdf_paper <- function(name, landscape = FALSE) {
 zpd_paper_sizes <- function() {
   mm <- function(w, h) round(c(w, h) * 72 / 25.4, 2)
   iso <- list()
-  aw <- 841
-  ah <- 1189
-  bw <- 1000
-  bh <- 1414
+  # Each size is the one before halved across its long side.
+  a <- c(841, 1189)
+  b <- c(1000, 1414)
   for (i in 0:10) {
-    iso[[paste0("a", i)]] <- mm(aw, ah)
-    iso[[paste0("b", i)]] <- mm(bw, bh)
-    next_a <- c(floor(ah / 2), aw)
-    aw <- next_a[[1]]
-    ah <- next_a[[2]]
-    next_b <- c(floor(bh / 2), bw)
-    bw <- next_b[[1]]
-    bh <- next_b[[2]]
+    iso[[paste0("a", i)]] <- mm(a[[1]], a[[2]])
+    iso[[paste0("b", i)]] <- mm(b[[1]], b[[2]])
+    a <- c(floor(a[[2]] / 2), a[[1]])
+    b <- c(floor(b[[2]] / 2), b[[1]])
   }
   c(
     iso,

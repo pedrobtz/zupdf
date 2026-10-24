@@ -35,6 +35,11 @@ typedef struct {
 void zpd_lex_init(zpd_lex *lx, const unsigned char *data, size_t n);
 void zpd_lex_free(zpd_lex *lx);
 
+/* As zpd_lex_init(), keeping the token buffer of a lexer used before (or
+   zeroed), so a lexer that lives in the text walk's context allocates
+   once and is freed with it. */
+void zpd_lex_reset(zpd_lex *lx, const unsigned char *data, size_t n);
+
 /* Reads the next token into lx; returns its type. */
 zpd_tok_type zpd_lex_next(zpd_lex *lx);
 

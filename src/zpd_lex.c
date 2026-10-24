@@ -43,6 +43,15 @@ void zpd_lex_init(zpd_lex *lx, const unsigned char *data, size_t n)
     lx->num = 0.0;
 }
 
+void zpd_lex_reset(zpd_lex *lx, const unsigned char *data, size_t n)
+{
+    unsigned char *buf = lx->buf;
+    size_t cap = lx->cap;
+    zpd_lex_init(lx, data, n);
+    lx->buf = buf;
+    lx->cap = cap;
+}
+
 void zpd_lex_free(zpd_lex *lx)
 {
     free(lx->buf);

@@ -38,8 +38,9 @@
 #'   page; `pdf_fonts()` a data frame of `name`, `type`, `embedded` and
 #'   `file`; `pdf_pagesize()` a data frame of `top`, `right`, `bottom`,
 #'   `left`, `width` and `height`; `pdf_toc()` a nested list of `title`,
-#'   `is_open` and `children`; `pdf_attachments()` a list of attachments, each with
-#'   `name`, `mime`, `created`, `modified`, `description` and `data`.
+#'   `is_open` and `children`; `pdf_attachments()` a list of attachments,
+#'   each with `name`, `mime`, `created`, `modified`, `description` and
+#'   `data`.
 #' @name pdftools-compat
 #' @examples
 #' path <- system.file("examples", "hello.pdf", package = "zupdf")
@@ -57,7 +58,7 @@ pdf_info <- function(pdf, opw = "", upw = "") {
   m <- pdf_meta(p)
   limits <- zpd_limits(p)
   info <- zpd_doc_dict(p, "info")
-  cat <- zpd_doc_dict(p, "catalog")
+  catalog <- zpd_doc_dict(p, "catalog")
   keys <- info[!names(info) %in% c("CreationDate", "ModDate")]
   keys <- keys[vapply(
     keys,
@@ -65,19 +66,19 @@ pdf_info <- function(pdf, opw = "", upw = "") {
     TRUE
   )]
   keys <- lapply(keys, as.character)
-  local <- function(t) .POSIXct(as.numeric(t), tz = "")
+  as_local_time <- function(x) .POSIXct(as.numeric(x), tz = "")
   list(
     version = m$version,
     pages = m$pages,
     encrypted = m$encryption != "none",
     linearized = zpd_linearized(p),
     keys = keys,
-    created = local(m$created),
-    modified = local(m$modified),
-    metadata = zpd_xmp(p, cat),
+    created = as_local_time(m$created),
+    modified = as_local_time(m$modified),
+    metadata = zpd_xmp(p, catalog),
     locked = FALSE,
-    attachments = length(zpd_embedded_files(p, cat, limits)) > 0L,
-    layout = zpd_layout(zpd_key(cat, "PageLayout"))
+    attachments = length(zpd_embedded_files(p, catalog, limits)) > 0L,
+    layout = zpd_layout(zpd_key(catalog, "PageLayout"))
   )
 }
 
@@ -86,12 +87,12 @@ pdf_info <- function(pdf, opw = "", upw = "") {
 pdf_text <- function(pdf, opw = "", upw = "", raw = FALSE) {
   x <- zpd_compat_open(pdf, opw, upw, sys.call())
   on.exit(x$done())
-  t <- as.vector(pdf_page_text(
+  text <- as.vector(pdf_page_text(
     x$pdf,
     layout = if (isTRUE(raw)) "raw" else "reading"
   ))
   # pdftools ends every line, the last included, with a line break.
-  ifelse(nzchar(t), paste0(t, "\n"), t)
+  ifelse(nzchar(text), paste0(text, "\n"), text)
 }
 
 #' @rdname pdftools-compat
@@ -146,8 +147,8 @@ pdf_toc <- function(pdf, opw = "", upw = "") {
   x <- zpd_compat_open(pdf, opw, upw, sys.call())
   on.exit(x$done())
   p <- x$pdf
-  cat <- zpd_doc_dict(p, "catalog")
-  outlines <- zpd_deref(p, zpd_key(cat, "Outlines"))
+  catalog <- zpd_doc_dict(p, "catalog")
+  outlines <- zpd_deref(p, zpd_key(catalog, "Outlines"))
   first <- zpd_key(outlines, "First")
   if (is.null(first)) {
     return(list())
@@ -165,8 +166,8 @@ pdf_attachments <- function(pdf, opw = "", upw = "") {
   x <- zpd_compat_open(pdf, opw, upw, sys.call())
   on.exit(x$done())
   p <- x$pdf
-  cat <- zpd_doc_dict(p, "catalog")
-  files <- zpd_embedded_files(p, cat, zpd_limits(p))
+  catalog <- zpd_doc_dict(p, "catalog")
+  files <- zpd_embedded_files(p, catalog, zpd_limits(p))
   lapply(files, function(f) zpd_attachment(p, f$name, f$spec))
 }
 
@@ -215,17 +216,23 @@ pdf_length <- function(input, password = "") {
 #' @export
 pdf_split <- function(input, output = NULL, password = "") {
   call <- sys.call()
-  x <- zpd_compat_input(input, password, call)
+  x <- zpd_compat_input(input, password, call = call)
   on.exit(x$done())
-  output <- zpd_compat_output(output, list(x), "", call, normalise = FALSE)
+  output <- zpd_compat_output(
+    output,
+    list(x),
+    "",
+    call = call,
+    normalise = FALSE
+  )
   n <- length(x$pdf)
   out <- normalizePath(
     sprintf("%s_%d.pdf", output, seq_len(n)),
     mustWork = FALSE
   )
-  zpd_compat_not_input(out, list(x), call)
+  zpd_compat_not_input(out, list(x), call = call)
   for (i in seq_len(n)) {
-    zpd_compat_write(x$pdf, i, out[[i]], call = call)
+    zpd_compat_write(x$pdf, i, out[[i]])
   }
   out
 }
@@ -234,11 +241,11 @@ pdf_split <- function(input, output = NULL, password = "") {
 #' @export
 pdf_subset <- function(input, pages = 1, output = NULL, password = "") {
   call <- sys.call()
-  x <- zpd_compat_input(input, password, call)
+  x <- zpd_compat_input(input, password, call = call)
   on.exit(x$done())
-  output <- zpd_compat_output(output, list(x), "_output.pdf", call)
-  pages <- zpd_compat_pages(x$pdf, pages, call)
-  zpd_compat_write(x$pdf, pages, output, call = call)
+  output <- zpd_compat_output(output, list(x), "_output.pdf", call = call)
+  pages <- zpd_compat_pages(x$pdf, pages, call = call)
+  zpd_compat_write(x$pdf, pages, output)
   output
 }
 
@@ -250,7 +257,11 @@ pdf_combine <- function(input, output = NULL, password = "") {
     input <- list(input)
   }
   if (!length(input)) {
-    zpd_invalid_argument("input", "`input` must name at least one file.", call)
+    zpd_invalid_argument(
+      "input",
+      "`input` must name at least one file.",
+      call = call
+    )
   }
   opened <- lapply(input, zpd_compat_input, password = password, call = call)
   on.exit(
@@ -258,7 +269,7 @@ pdf_combine <- function(input, output = NULL, password = "") {
       x$done()
     }
   )
-  output <- zpd_compat_output(output, opened, "_combined.pdf", call)
+  output <- zpd_compat_output(output, opened, "_combined.pdf", call = call)
   w <- pdf_new()
   for (x in opened) {
     pdf_copy_pages(w, x$pdf)
@@ -278,17 +289,21 @@ pdf_rotate_pages <- function(
   password = ""
 ) {
   call <- sys.call()
-  x <- zpd_compat_input(input, password, call)
+  x <- zpd_compat_input(input, password, call = call)
   on.exit(x$done())
-  output <- zpd_compat_output(output, list(x), "_output.pdf", call)
-  pages <- zpd_compat_pages(x$pdf, pages, call)
+  output <- zpd_compat_output(output, list(x), "_output.pdf", call = call)
+  pages <- zpd_compat_pages(x$pdf, pages, call = call)
   if (
     !is.numeric(angle) ||
       length(angle) != 1L ||
       !is.finite(angle) ||
       angle %% 90 != 0
   ) {
-    zpd_invalid_argument("angle", "`angle` must be a multiple of 90.", call)
+    zpd_invalid_argument(
+      "angle",
+      "`angle` must be a multiple of 90.",
+      call = call
+    )
   }
   w <- pdf_new()
   rot <- as.integer(angle %% 360)
@@ -297,7 +312,7 @@ pdf_rotate_pages <- function(
       zpd_unwrap(
         .Call(zupdf_writer_copy_pages, w, x$pdf, i, rot, !isTRUE(relative)),
         "Cannot copy the pages",
-        call,
+        call = call,
         default = "zupdf_write_error"
       )
     } else {
@@ -324,7 +339,7 @@ zpd_compat_open <- function(pdf, opw, upw, call = NULL) {
   pw <- unique(c(upw, opw)[nzchar(c(upw, opw))])
   if (length(pw) > 1L && inherits(pdf, "connection")) {
     # A second try needs the bytes again.
-    pdf <- zpd_read_connection(pdf, zpd_default_limits()$max_size, call)
+    pdf <- zpd_read_connection(pdf, zpd_default_limits()$max_size, call = call)
   }
   p <- tryCatch(
     pdf_open(pdf, password = if (length(pw)) pw[[1L]]),
@@ -350,7 +365,12 @@ zpd_compat_input <- function(input, password = "", call = NULL) {
     return(list(pdf = input, path = path, done = function() NULL))
   }
   if (!is.character(input) || length(input) != 1L || is.na(input)) {
-    zpd_invalid_argument("input", "input should contain exactly one file", call)
+    # qpdf's own message, word for word, as is "Selected pages out of range".
+    zpd_invalid_argument(
+      "input",
+      "input should contain exactly one file",
+      call = call
+    )
   }
   path <- normalizePath(input, mustWork = FALSE)
   p <- pdf_open(path, password = if (nzchar(password)) password else NULL)
@@ -370,7 +390,7 @@ zpd_compat_output <- function(output, inputs, suffix, call, normalise = TRUE) {
       zpd_invalid_argument(
         "output",
         "`output` is needed for a PDF read from memory.",
-        call
+        call = call
       )
     }
     output <- paste0(sub("\\.pdf$", "", path, ignore.case = TRUE), suffix)
@@ -379,7 +399,7 @@ zpd_compat_output <- function(output, inputs, suffix, call, normalise = TRUE) {
     return(output)
   }
   output <- normalizePath(output, mustWork = FALSE)
-  zpd_compat_not_input(output, inputs, call)
+  zpd_compat_not_input(output, inputs, call = call)
   output
 }
 
@@ -389,7 +409,7 @@ zpd_compat_not_input <- function(output, inputs, call) {
     zpd_invalid_argument(
       "output",
       "`output` must not overwrite an input.",
-      call
+      call = call
     )
   }
 }
@@ -398,12 +418,12 @@ zpd_compat_not_input <- function(output, inputs, call) {
 zpd_compat_pages <- function(pdf, pages, call = NULL) {
   sel <- seq_len(length(pdf))[pages]
   if (anyNA(sel) || !length(sel)) {
-    zpd_invalid_argument("pages", "Selected pages out of range", call)
+    zpd_invalid_argument("pages", "Selected pages out of range", call = call)
   }
   sel
 }
 
-zpd_compat_write <- function(pdf, pages, output, call = NULL) {
+zpd_compat_write <- function(pdf, pages, output) {
   w <- pdf_new()
   pdf_copy_pages(w, pdf, pages)
   pdf_save(w, output)
@@ -432,8 +452,8 @@ zpd_layout <- function(x) {
 
 # The XMP stream's text. A damaged or missing stream is "" (poppler's
 # answer), but a limit is the caller's and is raised, as everywhere else.
-zpd_xmp <- function(pdf, cat) {
-  ref <- zpd_key(cat, "Metadata")
+zpd_xmp <- function(pdf, catalog) {
+  ref <- zpd_key(catalog, "Metadata")
   if (!inherits(ref, "pdf_ref")) {
     return("")
   }
@@ -480,8 +500,8 @@ zpd_linearized <- function(pdf) {
 # test-compat.R.
 zpd_poppler_font_type <- function(pdf, n) {
   d <- pdf_object(pdf, n)
-  sub <- zpd_chr(zpd_key(d, "Subtype"))
-  cid <- identical(sub, "Type0")
+  subtype <- zpd_chr(zpd_key(d, "Subtype"))
+  cid <- identical(subtype, "Type0")
   if (cid) {
     desc <- zpd_deref(pdf, zpd_key(d, "DescendantFonts"))
     d <- if (is.list(desc) && length(desc)) zpd_deref(pdf, desc[[1L]])
@@ -489,7 +509,7 @@ zpd_poppler_font_type <- function(pdf, n) {
     type <- if (two) "cid_truetype" else "cid_type0"
   } else {
     type <- switch(
-      if (is.na(sub)) "" else sub,
+      if (is.na(subtype)) "" else subtype,
       Type1 = ,
       MMType1 = "type1",
       TrueType = "truetype",
@@ -556,8 +576,12 @@ zpd_outline <- function(pdf, first, limits) {
         break
       }
       n <- n + 1L
-      t <- zpd_key(item, "Title")
-      title[[n]] <- if (is.character(t) && length(t)) t[[1L]] else ""
+      item_title <- zpd_key(item, "Title")
+      title[[n]] <- if (is.character(item_title) && length(item_title)) {
+        item_title[[1L]]
+      } else {
+        ""
+      }
       # A positive /Count marks an item shown open (PDF 2.0, 12.3.3).
       count <- zpd_key(item, "Count")
       is_open[[n]] <- is.numeric(count) && isTRUE(count[[1L]] > 0)
@@ -586,8 +610,8 @@ zpd_outline <- function(pdf, first, limits) {
 
 # The /EmbeddedFiles name tree's entries, in order: list(list(name, spec)).
 # Like zpd_outline(), it keeps its own stack.
-zpd_embedded_files <- function(pdf, cat, limits) {
-  names_dict <- zpd_deref(pdf, zpd_key(cat, "Names"))
+zpd_embedded_files <- function(pdf, catalog, limits) {
+  names_dict <- zpd_deref(pdf, zpd_key(catalog, "Names"))
   root <- zpd_key(names_dict, "EmbeddedFiles")
   out <- list()
   k <- 0L
@@ -650,9 +674,9 @@ zpd_attachment <- function(pdf, name, spec) {
   if (inherits(ref, "pdf_ref")) {
     n <- unclass(ref)[[1L]]
     sd <- pdf_object(pdf, n)
-    sub <- zpd_key(sd, "Subtype")
-    if (is.character(sub) && length(sub) == 1L) {
-      mime <- as.character(sub)
+    subtype <- zpd_key(sd, "Subtype")
+    if (is.character(subtype) && length(subtype) == 1L) {
+      mime <- as.character(subtype)
     }
     params <- zpd_deref(pdf, zpd_key(sd, "Params"))
     created <- date(zpd_key(params, "CreationDate"))
@@ -667,12 +691,15 @@ zpd_attachment <- function(pdf, name, spec) {
     fname <- if (is.na(name)) "" else name
   }
   desc <- text(zpd_key(spec, "Desc"))
+  if (is.null(desc)) {
+    desc <- ""
+  }
   list(
     name = fname,
     mime = mime,
     created = created,
     modified = modified,
-    description = if (is.null(desc)) "" else desc,
+    description = desc,
     data = data
   )
 }

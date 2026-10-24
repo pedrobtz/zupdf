@@ -143,8 +143,8 @@ static int zpd_umap_cmp(const void *a, const void *b)
 }
 
 /* Parses a ToUnicode CMap's bfchar and bfrange sections (PDF 2.0, 9.10.3)
-   and its first code space range, which gives the code length. */
-static void zpd_parse_cmap(zpd_font *f, const unsigned char *data, size_t n)
+   and its first code space range, which gives a Type0 font's code length. */
+static void zpd_parse_cmap(zpd_font *f, const unsigned char *data, size_t n, int type0)
 {
     zpd_lex lx;
     zpd_umap_builder b = {0};
@@ -207,7 +207,10 @@ static void zpd_parse_cmap(zpd_font *f, const unsigned char *data, size_t n)
     f->cps = b.cps;
     f->ncps = b.ncps;
     f->identity = identity && b.num == 0;
-    if (codelen == 1 || codelen == 2)
+    /* Only a Type0 font's code length comes from its CMap: a simple font's
+       codes are one byte whatever its ToUnicode map declares (9.6.1), and
+       zpd_load_type0() has already made a Type0 font's two. */
+    if (type0 && (codelen == 1 || codelen == 2))
         f->code_bytes = codelen;
 }
 
@@ -454,18 +457,19 @@ static pdfio_obj_t *zpd_dict_obj(pdfio_dict_t *dict, const char *key)
     return pdfioDictGetType(dict, key) == PDFIO_VALTYPE_INDIRECT ? pdfioDictGetObj(dict, key) : NULL;
 }
 
-static void zpd_load_tounicode(zpd_font *f, pdfio_dict_t *dict, double max_stream)
+static void zpd_load_tounicode(zpd_font *f, pdfio_dict_t *dict, int type0,
+                               double max_stream, double *used, int *over)
 {
     pdfio_obj_t *obj = zpd_dict_obj(dict, "ToUnicode");
     pdfio_stream_t *st = obj ? pdfioObjOpenStream(obj, true) : NULL;
     if (!st)
         return;
     size_t len = 0;
-    int over = 0;
-    unsigned char *data = zpd_slurp(st, max_stream, &len, &over);
+    unsigned char *data = zpd_slurp(st, max_stream - *used, &len, over);
     pdfioStreamClose(st);
     if (data) {
-        zpd_parse_cmap(f, data, len);
+        *used += (double) len;
+        zpd_parse_cmap(f, data, len, type0);
         free(data);
     }
 }
@@ -533,12 +537,19 @@ static void zpd_load_type0(zpd_font *f, pdfio_dict_t *dict)
 }
 
 zpd_font *zpd_font_get(zpd_font_cache *cache, zpd_font_cache *local,
-                       pdfio_obj_t *obj, pdfio_dict_t *dict, double max_stream)
+                       pdfio_obj_t *obj, pdfio_dict_t *dict,
+                       double max_stream, double *used, int *over)
 {
     size_t objnum = obj ? pdfioObjGetNumber(obj) : 0;
     if (objnum)
         for (zpd_font *f = cache->head; f; f = f->next)
             if (f->objnum == objnum)
+                return f;
+    /* A direct dictionary is the same font each time a Tf names it: loading
+       it again would read its ToUnicode map again. */
+    if (!obj && dict)
+        for (zpd_font *f = local->head; f; f = f->next)
+            if (f->dict == dict)
                 return f;
     if (obj)
         dict = pdfioObjGetDict(obj);
@@ -547,6 +558,7 @@ zpd_font *zpd_font_get(zpd_font_cache *cache, zpd_font_cache *local,
     if (!f)
         return NULL;
     f->objnum = objnum;
+    f->dict = objnum ? NULL : dict;
     f->code_bytes = 1;
     f->scale = 0.001;
     f->default_width = 500.0;
@@ -561,7 +573,8 @@ zpd_font *zpd_font_get(zpd_font_cache *cache, zpd_font_cache *local,
         if (base)
             snprintf(f->name, sizeof(f->name), "%s", base);
         const char *subtype = pdfioDictGetName(dict, "Subtype");
-        if (subtype && strcmp(subtype, "Type0") == 0) {
+        int type0 = subtype && strcmp(subtype, "Type0") == 0;
+        if (type0) {
             zpd_load_type0(f, dict);
         } else {
             zpd_load_simple(f, dict, subtype);
@@ -581,7 +594,13 @@ zpd_font *zpd_font_get(zpd_font_cache *cache, zpd_font_cache *local,
                 }
             }
         }
-        zpd_load_tounicode(f, dict, max_stream);
+        zpd_load_tounicode(f, dict, type0, max_stream, used, over);
+        if (*over) {
+            /* Not cached: the next call, with a budget of its own, may
+               read the map. */
+            zpd_font_free(f);
+            return NULL;
+        }
     }
 
     zpd_font_cache *into = objnum ? cache : local;

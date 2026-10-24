@@ -25,6 +25,7 @@ typedef struct {
 
 typedef struct zpd_font {
     size_t objnum;      /* 0 for a font given as a direct dictionary */
+    const pdfio_dict_t *dict; /* that dictionary, the key in the local cache */
     int code_bytes;     /* 1 for simple fonts, 2 for Type0 */
     double scale;       /* glyph space to text space: 0.001, or FontMatrix[0] */
     double widths[256]; /* simple fonts, in glyph space */
@@ -39,7 +40,7 @@ typedef struct zpd_font {
     uint32_t *cps;
     size_t ncps;
     int identity;       /* an Identity-UCS2 ToUnicode with no entries: codes are UTF-16 */
-    char name[64];      /* /BaseFont, for pdf_data(font_info = TRUE) */
+    char name[128];     /* /BaseFont, for pdf_data(font_info = TRUE); 127 bytes is PDF's limit on a name */
     double ascent, descent; /* in em, from the descriptor, metrics or bbox */
     struct zpd_font *next;
 } zpd_font;
@@ -50,11 +51,15 @@ typedef struct zpd_font_cache {
 
 /* The font for a font dictionary, loaded once per file when it is an
    object (cached in `cache`) and once per call when it is a direct
-   dictionary (kept in `local`). NULL only when memory runs out. Problems
-   in the font are not errors: a missing width is estimated and a missing
-   mapping makes U+FFFD. */
+   dictionary (kept in `local`). Problems in the font are not errors: a
+   missing width is estimated and a missing mapping makes U+FFFD. Its
+   ToUnicode map is read within the walk's budget: at most max_stream
+   bytes less *used, which grows by what was read. NULL when memory runs
+   out, or with *over set when the budget does, and then nothing is
+   cached. */
 zpd_font *zpd_font_get(zpd_font_cache *cache, zpd_font_cache *local,
-                       pdfio_obj_t *obj, pdfio_dict_t *dict, double max_stream);
+                       pdfio_obj_t *obj, pdfio_dict_t *dict,
+                       double max_stream, double *used, int *over);
 
 void zpd_font_cache_free(zpd_font_cache *cache);
 
@@ -66,14 +71,17 @@ size_t zpd_font_unicode(const zpd_font *f, uint32_t code, uint32_t *out, size_t 
 double zpd_font_width(const zpd_font *f, uint32_t code);
 
 /* A decoded stream read whole into a malloc() buffer, at most max_stream
-   bytes (zpd_text.c). Returns NULL when it cannot be read; *over is set
-   when max_stream was the reason. */
+   bytes (zpd_text.c): the text walk passes what is left of its budget.
+   Returns NULL when it cannot be read; *over is set when max_stream was
+   the reason. */
 unsigned char *zpd_slurp(pdfio_stream_t *st, double max_stream, size_t *len, int *over);
 
 /* The text walk (zpd_text.c), R-free: a context owned by the handle
    (h->text), then one page at a time. zpd_text_extract() returns NULL or
-   a status ("max_depth", "form_cycle", "max_stream", "memory"); the text
-   it gives stays valid until the next call or zpd_text_release(). */
+   a status ("max_depth", "form_cycle", "max_stream_page", "memory"); the text
+   it gives stays valid until the next call or zpd_text_release().
+   max_stream bounds everything one page reads: its content streams, each
+   Form XObject each time it is drawn, and its fonts' ToUnicode maps. */
 struct zpd_text_ctx *zpd_text_ctx_new(zpd_file *h, int max_depth, double max_stream);
 const char *zpd_text_extract(struct zpd_text_ctx *c, pdfio_obj_t *page, int raw,
                              const unsigned char **text, size_t *len, int *unmapped);

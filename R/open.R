@@ -23,11 +23,14 @@
 #' @param ... Must be empty.
 #' @param max_size Largest input, in bytes.
 #' @param max_objects Most objects in the cross-reference table.
-#' @param max_stream Largest decoded stream, in bytes.
+#' @param max_stream Largest decoded stream, in bytes. For text, the most
+#'   one page's walk may read: its content streams, each Form XObject each
+#'   time it is drawn, and its fonts' ToUnicode maps.
 #' @param max_depth Deepest nesting of values, Form XObjects and the page
 #'   tree.
 #' @param max_pages Most pages.
-#' @return A `pdf_file`. `length()` gives its page count.
+#' @return A `pdf_file`. `length()` gives its page count, and 0 once it is
+#'   closed, so that `str()` and environment panes can show a closed handle.
 #' @seealso [pdf_meta()], [pdf_pages()], [zupdf-conditions].
 #' @export
 #' @examples
@@ -98,7 +101,7 @@ pdf_open <- function(
     )
   }
   if (res$status == "max_objects") {
-    zpd_count_limit(NULL, "max_objects", "objects", limits, call)
+    zpd_count_limit(NULL, "max_objects", "objects", limits, call = call)
   }
   ptr <- zpd_unwrap(res, "Cannot open the PDF file", call = call)
   opened <- TRUE
@@ -213,10 +216,14 @@ zpd_spill <- function(bytes, source, name) {
 # pdfio refuses more than max_objects objects as it reads them (patch 0016).
 # A file over max_pages is closed before the condition is raised.
 zpd_check_counts <- function(pdf, limits, call = NULL) {
-  counts <- zpd_unwrap(.Call(zupdf_counts, pdf), "Cannot read the PDF file")
+  counts <- zpd_unwrap(
+    .Call(zupdf_counts, pdf),
+    "Cannot read the PDF file",
+    call = call
+  )
   if (counts[[2L]] > limits$max_pages) {
     # GUARD: max_pages
-    zpd_count_limit(pdf, "max_pages", "pages", limits, call)
+    zpd_count_limit(pdf, "max_pages", "pages", limits, call = call)
   }
 }
 
@@ -254,9 +261,15 @@ zpd_limits <- function(pdf) attr(pdf, "limits", exact = TRUE)
 
 #' @export
 length.pdf_file <- function(x) {
-  zpd_check_open(x, call = sys.call())
-  pages <- zpd_unwrap(.Call(zupdf_counts, x), "Cannot read the PDF file")[[2L]]
-  as.integer(pages)
+  if (!.Call(zupdf_is_open, x)) {
+    return(0L)
+  }
+  counts <- zpd_unwrap(
+    .Call(zupdf_counts, x),
+    "Cannot read the PDF file",
+    call = sys.call()
+  )
+  as.integer(counts[[2L]])
 }
 
 #' @export

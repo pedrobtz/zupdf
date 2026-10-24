@@ -211,6 +211,38 @@ test_that("bad paths are refused", {
     "zupdf_invalid_argument",
     arg = "rule"
   )
+  expect_zupdf_error(
+    pdf_draw(page, list(x = 1:2, y = 1:2), close = NA),
+    "zupdf_invalid_argument",
+    arg = "close"
+  )
+  expect_zupdf_error(
+    pdf_draw(page, list(x = 1:2, y = 1:2), fill = c("red", "blue")),
+    "zupdf_invalid_argument",
+    arg = "fill"
+  )
+  expect_zupdf_error(
+    pdf_draw(page, list(x = 1:2, y = 1:2), stroke = "not-a-colour"),
+    "zupdf_invalid_argument",
+    arg = "stroke"
+  )
+  expect_zupdf_error(
+    pdf_draw(page, data.frame(op = c("move", "line"), x = c(1, NA), y = 1:2)),
+    "zupdf_invalid_argument",
+    arg = "path"
+  )
+  pdf_page_end(page)
+})
+
+test_that("what is not a writer or a page is refused, by name", {
+  expect_zupdf_error(pdf_page_new(1), "zupdf_invalid_argument", arg = "w")
+  expect_zupdf_error(pdf_save(1), "zupdf_invalid_argument", arg = "w")
+  expect_zupdf_error(
+    pdf_draw_text(1, 0, 0, "x"),
+    "zupdf_invalid_argument",
+    arg = "page"
+  )
+  expect_zupdf_error(pdf_page_end(1), "zupdf_invalid_argument", arg = "page")
 })
 
 # ---- images -----------------------------------------------------------------
@@ -415,26 +447,49 @@ test_that("bad images are refused by class", {
     "zupdf_invalid_argument",
     arg = "image"
   )
+  mine <- pdf_image_new(w, matrix(1, 1, 1))
+  expect_zupdf_error(
+    pdf_draw_image(page, mine, c(1, 2), 1, 1, 1),
+    "zupdf_invalid_argument",
+    arg = "x"
+  )
+  expect_zupdf_error(
+    pdf_image_new(w, matrix(1, 1, 1), interpolate = NA),
+    "zupdf_invalid_argument",
+    arg = "interpolate"
+  )
 })
 
-test_that("a hundred-page report writes quickly", {
-  # A timing: meaningless under valgrind or gctorture, so only on request.
-  skip_if_no_slow_tests()
-  t <- system.time(written(
-    function(page) {
-      for (i in 1:40) {
-        pdf_draw_text(
+test_that("each page of a report costs the same, however many came before", {
+  # Structural, not a timing: a page that kept or replayed what earlier
+  # pages drew would grow with the page count. Only object numbers gain a
+  # digit, so the 20th page's bytes are within 1% of the 2nd's.
+  report <- function(pages) {
+    written(
+      function(page) {
+        for (i in 1:10) {
+          pdf_draw_text(
+            page,
+            72,
+            800 - i * 18,
+            sprintf("Line %d of the report", i)
+          )
+        }
+        pdf_draw(
           page,
-          72,
-          800 - i * 18,
-          sprintf("Line %d of the report", i)
+          data.frame(op = "rect", x = 60, y = 60, w = 470, h = 740)
         )
-      }
-      pdf_draw(page, data.frame(op = "rect", x = 60, y = 60, w = 470, h = 740))
-    },
-    pages = 100L
-  ))
-  expect_lt(t[["elapsed"]], 5)
+      },
+      pages = pages
+    )
+  }
+  n <- vapply(c(1L, 2L, 19L, 20L), function(p) length(report(p)), 1L)
+  second <- n[[2]] - n[[1]]
+  twentieth <- n[[4]] - n[[3]]
+  expect_lt(abs(twentieth - second) / second, 0.01)
+  text <- reread(report(20L))
+  expect_length(text, 20L)
+  expect_identical(text[[20]], text[[1]])
 })
 
 test_that("pdf_text_width() measures as pdf_draw_text() draws", {

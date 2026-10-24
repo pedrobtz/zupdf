@@ -17,7 +17,9 @@
 #'   \item{`zupdf_password_error`}{The file is encrypted and no password
 #'     given opened it.}
 #'   \item{`zupdf_limit_error`}{A limit was reached. Carries `limit`, the
-#'     argument's name, such as `"max_stream"`, and `limit_value`.}
+#'     argument's name, such as `"max_stream"`, and `limit_value`. A form
+#'     XObject drawn inside itself is refused on `"max_depth"` and also
+#'     carries `cycle = TRUE`.}
 #'   \item{`zupdf_unsupported_input`}{The input uses something zupdf does
 #'     not support, such as a WebP image or AES-256 writing.}
 #'   \item{`zupdf_write_error`}{pdfio refused to write, or a closed writer
@@ -26,8 +28,6 @@
 #'   \item{`zupdf_io_error`}{A file, temporary file or connection failed.
 #'     From [pdf_save()], after the file was finished, it carries `bytes`,
 #'     the file's bytes.}
-#'   \item{`zupdf_encoding_error`}{Extracted text is not valid UTF-8 after
-#'     mapping.}
 #' }
 #'
 #' Warnings carry the class `zupdf_warning`.
@@ -35,11 +35,12 @@
 #' @name zupdf-conditions
 #' @examples
 #' tryCatch(
-#'   stop(structure(
-#'     class = c("zupdf_parse_error", "zupdf_error", "error", "condition"),
-#'     list(message = "PDF parse error", call = NULL, detail = NULL)
-#'   )),
+#'   pdf_open(as.raw(1:10)),
 #'   zupdf_error = function(e) class(e)[1]
+#' )
+#' tryCatch(
+#'   pdf_open(as.raw(1:10), max_size = 5),
+#'   zupdf_limit_error = function(e) e$limit
 #' )
 NULL
 
@@ -53,8 +54,7 @@ zpd_condition_classes <- c(
   "zupdf_unsupported_input",
   "zupdf_write_error",
   "zupdf_font_error",
-  "zupdf_io_error",
-  "zupdf_encoding_error"
+  "zupdf_io_error"
 )
 
 # Builds and raises a classed condition. `class` is one of
@@ -71,12 +71,13 @@ zpd_invalid_argument <- function(arg, message, call = NULL) {
   zpd_abort("zupdf_invalid_argument", message, arg = arg, call = call)
 }
 
-zpd_limit_error <- function(limit, limit_value, message, call = NULL) {
+zpd_limit_error <- function(limit, limit_value, message, ..., call = NULL) {
   zpd_abort(
     "zupdf_limit_error",
     message,
     limit = limit,
     limit_value = limit_value,
+    ...,
     call = call
   )
 }
@@ -133,7 +134,8 @@ zpd_c_statuses <- c(
   "closed_writer",
   "bad_ops",
   "pdfdoc",
-  "max_objects"
+  "max_objects",
+  "max_stream_page"
 )
 
 # Unwraps a zpd_result() from C: warns once for pdfio's warnings, raises
@@ -165,7 +167,11 @@ zpd_unwrap <- function(
   switch(
     res$status,
     ok = res$value,
-    closed = zpd_invalid_argument("pdf", "The PDF file is closed.", call),
+    closed = zpd_invalid_argument(
+      "pdf",
+      "The PDF file is closed.",
+      call = call
+    ),
     pdfio = zpd_abort(
       zpd_pdfio_class(res$detail, default),
       paste0(what, ": ", res$detail),
@@ -186,6 +192,7 @@ zpd_unwrap <- function(
       "max_depth",
       limits$max_depth,
       sprintf("%s: a form XObject draws itself.", what),
+      cycle = TRUE,
       call = call
     ),
     max_objects = zpd_limit_error(
@@ -203,6 +210,19 @@ zpd_unwrap <- function(
       limits$max_stream,
       sprintf(
         "%s: the stream is larger than `max_stream` (%s bytes).",
+        what,
+        format(limits$max_stream, scientific = FALSE, big.mark = "")
+      ),
+      call = call
+    ),
+    max_stream_page = zpd_limit_error(
+      "max_stream",
+      limits$max_stream,
+      sprintf(
+        paste(
+          "%s: the page's streams, forms and fonts come to more than",
+          "`max_stream` (%s bytes)."
+        ),
         what,
         format(limits$max_stream, scientific = FALSE, big.mark = "")
       ),
@@ -245,7 +265,7 @@ zpd_unwrap <- function(
       call = call
     ),
     memory = zpd_abort(
-      "zupdf_parse_error",
+      default,
       sprintf("%s: out of memory.", what),
       call = call
     ),
