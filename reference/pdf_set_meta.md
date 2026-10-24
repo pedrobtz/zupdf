@@ -22,7 +22,8 @@ pdf_set_meta(w, ...)
 - ...:
 
   Named values: `title`, `author`, `subject`, `keywords`, `creator` and
-  `language` (such as `"en-GB"`) are strings; `modified` is a `POSIXct`.
+  `language` (such as `"en-GB"`) are strings; `modified` is a `POSIXct`
+  from 1970 to 3000.
 
 ## Value
 

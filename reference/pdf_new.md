@@ -41,7 +41,7 @@ pdf_new(
 
 - created:
 
-  The creation date, a `POSIXct`.
+  The creation date, a `POSIXct` from 1970 to 3000.
 
 - deterministic:
 

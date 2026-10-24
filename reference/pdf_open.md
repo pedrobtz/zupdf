@@ -68,10 +68,11 @@ page count.
 ## Details
 
 A PDF is a common carrier of hostile input, so opening is bounded by
-limits. `max_size` is checked before anything is read; `max_objects` and
-`max_pages` right after the cross-reference table is read; `max_stream`
-and `max_depth` by the functions that decode streams and walk nested
-values. Each limit is a positive whole number or `Inf`.
+limits. `max_size` is checked before anything is read; `max_objects` as
+the cross-reference table is read, before the objects it lists are all
+allocated; `max_pages` once the page tree is read; `max_stream` and
+`max_depth` by the functions that decode streams and walk nested values.
+Each limit is a positive whole number or `Inf`.
 
 ## See also
 

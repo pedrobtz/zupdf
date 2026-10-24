@@ -117,10 +117,11 @@ tree.</p></dd>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>A PDF is a common carrier of hostile input, so opening is bounded by
-limits. <code>max_size</code> is checked before anything is read; <code>max_objects</code> and
-<code>max_pages</code> right after the cross-reference table is read; <code>max_stream</code>
-and <code>max_depth</code> by the functions that decode streams and walk nested
-values. Each limit is a positive whole number or <code>Inf</code>.</p>
+limits. <code>max_size</code> is checked before anything is read; <code>max_objects</code> as
+the cross-reference table is read, before the objects it lists are all
+allocated; <code>max_pages</code> once the page tree is read; <code>max_stream</code> and
+<code>max_depth</code> by the functions that decode streams and walk nested values.
+Each limit is a positive whole number or <code>Inf</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

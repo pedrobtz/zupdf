@@ -31,7 +31,11 @@ pdf_page_end(page)
   `NULL`, or a named list of further page dictionary entries as R values
   (see
   [`pdf_object()`](https://pedrobtz.github.io/zupdf/reference/pdf_object.md)
-  for the mapping), such as `list(Rotate = 90L)`.
+  for the mapping), such as `list(Rotate = 90L)`. A `pdf_ref` is an
+  object number in the file being written: one read from another file
+  names whatever object has its number here. Use
+  [`pdf_copy_pages()`](https://pedrobtz.github.io/zupdf/reference/pdf_copy_pages.md)
+  to bring pages across.
 
 - page:
 

@@ -77,7 +77,9 @@ points, or <code>NULL</code> for the writer's default size.</p></dd>
 <dt id="arg-dict">dict<a class="anchor" aria-label="anchor" href="#arg-dict"></a></dt>
 <dd><p><code>NULL</code>, or a named list of further page dictionary entries
 as R values (see <code><a href="pdf_object.html">pdf_object()</a></code> for the mapping), such as
-<code>list(Rotate = 90L)</code>.</p></dd>
+<code>list(Rotate = 90L)</code>. A <code>pdf_ref</code> is an object number in the file
+being written: one read from another file names whatever object has
+its number here. Use <code><a href="pdf_copy_pages.html">pdf_copy_pages()</a></code> to bring pages across.</p></dd>
 
 
 <dt id="arg-page">page<a class="anchor" aria-label="anchor" href="#arg-page"></a></dt>
