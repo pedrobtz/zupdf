@@ -322,7 +322,7 @@ print.pdf_writer_font <- function(x, ...) {
 #' matrix of grey levels in 0 to 1, or a numeric array of height x width x
 #' 3 (RGB) or 4 (RGBA) channels in 0 to 1, such as `png::readPNG()`
 #' returns. Transparency is kept. A PNG file with an alpha channel is a
-#' `zupdf_unsupported_input`, since pdfio reads PNG without libpng; read it
+#' `zupdf_unsupported_input`, since pdfio reads PNG without 'libpng'; read it
 #' with `png::readPNG()` and pass the array.
 #'
 #' @inheritParams pdf_save

@@ -7,16 +7,18 @@ Authors@R: c(
     person("Michael R", "Sweet", role = "cph",
            comment = "pdfio and ttf, bundled in src/vendor/pdfio"),
     person("Adobe", role = "cph",
-           comment = "Adobe Glyph List, in src/zpd_glyphs.h"))
-Description: Opens 'PDF' files and reads their metadata, pages, objects,
-    streams, fonts, images and text in reading order; copies pages
-    between files to split, merge, rotate and reorder them, and sets
-    metadata, permissions and encryption; and writes new 'PDF' files from
-    R with text, paths and images. Uses a bundled copy of the 'pdfio'
-    library (<https://github.com/michaelrsweet/pdfio>), so no system
-    library beyond 'zlib' is required. Untrusted input is bounded by
-    limits on size, object count, stream size and nesting depth. Pages
-    are never rendered to images.
+           comment = "Adobe Glyph List, in src/zpd_glyphs.h"),
+    person("Google", role = "cph",
+           comment = "Open Sans font, in tests/testthat/fixtures"))
+Description: Opens Portable Document Format ('PDF') files and reads their
+    metadata, pages, objects, streams, fonts, images and text in reading
+    order; copies pages between files to split, merge, rotate and reorder
+    them, and sets metadata, permissions and encryption; and writes new
+    'PDF' files from 'R' with text, paths and images. Uses a bundled copy
+    of the 'pdfio' library (<https://github.com/michaelrsweet/pdfio>), so
+    no system library beyond 'zlib' is required. Untrusted input is
+    bounded by limits on size, object count, stream size and nesting
+    depth. Pages are never rendered to images.
 License: MIT + file LICENSE
 Copyright: file inst/COPYRIGHTS
 URL: https://github.com/pedrobtz/zupdf, https://pedrobtz.github.io/zupdf/

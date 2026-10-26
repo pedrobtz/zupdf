@@ -11,6 +11,7 @@ ToUnicode
 WebP
 XObject
 XObjects
+libpng
 pdfio
 pdfio's
 pdftools
@@ -19,6 +20,7 @@ poppler
 poppler's
 qpdf
 qpdf's
+testthat
 ttf
 zlib
 zpd

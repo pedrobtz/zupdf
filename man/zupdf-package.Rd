@@ -54,6 +54,7 @@ Other contributors:
 \itemize{
   \item Michael R Sweet (pdfio and ttf, bundled in src/vendor/pdfio) [copyright holder]
   \item Adobe (Adobe Glyph List, in src/zpd_glyphs.h) [copyright holder]
+  \item Google (Open Sans font, in tests/testthat/fixtures) [copyright holder]
 }
 
 }

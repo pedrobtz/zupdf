@@ -8,12 +8,14 @@ no system library beyond zlib, which R itself requires.
 
 ## Test environments
 
-* local macOS (aarch64), R 4.6.1
-* GitHub Actions: ubuntu-latest (R release, oldrel-1), macOS-latest
-  (R release), windows-latest (R release)
-* R-hub containers, R-devel: `clang23`, `ubuntu-clang`, `ubuntu-gcc16`
+* local macOS (x86_64), R 4.5.2
+* GitHub Actions: macOS-latest, windows-latest and ubuntu-latest (R
+  release), ubuntu-latest (R oldrel-1), windows-latest (R-devel)
+* R-hub containers, R-devel: `clang23`, `ubuntu-clang`, `ubuntu-gcc16`,
+  `nosuggests`, `nold`
 * UBSan, ASan, valgrind, LTO, gctorture, rchk and `-fanalyzer`
-* libFuzzer with ASan and UBSan over the parser and text extraction, nightly
+* libFuzzer with ASan and UBSan over the parser and text extraction,
+  30 minutes nightly
 
 ## R CMD check results
 
@@ -38,3 +40,13 @@ reported upstream; 0013 to 0018 are to be reported together.
 `src/zpd_glyphs.h` holds the Adobe Glyph List (BSD-3-Clause), used to map
 glyph names to Unicode; its notice is in `inst/COPYRIGHTS` and Adobe is listed
 as `cph` in `Authors@R`.
+
+The tests read third-party fixtures from pdfio's source tree: the Open Sans
+font (Google, Apache-2.0, listed as `cph`) and PDF files from the Apache
+PDFBox issue tracker. `inst/COPYRIGHTS` and `LICENSE.note` list them.
+
+## Method References
+
+There are no published references describing the methods in this package.
+It implements the PDF format as specified in ISO 32000-2, through the
+bundled pdfio library.
