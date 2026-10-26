@@ -27,13 +27,13 @@ pdfio is Apache-2.0 with exceptions; zupdf's own code is MIT. `LICENSE.note`
 explains how the two apply, and `inst/COPYRIGHTS` reproduces pdfio's notice.
 Michael R Sweet, pdfio's author, is listed as `cph` in `Authors@R`.
 
-The vendored tree carries seventeen small patches, listed with their reasons
+The vendored tree carries eighteen small patches, listed with their reasons
 in `src/vendor/PROVENANCE`: stdio writes and exported symbols removed;
 compiler warnings, undefined behaviour, a loop and three leaks found by
 sanitizers and fuzzing fixed; dates read in UTC whatever the local time
 zone; and bounds on copying between files and on the objects a file may
 list. Each patched file carries a notice saying so. 0003 to 0012 are
-reported upstream; 0013 to 0017 are to be reported together.
+reported upstream; 0013 to 0018 are to be reported together.
 
 `src/zpd_glyphs.h` holds the Adobe Glyph List (BSD-3-Clause), used to map
 glyph names to Unicode; its notice is in `inst/COPYRIGHTS` and Adobe is listed

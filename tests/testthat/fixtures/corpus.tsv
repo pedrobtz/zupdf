@@ -29,6 +29,7 @@ cmap-empty-name.pdf	1	16	5801a8550eccc208e8fde2ffdfdfbf25	675	0
 content-nan.pdf	1	4	2690c180ff359a0ab327ce48170b9c7c	70	0
 firstchar-huge.pdf	3	28	0945ba6e43b9aed2aa0af7f93080f2de	1283	0
 forms-shared.pdf	1	7	b567fcb68d8555227123ab87e255872e	2	0
+length-indirect-huge.pdf	1	18	a1a1c37f4d5d4c450bd01fdb414680e3	2481	0
 object-value-leak.pdf	1	32	d41d8cd98f00b204e9800998ecf8427e	33	0
 objstm-value-leak.pdf	1	38	d41d8cd98f00b204e9800998ecf8427e	4	0
 repair-loop.pdf	NA	NA	NA	NA	NA
@@ -36,4 +37,5 @@ trailer-not-dict.pdf	NA	NA	NA	NA	NA
 xobject-unloadable.pdf	1	7	d41d8cd98f00b204e9800998ecf8427e	2	0
 xref-generation-shift.pdf	NA	NA	NA	NA	NA
 xref-index-huge.pdf	NA	NA	NA	NA	NA
+xref-start-huge.pdf	NA	NA	NA	NA	NA
 xref-w-negative.pdf	NA	NA	NA	NA	NA

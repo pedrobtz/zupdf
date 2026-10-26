@@ -1,0 +1,46 @@
+diff -ruN a/pdfio-file.c b/pdfio-file.c
+--- a/pdfio-file.c
++++ b/pdfio-file.c
+@@ -23,6 +23,8 @@
+ // Modified for the zupdf R package: a file can be opened with a limit on its objects, refused before they are all allocated (a small cross-reference stream can list millions). See tools/patches/ in zupdf.
+ //
+ // Modified for the zupdf R package: a cross-reference stream's offsets and generations are assembled in unsigned types and clamped, with no signed shift overflowing (UBSan, fuzzing). See tools/patches/ in zupdf.
++//
++// Modified for the zupdf R package: an indirect /Length is clamped before it becomes a size, and a cross-reference table's object range is checked before it is counted (UBSan, fuzzing). See tools/patches/ in zupdf.
+ //
+ 
+ #include "pdfio-private.h"
+@@ -2428,6 +2430,12 @@
+ 	if (sscanf(line, "%jd%jd", &number, &num_objects) != 2)
+ 	{
+ 	  PDFIO_DEBUG("load_xref: Unable to scan START COUNT from line.\n");
++	  goto repair;
++	}
++
++	if (number < 0 || num_objects < 0 || number > INTMAX_MAX - num_objects)
++	{
++	  PDFIO_DEBUG("load_xref: START COUNT out of range.\n");
+ 	  goto repair;
+ 	}
+ 
+diff -ruN a/pdfio-object.c b/pdfio-object.c
+--- a/pdfio-object.c
++++ b/pdfio-object.c
+@@ -13,6 +13,8 @@
+ // Modified for the zupdf R package: an object's own binary value is freed when the object is, and before the object is read again (fuzzing, LeakSanitizer). See tools/patches/ in zupdf.
+ //
+ // Modified for the zupdf R package: copying values between files is bounded in depth, so a long chain of references cannot overflow the stack. See tools/patches/ in zupdf.
++//
++// Modified for the zupdf R package: an indirect /Length is clamped before it becomes a size, and a cross-reference table's object range is checked before it is counted (UBSan, fuzzing). See tools/patches/ in zupdf.
+ //
+ 
+ #include "pdfio-private.h"
+@@ -353,7 +355,7 @@
+ 
+   PDFIO_DEBUG("pdfioObjGetLength(obj=%p) returning %lu.\n", (void *)obj, (unsigned long)lenobj->value.value.number);
+ 
+-  return ((size_t)lenobj->value.value.number);
++  return (_pdfioToSize(lenobj->value.value.number));
+ }
+ 
+ 
