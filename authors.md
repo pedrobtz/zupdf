@@ -10,6 +10,9 @@
 - **Adobe**. Copyright holder.  
   Adobe Glyph List, in src/zpd_glyphs.h
 
+- **Google**. Copyright holder.  
+  Open Sans font, in tests/testthat/fixtures
+
 ## Citation
 
 Source:

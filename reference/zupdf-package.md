@@ -78,3 +78,6 @@ Other contributors:
   \[copyright holder\]
 
 - Adobe (Adobe Glyph List, in src/zpd_glyphs.h) \[copyright holder\]
+
+- Google (Open Sans font, in tests/testthat/fixtures) \[copyright
+  holder\]
