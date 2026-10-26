@@ -24,6 +24,8 @@
 //
 // Modified for the zupdf R package: a cross-reference stream's offsets and generations are assembled in unsigned types and clamped, with no signed shift overflowing (UBSan, fuzzing). See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: an indirect /Length is clamped before it becomes a size, and a cross-reference table's object range is checked before it is counted (UBSan, fuzzing). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 #include "pdfio-content.h"
@@ -2428,6 +2430,12 @@ load_xref(
 	if (sscanf(line, "%jd%jd", &number, &num_objects) != 2)
 	{
 	  PDFIO_DEBUG("load_xref: Unable to scan START COUNT from line.\n");
+	  goto repair;
+	}
+
+	if (number < 0 || num_objects < 0 || number > INTMAX_MAX - num_objects)
+	{
+	  PDFIO_DEBUG("load_xref: START COUNT out of range.\n");
 	  goto repair;
 	}
 

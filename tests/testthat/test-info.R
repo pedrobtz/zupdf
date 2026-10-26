@@ -26,7 +26,8 @@ test_that("the patch series is the one in tools/patches", {
       "0014-date-utc",
       "0015-copy-depth",
       "0016-object-limit",
-      "0017-xref-shifts"
+      "0017-xref-shifts",
+      "0018-number-checks"
     )
   )
 })

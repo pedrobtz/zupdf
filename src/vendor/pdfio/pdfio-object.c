@@ -14,6 +14,8 @@
 //
 // Modified for the zupdf R package: copying values between files is bounded in depth, so a long chain of references cannot overflow the stack. See tools/patches/ in zupdf.
 //
+// Modified for the zupdf R package: an indirect /Length is clamped before it becomes a size, and a cross-reference table's object range is checked before it is counted (UBSan, fuzzing). See tools/patches/ in zupdf.
+//
 
 #include "pdfio-private.h"
 
@@ -353,7 +355,7 @@ pdfioObjGetLength(pdfio_obj_t *obj)	// I - Object
 
   PDFIO_DEBUG("pdfioObjGetLength(obj=%p) returning %lu.\n", (void *)obj, (unsigned long)lenobj->value.value.number);
 
-  return ((size_t)lenobj->value.value.number);
+  return (_pdfioToSize(lenobj->value.value.number));
 }
 
 

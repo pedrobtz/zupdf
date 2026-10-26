@@ -9,7 +9,8 @@ zupdf
 
 Copyright (c) 2026 Pedro Baltazar
 
-Covers everything in the package except src/vendor/. Full text in
+Covers everything in the package except src/vendor/, src/zpd_glyphs.h
+and the third-party test fixtures listed below. Full text in
 LICENSE.md in the source repository; CRAN's YEAR/COPYRIGHT HOLDER form is
 in LICENSE.
 
@@ -33,3 +34,13 @@ Adobe Glyph List
 
 src/zpd_glyphs.h's glyph-name table follows the Adobe Glyph List, Copyright
 2002-2019 Adobe, BSD 3-Clause licence; the notice is in inst/COPYRIGHTS.
+
+
+Test fixtures
+=============
+
+tests/testthat/fixtures/OpenSans-Regular.ttf: Digitized data copyright
+(c) 2010-2011 Google Corporation; Apache License, Version 2.0
+(OpenSans-LICENSE.txt beside it). tests/testthat/fixtures/afl-input/ and
+pdfio's test images and testpdfio.pdf: as distributed with pdfio, Apache
+License, Version 2.0. Details in inst/COPYRIGHTS.

@@ -203,8 +203,16 @@ modification notice to every file it changes (Apache-2.0 section 4(b)).
                             UBSan reported the first fuzzing (0005 missed
                             it). Both are now built in unsigned types and
                             clamped. To be reported upstream with 0015.
+  0018-number-checks        Two numbers read from a file that 0007 missed:
+                            an indirect /Length was cast from double to
+                            size_t unchecked (pdfioObjGetLength()), and a
+                            cross-reference table's START COUNT pair was
+                            counted past INTMAX_MAX. The nightly fuzz run
+                            (UBSan) found both. The length is clamped with
+                            _pdfioToSize() and an out-of-range pair sends
+                            the file to repair. To be reported with 0015.
 
-0001 and 0002 are proposed upstream as build options and 0003 to 0017 as
+0001 and 0002 are proposed upstream as build options and 0003 to 0018 as
 fixes; none but 0006, 0014 and 0015 changes behaviour on well-formed input:
 0006 only what is written, 0014 dates read outside UTC and 0015 copies that
 nest deeper than 2,048 values.
