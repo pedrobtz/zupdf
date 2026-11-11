@@ -5,8 +5,8 @@
 # MD5 and zlib version printed for comparison across runners. Benchmarks
 # run after, informational.
 on:
-  push:
-    branches: [main, master]
+  # No `push:`: a pull request already checks its merge with main,
+  # and the schedule checks main (r-actions README, "Pushes to main").
   pull_request:
   workflow_dispatch:
 
