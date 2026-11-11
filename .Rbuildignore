@@ -14,3 +14,7 @@
 ^doc$
 ^Meta$
 ^vignettes/articles$
+^\.superpowers$
+^\.worktrees$
+^CLAUDE\.md$
+^AGENTS\.md$
