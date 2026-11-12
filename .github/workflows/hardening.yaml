@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     name: lint, mutation, no network
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: r-lib/actions/setup-r@v2
         with:
           use-public-rspm: true
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     name: fuzz (open, objects, streams, text)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: r-lib/actions/setup-r@v2
         with:
           use-public-rspm: true
