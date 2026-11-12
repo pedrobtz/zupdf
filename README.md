@@ -2,7 +2,7 @@
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/pedrobtz/zupdf/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/pedrobtz/zupdf/actions/workflows/R-CMD-check.yaml)
-[![coverage](https://raw.githubusercontent.com/pedrobtz/zupdf/main/.github/badges/coverage.svg)](https://github.com/pedrobtz/zupdf/actions/workflows/coverage.yaml)
+[![coverage](https://raw.githubusercontent.com/pedrobtz/zupdf/gh-pages/badges/coverage.svg)](https://github.com/pedrobtz/zupdf/actions/workflows/coverage.yaml)
 <!-- badges: end -->
 
 zupdf reads, assembles and writes PDF files from R. It opens a file and reads
