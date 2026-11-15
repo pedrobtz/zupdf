@@ -5,16 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Shared conventions
 
-The portfolio's shared rules are synced into `.claude/shared/` from
-`pedrobtz/packages:claude/shared/`. Never edit them here. Where this file and
-a shared file disagree, this file wins for this package.
+<!-- r-skills: shared-rules -->
 
-@.claude/shared/workflow.md
-@.claude/shared/r-package.md
-@.claude/shared/ci.md
-@.claude/shared/native-code.md
-@.claude/shared/correctness.md
-@.claude/shared/assurance.md
+The portfolio's shared rules (`workflow`, `r-package`, `ci`, `native-code`,
+`correctness`, `assurance`) come from the
+[r-skills](https://github.com/pedrobtz/r-skills) plugin's `rules/`, loaded at
+session start because of the marker above. Never copy them here. Where this
+file and a shared rule disagree, this file wins for this package. Cloud
+sessions do not load the plugin and run without them.
 
 ## What this is
 
@@ -103,7 +101,7 @@ the issue.
 
 ## Commands
 
-The everyday `devtools` commands are in `.claude/shared/r-package.md`. Two
+The everyday `devtools` commands are in the shared `r-package.md` rules. Two
 additions:
 
 ```sh
@@ -256,7 +254,7 @@ the writer's text function is `pdf_draw_text()`, the native font table
 
 ## Editing rules
 
-These add to `.claude/shared/r-package.md`, or depart from it where stated.
+These add to the shared `r-package.md` rules, or depart from it where stated.
 
 - **No `README.Rmd`, unlike the shared rule**: edit `README.md` directly and
   run its example.
@@ -353,7 +351,7 @@ tarball from 1.6.0, in `src/vendor/pdfio/` with provenance in
 `src/vendor/PROVENANCE`. Re-vendor with `tools/update-pdfio <version>`,
 never by hand. The `License:` field is `MIT + file LICENSE` with
 `Copyright: file inst/COPYRIGHTS` (design D15). The rules are in
-`.claude/shared/native-code.md`; what follows is zupdf's.
+the shared `native-code.md` rules; what follows is zupdf's.
 
 - The RFC's reading of `master` (1.7.0) is recorded in design §9 as what
   arrives when that tag exists. 1.6.5 carries the AES fix
